@@ -1073,10 +1073,10 @@ void wget_test(int first_key, ...)
 			if (expected_files[it].timestamp && st.st_mtime != expected_files[it].timestamp)
 				wget_error_printf_exit(_("Unexpected timestamp '%s/%s' [%s]\n"), tmpdir, fname, options);
 		}
-	}
 
-	// look if there are unexpected files in our working dir
-	_scan_for_unexpected(".", expected_files);
+		// look if there are unexpected files in our working dir
+		_scan_for_unexpected(".", expected_files);
+	}
 
 	wget_vector_clear(request_urls);
 	wget_buffer_free(&cmd);

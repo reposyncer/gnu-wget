@@ -75,6 +75,10 @@ extern "C" {
 // defines for wget_test_check_file_system()
 #define WGET_TEST_FS_CASEMATTERS 3001 // file system is case-sensitive
 
+// defines for wget_test_url_t.scope
+#define WGET_TEST_URL_SCOPE_HTTP  1 // ony available by http://
+#define WGET_TEST_URL_SCOPE_HTTPS 2 // ony available by https://
+
 #define countof(a) (sizeof(a)/sizeof(*(a)))
 
 #define TEST_OPAQUE_STR "11733b200778ce33060f31c9af70a870ba96ddd4"
@@ -119,6 +123,8 @@ typedef struct {
 		body_alloc; // if body has been allocated internally (and need to be freed on exit)
 	char
 		header_alloc[10]; // if header[n] has been allocated internally (and need to be freed on exit)
+	char
+		scope; //
 
 	// auth fields
 	const char *
