@@ -95,7 +95,7 @@ static void *_http_server_thread(void *ctx)
 	ssize_t from_bytes, to_bytes, n;
 	size_t nbytes, body_len, request_url_length;
 	unsigned it;
-	int byterange, authorized;
+	int byterange, authorized, https;
 	time_t modified;
 
 #ifdef _WIN32
@@ -103,6 +103,8 @@ static void *_http_server_thread(void *ctx)
 #else
 	sigaction(SIGTERM, &(struct sigaction) { .sa_handler = sigterm_handler }, NULL);
 #endif
+
+	https = wget_tcp_get_ssl(parent_tcp);
 
 	while (!terminate) {
 		wget_tcp_deinit(&tcp);
@@ -168,8 +170,13 @@ static void *_http_server_thread(void *ctx)
 							(!strncmp(request_url, urls[it].name, request_url_length) &&
 							!strcmp(urls[it].name + request_url_length, "index.html")))
 						{
-							url = &urls[it];
-							break;
+							if (urls[it].scope == 0
+								|| (https && (urls[it].scope & WGET_TEST_URL_SCOPE_HTTPS))
+								|| (!https && (urls[it].scope & WGET_TEST_URL_SCOPE_HTTP)))
+							{
+								url = &urls[it];
+								break;
+							}
 						}
 					}
 				} else {
@@ -177,8 +184,13 @@ static void *_http_server_thread(void *ctx)
 					for (it = 0; it < nurls; it++) {
 						// printf("%s %s\n", request_url, urls[it].name);
 						if (!strcmp(request_url, urls[it].name)) {
-							url = &urls[it];
-							break;
+							if (urls[it].scope == 0
+								|| (https && (urls[it].scope & WGET_TEST_URL_SCOPE_HTTPS))
+								|| (!https && (urls[it].scope & WGET_TEST_URL_SCOPE_HTTP)))
+							{
+								url = &urls[it];
+								break;
+							}
 						}
 					}
 				}
@@ -897,10 +909,10 @@ void wget_test(int first_key, ...)
 			if (expected_files[it].timestamp && st.st_mtime != expected_files[it].timestamp)
 				wget_error_printf_exit(_("Unexpected timestamp %s/%s [%s]\n"), tmpdir, expected_files[it].name, options);
 		}
-	}
 
-	// look if there are unexpected files in our working dir
-	_scan_for_unexpected(".", expected_files);
+		// look if there are unexpected files in our working dir
+		_scan_for_unexpected(".", expected_files);
+	}
 
 	wget_vector_clear(request_urls);
 	wget_buffer_free(&cmd);

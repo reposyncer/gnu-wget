@@ -73,6 +73,10 @@ extern "C" {
 // defines for wget_test_check_file_system()
 #define WGET_TEST_FS_CASEMATTERS 3001 // file system is case-sensitive
 
+// defines for wget_test_url_t.scope
+#define WGET_TEST_URL_SCOPE_HTTP  1 // ony available by http://
+#define WGET_TEST_URL_SCOPE_HTTPS 2 // ony available by https://
+
 #define countof(a) (sizeof(a)/sizeof(*(a)))
 
 G_GNUC_WGET_UNUSED static const char *WGET_TEST_SOME_HTML_BODY = "\
@@ -113,6 +117,8 @@ typedef struct {
 		body_alloc; // if body has been allocated internally (and need to be freed on exit)
 	char
 		header_alloc[10]; // if header[n] has been allocated internally (and need to be freed on exit)
+	char
+		scope; //
 
 	// auth fields
 	const char *
