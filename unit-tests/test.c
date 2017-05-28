@@ -479,6 +479,24 @@ integer_tests:
 		}
 	}
 
+	// special calls for code coverage
+	CHECK(wget_buffer_printf(&buf, "%Ld", 10LL) == 2);
+	CHECK(!strcmp(buf.data, "10"));
+	// Have to implement 'alternate' representation
+//	CHECK(wget_buffer_printf(&buf, "%10p", (void *) 10LL) == 10);
+//	CHECK(!strcmp(buf.data, "       0xa"));
+	CHECK(wget_buffer_printf(&buf, "%2c", 64) == 2);
+	CHECK(!strcmp(buf.data, " @"));
+	CHECK(wget_buffer_printf(&buf, "%s", (char *) NULL) == 6);
+	CHECK(!strcmp(buf.data, "(null)"));
+	CHECK(wget_buffer_printf(&buf, "%*d", -5, 10) == 5);
+	CHECK(!strcmp(buf.data, "10   "));
+	CHECK(wget_buffer_printf(&buf, "%.#d", 10) == 4);
+	CHECK(!strcmp(buf.data, "%.#d"));
+	info_printf("%s\n", result);
+//	CHECK(sprintf(result, "%.#d", 10) == 4);
+//	info_printf("%s\n", result); // libc sprintf generates '%.0#d' which seems wrong
+
 	wget_buffer_deinit(&buf);
 }
 
