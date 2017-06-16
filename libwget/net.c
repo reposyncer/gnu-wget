@@ -135,9 +135,25 @@ static struct wget_tcp_st _global_tcp = {
 	.tcp_fastopen = 1,
 #elif defined TCP_FASTOPEN_LINUX
 	.tcp_fastopen = 1,
-	.first_send = 1
+	.first_send = 1,
 #endif
+	.version = NULL,
+	.resumed = 0,
+	.false_start = NULL,
+	.tfo = NULL,
+	.alpn_protocol = NULL,
+	.tcp_protocol = WGET_PROTOCOL_HTTP_1_1,
+	.cert_chain_size = 0,
 };
+
+typedef struct
+{
+	const char *host;
+	const char *ip;
+	long long dns_secs;	// milliseconds
+} _stats_data_t;
+
+static wget_stats_callback_t stats_callback;
 
 /* Resolver / DNS cache container */
 static wget_vector_t
@@ -613,6 +629,27 @@ int wget_tcp_get_local_port(wget_tcp_t *tcp)
 	return 0;
 }
 
+void wget_tcp_set_stats_dns(wget_stats_callback_t fn)
+{
+	stats_callback = fn;
+}
+
+const void *wget_tcp_get_stats_dns(const wget_dns_stats_t type, const void *_stats)
+{
+	const _stats_data_t *stats = (_stats_data_t *) _stats;
+
+	switch(type) {
+	case WGET_STATS_DNS_HOST:
+		return stats->host;
+	case WGET_STATS_DNS_IP:
+		return stats->ip;
+	case WGET_STATS_DNS_SECS:
+		return &(stats->dns_secs);
+	default:
+		return NULL;
+	}
+}
+
 /**
  * \param[in] tcp A TCP connection.
  * \param[in] timeout The timeout value.
@@ -917,6 +954,7 @@ int wget_tcp_connect(wget_tcp_t *tcp, const char *host, uint16_t port)
 	int sockfd = -1, rc, ret = WGET_E_UNKNOWN;
 	char adr[NI_MAXHOST], s_port[NI_MAXSERV];
 	int debug = wget_logger_is_active(wget_get_logger(WGET_LOGGER_DEBUG));
+	long long before_milisecs;
 
 	if (unlikely(!tcp))
 		return -1;
@@ -924,7 +962,32 @@ int wget_tcp_connect(wget_tcp_t *tcp, const char *host, uint16_t port)
 	if (tcp->addrinfo_allocated)
 		freeaddrinfo(tcp->addrinfo);
 
-	tcp->addrinfo = wget_tcp_resolve(tcp, host, port);
+	if (stats_callback)
+		before_milisecs = wget_get_timemillis();
+
+	ai = tcp->addrinfo = wget_tcp_resolve(tcp, host, port);
+
+	if (stats_callback) {
+		_stats_data_t stats;
+
+		long long after_milisecs = wget_get_timemillis();
+		stats.dns_secs = after_milisecs - before_milisecs;
+		stats.host = host;
+
+		if (ai) {
+			rc = getnameinfo(ai->ai_addr, ai->ai_addrlen,
+				adr, sizeof(adr),
+				NULL, 0,
+				NI_NUMERICHOST);
+			if (rc == 0)
+				stats.ip = adr;
+			else
+				stats.ip = "???";
+		} else
+			stats.ip = NULL;
+		stats_callback(WGET_STATS_TYPE_DNS, &stats);
+	}
+
 	tcp->addrinfo_allocated = !tcp->caching;
 
 	for (ai = tcp->addrinfo; ai; ai = ai->ai_next) {
@@ -1010,9 +1073,8 @@ int wget_tcp_connect(wget_tcp_t *tcp, const char *host, uint16_t port)
 
 				return WGET_E_SUCCESS;
 			}
-		} else {
+		} else
 			error_printf(_("Failed to create socket (%d)\n"), errno);
-		}
 	}
 
 	return ret;

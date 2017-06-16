@@ -60,6 +60,7 @@
 #include "wget_xattr.h"
 #include "wget_dl.h"
 #include "wget_plugin.h"
+#include "wget_stats.h"
 
 #define URL_FLG_REDIRECTION  (1<<0)
 #define URL_FLG_SITEMAP      (1<<1)
@@ -916,6 +917,8 @@ int main(int argc, const char **argv)
 		set_exit_status(1);
 		goto out;
 	}
+
+	stats_init();
 
 	for (; n < argc; n++) {
 		add_url_to_queue(argv[n], config.base, config.local_encoding);
