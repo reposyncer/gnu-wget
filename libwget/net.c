@@ -350,10 +350,14 @@ struct addrinfo *wget_tcp_resolve(wget_tcp_t *tcp, const char *host, uint16_t po
 		mutex = WGET_THREAD_MUTEX_INITIALIZER;
 	struct addrinfo *addrinfo = NULL;
 	int rc = 0;
+	long long before_millisecs;
+	_stats_data_t stats;
 
 	if (!tcp)
 		tcp = &_global_tcp;
 
+	if (stats_callback)
+		before_millisecs = wget_get_timemillis();
 	// get the IP address for the server
 	for (int tries = 0, max = 3; tries < max; tries++) {
 		if (tcp->caching) {
@@ -382,6 +386,12 @@ struct addrinfo *wget_tcp_resolve(wget_tcp_t *tcp, const char *host, uint16_t po
 		}
 	}
 
+	if(stats_callback) {
+		long long after_millisecs = wget_get_timemillis();
+		stats.dns_secs = after_millisecs - before_millisecs;
+		stats.host = host;
+	}
+
 	if (rc) {
 		error_printf(_("Failed to resolve %s (%s)\n"),
 				(host ? host : ""), gai_strerror(rc));
@@ -389,11 +399,27 @@ struct addrinfo *wget_tcp_resolve(wget_tcp_t *tcp, const char *host, uint16_t po
 		if (tcp->caching)
 			wget_thread_mutex_unlock(&mutex);
 
+		if(stats_callback) {
+			stats.ip = NULL;
+			stats_callback(WGET_STATS_TYPE_DNS, &stats);
+		}
+
 		return NULL;
 	}
 
 	if (tcp->family == AF_UNSPEC && tcp->preferred_family != AF_UNSPEC)
 		addrinfo = _wget_sort_preferred(addrinfo, tcp->preferred_family);
+
+	if (stats_callback) {
+		char adr[NI_MAXHOST], sport[NI_MAXSERV];
+
+		if ((rc = getnameinfo(addrinfo->ai_addr, addrinfo->ai_addrlen, adr, sizeof(adr), sport, sizeof(sport), NI_NUMERICHOST | NI_NUMERICSERV)) == 0)
+			stats.ip = adr;
+		else
+			stats.ip = "???";
+
+		stats_callback(WGET_STATS_TYPE_DNS, &stats);
+	}
 
 	/* Finally, print the address list to the debug pipe if enabled */
 	if (wget_logger_is_active(wget_get_logger(WGET_LOGGER_DEBUG))) {
@@ -954,7 +980,6 @@ int wget_tcp_connect(wget_tcp_t *tcp, const char *host, uint16_t port)
 	int sockfd = -1, rc, ret = WGET_E_UNKNOWN;
 	char adr[NI_MAXHOST], s_port[NI_MAXSERV];
 	int debug = wget_logger_is_active(wget_get_logger(WGET_LOGGER_DEBUG));
-	long long before_milisecs;
 
 	if (unlikely(!tcp))
 		return -1;
@@ -962,31 +987,7 @@ int wget_tcp_connect(wget_tcp_t *tcp, const char *host, uint16_t port)
 	if (tcp->addrinfo_allocated)
 		freeaddrinfo(tcp->addrinfo);
 
-	if (stats_callback)
-		before_milisecs = wget_get_timemillis();
-
 	ai = tcp->addrinfo = wget_tcp_resolve(tcp, host, port);
-
-	if (stats_callback) {
-		_stats_data_t stats;
-
-		long long after_milisecs = wget_get_timemillis();
-		stats.dns_secs = after_milisecs - before_milisecs;
-		stats.host = host;
-
-		if (ai) {
-			rc = getnameinfo(ai->ai_addr, ai->ai_addrlen,
-				adr, sizeof(adr),
-				NULL, 0,
-				NI_NUMERICHOST);
-			if (rc == 0)
-				stats.ip = adr;
-			else
-				stats.ip = "???";
-		} else
-			stats.ip = NULL;
-		stats_callback(WGET_STATS_TYPE_DNS, &stats);
-	}
 
 	tcp->addrinfo_allocated = !tcp->caching;
 

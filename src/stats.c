@@ -26,7 +26,8 @@
 #include "wget_stats.h"
 #include "wget_options.h"
 
-wget_vector_t *stats_v;
+static wget_vector_t *dns_stats_v;
+static wget_thread_mutex_t mutex = WGET_THREAD_MUTEX_INITIALIZER;
 
 static void stats_callback(wget_stats_type_t type, const void *stats)
 {
@@ -34,11 +35,13 @@ static void stats_callback(wget_stats_type_t type, const void *stats)
 	case WGET_STATS_TYPE_DNS: {
 		dns_stats_t dns_stats;
 
-		dns_stats.host = wget_tcp_get_stats_dns(WGET_STATS_DNS_HOST, stats);
-		dns_stats.ip = wget_tcp_get_stats_dns(WGET_STATS_DNS_IP, stats);
-		dns_stats.millisecs = wget_tcp_get_stats_dns(WGET_STATS_DNS_SECS, stats);
+		dns_stats.host = wget_strdup(wget_tcp_get_stats_dns(WGET_STATS_DNS_HOST, stats));
+		dns_stats.ip = wget_strdup(wget_tcp_get_stats_dns(WGET_STATS_DNS_IP, stats));
+		dns_stats.millisecs = *((long long *)wget_tcp_get_stats_dns(WGET_STATS_DNS_SECS, stats));
 
-		wget_vector_add(stats_v, &dns_stats, sizeof(dns_stats_t));
+		wget_thread_mutex_lock(&mutex);
+		wget_vector_add(dns_stats_v, &dns_stats, sizeof(dns_stats_t));
+		wget_thread_mutex_unlock(&mutex);
 
 		break;
 	}
@@ -76,11 +79,36 @@ static void stats_callback(wget_stats_type_t type, const void *stats)
 	}
 }
 
+static void free_dns_stats(dns_stats_t *stats)
+{
+	if (stats) {
+		xfree(stats->host);
+		xfree(stats->ip);
+	}
+}
+
 void stats_init(void)
 {
-	stats_v = wget_vector_create(8, 1, NULL);
-	if (config.stats_dns)
+
+	if (config.stats_dns) {
+		dns_stats_v = wget_vector_create(8, -2, NULL);
+		wget_vector_set_destructor(dns_stats_v, (wget_vector_destructor_t) free_dns_stats);
 		wget_tcp_set_stats_dns(stats_callback);
+	}
 //	if (config.stats_tls)
 //		wget_tcp_set_stats_tls(stats_callback);
+}
+
+void stats_print(void)
+{
+	if (config.stats_dns) {
+		info_printf("\nDNS timings:\n");
+		info_printf("  %4s %s\n", "ms", "Host");
+		for (int it = 0; it < wget_vector_size(dns_stats_v); it++) {
+			const dns_stats_t *dns_stats = wget_vector_get(dns_stats_v, it);
+			info_printf("  %4lld %s (%s)\n", dns_stats->millisecs, dns_stats->host, dns_stats->ip);
+		}
+	}
+
+	wget_vector_free(&dns_stats_v);
 }

@@ -1107,6 +1107,8 @@ int main(int argc, const char **argv)
 		wget_vector_free(&conversions);
 	}
 
+	stats_print();
+
  out:
 	if (wget_match_tail(argv[0], "wget2_noinstall")) {
 		// freeing to avoid disguising valgrind output

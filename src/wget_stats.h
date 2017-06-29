@@ -28,10 +28,11 @@ typedef struct {
 	const char
 		*host,
 		*ip;
-	const long long
-		*millisecs;
-}dns_stats_t;
+	long long
+		millisecs;
+} dns_stats_t;
 
 void stats_init(void);
+void stats_print(void);
 
 #endif
