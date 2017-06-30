@@ -27,7 +27,9 @@
 #include "wget_options.h"
 
 static wget_vector_t *dns_stats_v;
-static wget_thread_mutex_t mutex = WGET_THREAD_MUTEX_INITIALIZER;
+static wget_vector_t *tls_stats_v;
+static wget_thread_mutex_t dns_mutex = WGET_THREAD_MUTEX_INITIALIZER;
+static wget_thread_mutex_t tls_mutex = WGET_THREAD_MUTEX_INITIALIZER;
 
 static void stats_callback(wget_stats_type_t type, const void *stats)
 {
@@ -39,36 +41,29 @@ static void stats_callback(wget_stats_type_t type, const void *stats)
 		dns_stats.ip = wget_strdup(wget_tcp_get_stats_dns(WGET_STATS_DNS_IP, stats));
 		dns_stats.millisecs = *((long long *)wget_tcp_get_stats_dns(WGET_STATS_DNS_SECS, stats));
 
-		wget_thread_mutex_lock(&mutex);
+		wget_thread_mutex_lock(&dns_mutex);
 		wget_vector_add(dns_stats_v, &dns_stats, sizeof(dns_stats_t));
-		wget_thread_mutex_unlock(&mutex);
+		wget_thread_mutex_unlock(&dns_mutex);
 
 		break;
 	}
 
 	case WGET_STATS_TYPE_TLS: {
-		const char
-			*version,
-			*false_start,
-			*tfo,
-			*alpn_proto,
-			*tls_con,
-			*resumed,
-			*tcp_proto;
-		unsigned int *cert_chain_size;
-		const long long *millisecs;
-/*
-		version = wget_tcp_get_stats_tls(WGET_STATS_TLS_VERSION, stats);
-		false_start = wget_tcp_get_stats_tls(WGET_STATS_TLS_FALSE_START, stats);
-		tfo = wget_tcp_get_stats_tls(WGET_STATS_TLS_TFO, stats);
-		alpn_proto = wget_tcp_get_stats_tls(WGET_STATS_TLS_ALPN_PROTO, stats);
-		milisecs = wget_tcp_get_stats_tls(WGET_STATS_TLS_SECS, stats);
-		tls_con = wget_tcp_get_stats_tls(WGET_STATS_TLS_CON, stats);
-		resumed = wget_tcp_get_stats_tls(WGET_STATS_TLS_RESUMED, stats);
-		tcp_proto = wget_tcp_get_stats_tls(WGET_STATS_TLS_TCP_PROTO, stats);
-		cert_chain_size = wget_tcp_get_stats_tls(WGET_STATS_TLS_CERT_CHAIN_SIZE, stats);
-*/
-		info_printf("%s negotiation took %lld milisecs\n", version, *millisecs);
+		tls_stats_t tls_stats;
+
+		tls_stats.version = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_VERSION, stats));
+		tls_stats.false_start = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_FALSE_START, stats));
+		tls_stats.tfo = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_TFO, stats));
+		tls_stats.alpn_proto = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_ALPN_PROTO, stats));
+		tls_stats.tls_con = *((char *)wget_tcp_get_stats_tls(WGET_STATS_TLS_CON, stats));
+		tls_stats.resumed = *((char *)wget_tcp_get_stats_tls(WGET_STATS_TLS_RESUMED, stats));
+		tls_stats.tcp_protocol = *((char *)wget_tcp_get_stats_tls(WGET_STATS_TLS_TCP_PROTO, stats));
+		tls_stats.millisecs = *((long long *)wget_tcp_get_stats_tls(WGET_STATS_TLS_SECS, stats));
+		tls_stats.cert_chain_size = *((unsigned int *)wget_tcp_get_stats_tls(WGET_STATS_TLS_CERT_CHAIN_SIZE, stats));
+
+		wget_thread_mutex_lock(&tls_mutex);
+		wget_vector_add(tls_stats_v, &tls_stats, sizeof(tls_stats_t));
+		wget_thread_mutex_unlock(&tls_mutex);
 
 		break;
 	}
@@ -87,6 +82,16 @@ static void free_dns_stats(dns_stats_t *stats)
 	}
 }
 
+static void free_tls_stats(tls_stats_t *stats)
+{
+	if (stats) {
+		xfree(stats->version);
+		xfree(stats->false_start);
+		xfree(stats->tfo);
+		xfree(stats->alpn_proto);
+	}
+}
+
 void stats_init(void)
 {
 
@@ -95,8 +100,12 @@ void stats_init(void)
 		wget_vector_set_destructor(dns_stats_v, (wget_vector_destructor_t) free_dns_stats);
 		wget_tcp_set_stats_dns(stats_callback);
 	}
-//	if (config.stats_tls)
-//		wget_tcp_set_stats_tls(stats_callback);
+
+	if (config.stats_tls) {
+		tls_stats_v = wget_vector_create(8, -2, NULL);
+		wget_vector_set_destructor(tls_stats_v, (wget_vector_destructor_t) free_tls_stats);
+		wget_tcp_set_stats_tls(stats_callback);
+	}
 }
 
 void stats_print(void)
@@ -110,5 +119,22 @@ void stats_print(void)
 		}
 	}
 
+	if (config.stats_tls) {
+		info_printf("\nTLS Statistics:\n");
+		for (int it = 0; it < wget_vector_size(tls_stats_v); it++) {
+			const tls_stats_t *tls_stats = wget_vector_get(tls_stats_v, it);
+			info_printf("Version         : %s\n", tls_stats->version);
+			info_printf("False Start     : %s\n", tls_stats->false_start);
+			info_printf("TFO             : %s\n", tls_stats->tfo);
+			info_printf("ALPN Protocol   : %s\n", tls_stats->alpn_proto);
+			info_printf("Resumed         : %s\n", tls_stats->resumed ? "Yes" : "No");
+			info_printf("TCP Protocol    : %s\n", tls_stats->tcp_protocol? "HTTP/2": "HTTP/1.1");
+			info_printf("Cert Chain Size : %u\n", tls_stats->cert_chain_size);
+			info_printf("TLS negotiation\n");
+			info_printf("duration (ms)   : %lld\n\n", tls_stats->millisecs);
+		}
+	}
+
 	wget_vector_free(&dns_stats_v);
+	wget_vector_free(&tls_stats_v);
 }

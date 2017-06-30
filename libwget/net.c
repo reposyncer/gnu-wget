@@ -137,13 +137,6 @@ static struct wget_tcp_st _global_tcp = {
 	.tcp_fastopen = 1,
 	.first_send = 1,
 #endif
-	.version = NULL,
-	.resumed = 0,
-	.false_start = NULL,
-	.tfo = NULL,
-	.alpn_protocol = NULL,
-	.tcp_protocol = WGET_PROTOCOL_HTTP_1_1,
-	.cert_chain_size = 0,
 };
 
 typedef struct
@@ -386,7 +379,7 @@ struct addrinfo *wget_tcp_resolve(wget_tcp_t *tcp, const char *host, uint16_t po
 		}
 	}
 
-	if(stats_callback) {
+	if (stats_callback) {
 		long long after_millisecs = wget_get_timemillis();
 		stats.dns_secs = after_millisecs - before_millisecs;
 		stats.host = host;
@@ -399,7 +392,7 @@ struct addrinfo *wget_tcp_resolve(wget_tcp_t *tcp, const char *host, uint16_t po
 		if (tcp->caching)
 			wget_thread_mutex_unlock(&mutex);
 
-		if(stats_callback) {
+		if (stats_callback) {
 			stats.ip = NULL;
 			stats_callback(WGET_STATS_TYPE_DNS, &stats);
 		}

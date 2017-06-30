@@ -32,6 +32,20 @@ typedef struct {
 		millisecs;
 } dns_stats_t;
 
+typedef struct {
+	const char
+		*version,
+		*false_start,
+		*tfo,
+		*alpn_proto;
+	char
+		tls_con,
+		resumed,
+		tcp_protocol;
+	unsigned int cert_chain_size;
+	long long millisecs;
+} tls_stats_t;
+
 void stats_init(void);
 void stats_print(void);
 
