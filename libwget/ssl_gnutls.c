@@ -757,15 +757,23 @@ static int _cert_verify_hpkp(gnutls_x509_crt_t cert, const char *hostname, gnutl
 	xfree(data);
 #endif
 
+	if(1)// stats_callback for --stats-server
+		tcp = gnutls_transport_get_ptr(session);
+
 	if (rc != -2) {
-		if (rc == 0)
-			debug_printf("host has no pubkey pinnings\n");
-		else if (rc == 1)
+		if (rc == 0) {
+			debug_printf("host has no pubkey pinnings stored in hpkp db\n");
+			if(1) // stats_callback for --stats-server
+				tcp->hpkp = WGET_STATS_HPKP_NO;
+		} else if (rc == 1) {
 			debug_printf("pubkey is matching a pinning\n");
-		else if (rc == -1)
+			if(1) // stats_callback for --stats-server
+				tcp->hpkp = WGET_STATS_HPKP_MATCH;
+		} else if (rc == -1)
 			error_printf("Error while checking pubkey pinning\n");
 		ret = 0;
-	}
+	} else if(1) // stats_callback for --stats-server
+		tcp->hpkp = WGET_STATS_HPKP_NOMATCH;
 
 out:
 	gnutls_pubkey_deinit(key);
@@ -1309,8 +1317,11 @@ int wget_ssl_open(wget_tcp_t *tcp)
 	if (!tcp)
 		return WGET_E_INVALID;
 
-	if (!_init)
+	if (!_init) {
+		if (1)
+			gnutls_transport_set_ptr(session, tcp);
 		wget_ssl_init();
+	}
 
 	hostname = tcp->ssl_hostname;
 	sockfd= tcp->sockfd;

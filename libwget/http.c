@@ -54,6 +54,7 @@
 #include <wget.h>
 #include "private.h"
 #include "http.h"
+#include "net.h"
 
 static char
 	_abort_indicator;
@@ -904,8 +905,8 @@ wget_http_response_t *wget_http_get_response_cb(wget_http_connection_t *conn)
 				_stats_data_t stats;
 
 //				stats.hostname = ;
-//				if (1)
-//					stats.hpkp = conn->tcp->hpkp;
+				if (1)
+					stats.hpkp = conn->tcp->hpkp;
 
 				stats.hsts = resp->hsts;
 				stats.csp = resp->csp;

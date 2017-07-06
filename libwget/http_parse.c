@@ -1065,7 +1065,7 @@ int wget_http_parse_header_line(wget_http_response_t *resp, const char *name, si
 				wget_http_parse_content_disposition(value0, &resp->content_filename);
 		} else if (!wget_strncasecmp_ascii(name, "connection", namelen)) {
 			wget_http_parse_connection(value0, &resp->keep_alive);
-		} else if (!wget_strncasecmp_ascii(name, "Content-Security-Policy", namelen))
+		} else if (!wget_strncasecmp_ascii(name, "Content-Security-Policy", namelen)) {
 			resp->csp = 1;
 		} else
 			ret = -1;
