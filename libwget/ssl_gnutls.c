@@ -63,6 +63,7 @@
 typedef struct
 {
 	const char
+		*hostname,
 		*version,
 		*false_start,
 		*tfo,
@@ -1491,6 +1492,7 @@ int wget_ssl_open(wget_tcp_t *tcp)
 	}
 
 	if (stats_callback) {
+		stats.hostname = hostname;
 		stats_callback(WGET_STATS_TYPE_TLS, &stats);
 		xfree(stats.alpn_protocol);
 	}
@@ -1765,6 +1767,8 @@ const void *wget_tcp_get_stats_tls(wget_tls_stats_t type, const void *_stats)
 	const _stats_data_t *stats = (_stats_data_t *) _stats;
 
 	switch(type) {
+	case WGET_STATS_TLS_HOSTNAME:
+		return stats->hostname;
 	case WGET_STATS_TLS_VERSION:
 		return stats->version;
 	case WGET_STATS_TLS_FALSE_START:

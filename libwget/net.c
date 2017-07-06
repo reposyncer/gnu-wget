@@ -141,8 +141,9 @@ static struct wget_tcp_st _global_tcp = {
 
 typedef struct
 {
-	const char *host;
-	const char *ip;
+	const char
+		*hostname,
+		*ip;
 	long long dns_secs;	// milliseconds
 } _stats_data_t;
 
@@ -382,7 +383,7 @@ struct addrinfo *wget_tcp_resolve(wget_tcp_t *tcp, const char *host, uint16_t po
 	if (stats_callback) {
 		long long after_millisecs = wget_get_timemillis();
 		stats.dns_secs = after_millisecs - before_millisecs;
-		stats.host = host;
+		stats.hostname = host;
 	}
 
 	if (rc) {
@@ -659,7 +660,7 @@ const void *wget_tcp_get_stats_dns(const wget_dns_stats_t type, const void *_sta
 
 	switch(type) {
 	case WGET_STATS_DNS_HOST:
-		return stats->host;
+		return stats->hostname;
 	case WGET_STATS_DNS_IP:
 		return stats->ip;
 	case WGET_STATS_DNS_SECS:

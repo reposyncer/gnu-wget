@@ -51,6 +51,7 @@ static void stats_callback(wget_stats_type_t type, const void *stats)
 	case WGET_STATS_TYPE_TLS: {
 		tls_stats_t tls_stats;
 
+		tls_stats.hostname = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_HOSTNAME, stats));
 		tls_stats.version = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_VERSION, stats));
 		tls_stats.false_start = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_FALSE_START, stats));
 		tls_stats.tfo = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_TFO, stats));
@@ -85,6 +86,7 @@ static void free_dns_stats(dns_stats_t *stats)
 static void free_tls_stats(tls_stats_t *stats)
 {
 	if (stats) {
+		xfree(stats->hostname);
 		xfree(stats->version);
 		xfree(stats->false_start);
 		xfree(stats->tfo);
@@ -123,15 +125,16 @@ void stats_print(void)
 		info_printf("\nTLS Statistics:\n");
 		for (int it = 0; it < wget_vector_size(tls_stats_v); it++) {
 			const tls_stats_t *tls_stats = wget_vector_get(tls_stats_v, it);
-			info_printf("Version         : %s\n", tls_stats->version);
-			info_printf("False Start     : %s\n", tls_stats->false_start);
-			info_printf("TFO             : %s\n", tls_stats->tfo);
-			info_printf("ALPN Protocol   : %s\n", tls_stats->alpn_proto);
-			info_printf("Resumed         : %s\n", tls_stats->resumed ? "Yes" : "No");
-			info_printf("TCP Protocol    : %s\n", tls_stats->tcp_protocol? "HTTP/2": "HTTP/1.1");
-			info_printf("Cert Chain Size : %u\n", tls_stats->cert_chain_size);
-			info_printf("TLS negotiation\n");
-			info_printf("duration (ms)   : %lld\n\n", tls_stats->millisecs);
+			info_printf("  %s:\n", tls_stats->hostname);
+			info_printf("    Version         : %s\n", tls_stats->version);
+			info_printf("    False Start     : %s\n", tls_stats->false_start);
+			info_printf("    TFO             : %s\n", tls_stats->tfo);
+			info_printf("    ALPN Protocol   : %s\n", tls_stats->alpn_proto);
+			info_printf("    Resumed         : %s\n", tls_stats->resumed ? "Yes" : "No");
+			info_printf("    TCP Protocol    : %s\n", tls_stats->tcp_protocol? "HTTP/2": "HTTP/1.1");
+			info_printf("    Cert Chain Size : %u\n", tls_stats->cert_chain_size);
+			info_printf("    TLS negotiation\n");
+			info_printf("    duration (ms)   : %lld\n\n", tls_stats->millisecs);
 		}
 	}
 

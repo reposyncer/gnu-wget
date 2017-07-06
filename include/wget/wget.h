@@ -2163,6 +2163,7 @@ typedef enum {
 } wget_dns_stats_t;
 
 typedef enum {
+	WGET_STATS_TLS_HOSTNAME,
 	WGET_STATS_TLS_VERSION,
 	WGET_STATS_TLS_FALSE_START,
 	WGET_STATS_TLS_TFO,

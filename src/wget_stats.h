@@ -34,6 +34,7 @@ typedef struct {
 
 typedef struct {
 	const char
+		*hostname,
 		*version,
 		*false_start,
 		*tfo,
