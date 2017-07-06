@@ -708,10 +708,11 @@ static int cert_verify_ocsp(gnutls_x509_crt_t cert, gnutls_x509_crt_t issuer)
 }
 #endif // HAVE_GNUTLS_OCSP_H
 
-static int _cert_verify_hpkp(gnutls_x509_crt_t cert, const char *hostname)
+static int _cert_verify_hpkp(gnutls_x509_crt_t cert, const char *hostname, gnutls_session_t session)
 {
 	gnutls_pubkey_t key = NULL;
 	int rc, ret = -1;
+	wget_tcp_t *tcp;
 
 	if (!_config.hpkp_cache)
 		return 0;
@@ -901,7 +902,7 @@ static int _verify_certificate_callback(gnutls_session_t session)
 		goto out;
 	}
 
-	if (_cert_verify_hpkp(cert, hostname)) {
+	if (_cert_verify_hpkp(cert, hostname, session)) {
 		error_printf(_("%s: Pubkey pinning mismatch!\n"), tag);
 		goto out;
 	}
