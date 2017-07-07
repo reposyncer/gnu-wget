@@ -58,6 +58,7 @@ typedef struct {
 } server_stats_t;
 
 void stats_init(void);
+void stats_printcvs(wget_stats_type_t, const char **, const int);
 void stats_print(void);
 
 #endif

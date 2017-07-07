@@ -141,12 +141,49 @@ void stats_init(void)
 	}
 }
 
+void stats_printcvs(wget_stats_type_t type, const char **header, const int header_len)
+{
+	for (int it = 0; it < header_len; it++) {
+		printf("%s", header[it]); // can't use info_printf as it prints newline mandatorily
+		if (it < header_len - 1)
+			printf(",");
+	}
+	printf("\n");
+
+	switch (type) {
+	case WGET_STATS_TYPE_TLS: {
+		const int vector_size = wget_vector_size(tls_stats_v);
+		for (int it = 0; it < vector_size; it++) {
+			const tls_stats_t *tls_stats = wget_vector_get(tls_stats_v, it);
+
+			printf("%s,", tls_stats->hostname);
+			printf("%s,", tls_stats->version);
+			printf("%s,", tls_stats->false_start);
+			printf("%s,", tls_stats->tfo);
+			printf("%s,", tls_stats->alpn_proto);
+			printf("%s,", tls_stats->resumed ? "Yes" : "No");
+			printf("%s,", tls_stats->tcp_protocol? "HTTP/2": "HTTP/1.1");
+			printf("%u,", tls_stats->cert_chain_size);
+			printf("%lld\n", tls_stats->millisecs);
+		}
+
+		break;
+	}
+
+	default:
+		error_printf("Unknown stats type\n");
+		break;
+	}
+
+}
+
 void stats_print(void)
 {
 	if (config.stats_dns) {
+		const int vector_size = wget_vector_size(dns_stats_v);
 		info_printf("\nDNS timings:\n");
 		info_printf("  %4s %s\n", "ms", "Host");
-		for (int it = 0; it < wget_vector_size(dns_stats_v); it++) {
+		for (int it = 0; it < vector_size; it++) {
 			const dns_stats_t *dns_stats = wget_vector_get(dns_stats_v, it);
 
 			info_printf("  %4lld %s (%s)\n", dns_stats->millisecs, dns_stats->host, dns_stats->ip);
@@ -156,8 +193,9 @@ void stats_print(void)
 	}
 
 	if (config.stats_tls) {
+		const int vector_size = wget_vector_size(tls_stats_v);
 		info_printf("\nTLS Statistics:\n");
-		for (int it = 0; it < wget_vector_size(tls_stats_v); it++) {
+		for (int it = 0; it < vector_size; it++) {
 			const tls_stats_t *tls_stats = wget_vector_get(tls_stats_v, it);
 
 			info_printf("  %s:\n", tls_stats->hostname);
@@ -171,6 +209,19 @@ void stats_print(void)
 			info_printf("    TLS negotiation\n");
 			info_printf("    duration (ms)   : %lld\n\n", tls_stats->millisecs);
 		}
+
+		const char *header[] = {
+				"Hostname",
+				"Version",
+				"False Start",
+				"TFO",
+				"ALPN",
+				"Resumed"
+				"TCP",
+				"Cert-chain Length",
+				"TLS negotiation duration"
+		};
+		stats_printcvs(WGET_STATS_TYPE_TLS, header, sizeof(header)/sizeof(header[0]));
 
 		wget_vector_free(&tls_stats_v);
 	}
