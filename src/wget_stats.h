@@ -43,7 +43,7 @@ typedef struct {
 		tls_con,
 		resumed,
 		tcp_protocol;
-	unsigned int cert_chain_size;
+	size_t cert_chain_size;
 	long long millisecs;
 } tls_stats_t;
 

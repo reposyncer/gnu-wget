@@ -148,8 +148,7 @@ void stats_printjson(wget_stats_type_t type)
 		info_printf("\nTLS Statistics (JSON):\n");
 		info_printf("[\n");
 
-		const int vector_size = wget_vector_size(tls_stats_v);
-		for (int it = 0; it < vector_size; it++) {
+		for (int it = 0; it < wget_vector_size(tls_stats_v); it++) {
 			const tls_stats_t *tls_stats = wget_vector_get(tls_stats_v, it);
 		info_printf("\t{\n");
 		info_printf("\t\t\"Hostname\" : \"%s\",\n", tls_stats->hostname);
@@ -159,14 +158,10 @@ void stats_printjson(wget_stats_type_t type)
 		info_printf("\t\t\"ALPN Protocol\" : \"%s\",\n", tls_stats->alpn_proto);
 		info_printf("\t\t\"Resumed\" : \"%s\",\n", tls_stats->resumed ? "Yes" : "No");
 		info_printf("\t\t\"TCP Protocol\" : \"%s\",\n", tls_stats->tcp_protocol? "HTTP/2": "HTTP/1.1");
-		info_printf("\t\t\"Cert-chain Size\" : %u,\n", tls_stats->cert_chain_size);
+		info_printf("\t\t\"Cert-chain Size\" : %z,\n", tls_stats->cert_chain_size);
 		info_printf("\t\t\"TLS negotiation duration\" : %lld,\n", tls_stats->millisecs);
-		printf("\t}"); // can't use info_printf
-		if (it < vector_size - 1)
-			info_printf(",\n");
+		info_printf(it < wget_vector_size(tls_stats_v) - 1 ? "\t},\n" : "\t}\n]\n");
 		}
-
-		info_printf("\n]\n");
 
 		break;
 	}
@@ -190,21 +185,22 @@ void stats_printcvs(wget_stats_type_t type, const char **header, const int heade
 
 	switch (type) {
 	case WGET_STATS_TYPE_TLS: {
-		const int vector_size = wget_vector_size(tls_stats_v);
-		for (int it = 0; it < vector_size; it++) {
+		for (int it = 0; it < wget_vector_size(tls_stats_v); it++) {
 			const tls_stats_t *tls_stats = wget_vector_get(tls_stats_v, it);
 
-			printf("%s,", tls_stats->hostname);
-			printf("%s,", tls_stats->version);
-			printf("%s,", tls_stats->false_start);
-			printf("%s,", tls_stats->tfo);
-			printf("%s,", tls_stats->alpn_proto);
-			printf("%s,", tls_stats->resumed ? "Yes" : "No");
-			printf("%s,", tls_stats->tcp_protocol? "HTTP/2": "HTTP/1.1");
-			printf("%u,", tls_stats->cert_chain_size);
-			printf("%lld\n", tls_stats->millisecs);
+			info_printf("%s,%s,%s,%s,%s,%s,%s,%z,%lld\n",
+					tls_stats->hostname,
+					tls_stats->version,
+					tls_stats->false_start,
+					tls_stats->tfo,
+					tls_stats->alpn_proto,
+					tls_stats->resumed ? "Yes" : "No",
+					tls_stats->tcp_protocol? "HTTP/2": "HTTP/1.1",
+					tls_stats->cert_chain_size,
+					tls_stats->millisecs);
 		}
 		info_printf("\n");
+
 		break;
 	}
 
@@ -218,10 +214,9 @@ void stats_printcvs(wget_stats_type_t type, const char **header, const int heade
 void stats_print(void)
 {
 	if (config.stats_dns) {
-		const int vector_size = wget_vector_size(dns_stats_v);
 		info_printf("\nDNS timings:\n");
 		info_printf("  %4s %s\n", "ms", "Host");
-		for (int it = 0; it < vector_size; it++) {
+		for (int it = 0; it < wget_vector_size(dns_stats_v); it++) {
 			const dns_stats_t *dns_stats = wget_vector_get(dns_stats_v, it);
 
 			info_printf("  %4lld %s (%s)\n", dns_stats->millisecs, dns_stats->host, dns_stats->ip);
@@ -231,9 +226,8 @@ void stats_print(void)
 	}
 
 	if (config.stats_tls) {
-		const int vector_size = wget_vector_size(tls_stats_v);
 		info_printf("\nTLS Statistics:\n");
-		for (int it = 0; it < vector_size; it++) {
+		for (int it = 0; it < wget_vector_size(tls_stats_v); it++) {
 			const tls_stats_t *tls_stats = wget_vector_get(tls_stats_v, it);
 
 			info_printf("  %s:\n", tls_stats->hostname);
@@ -243,7 +237,7 @@ void stats_print(void)
 			info_printf("    ALPN Protocol   : %s\n", tls_stats->alpn_proto);
 			info_printf("    Resumed         : %s\n", tls_stats->resumed ? "Yes" : "No");
 			info_printf("    TCP Protocol    : %s\n", tls_stats->tcp_protocol? "HTTP/2": "HTTP/1.1");
-			info_printf("    Cert Chain Size : %u\n", tls_stats->cert_chain_size);
+			info_printf("    Cert Chain Size : %z\n", tls_stats->cert_chain_size);
 			info_printf("    TLS negotiation\n");
 			info_printf("    duration (ms)   : %lld\n\n", tls_stats->millisecs);
 		}
