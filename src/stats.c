@@ -141,8 +141,46 @@ void stats_init(void)
 	}
 }
 
+void stats_printjson(wget_stats_type_t type)
+{
+	switch (type) {
+	case WGET_STATS_TYPE_TLS: {
+		info_printf("\nTLS Statistics (JSON):\n");
+		info_printf("[\n");
+
+		const int vector_size = wget_vector_size(tls_stats_v);
+		for (int it = 0; it < vector_size; it++) {
+			const tls_stats_t *tls_stats = wget_vector_get(tls_stats_v, it);
+		info_printf("\t{\n");
+		info_printf("\t\t\"Hostname\" : \"%s\",\n", tls_stats->hostname);
+		info_printf("\t\t\"Version\" : \"%s\",\n", tls_stats->version);
+		info_printf("\t\t\"False Start\" : \"%s\",\n", tls_stats->false_start);
+		info_printf("\t\t\"TFO\" : \"%s\",\n", tls_stats->tfo);
+		info_printf("\t\t\"ALPN Protocol\" : \"%s\",\n", tls_stats->alpn_proto);
+		info_printf("\t\t\"Resumed\" : \"%s\",\n", tls_stats->resumed ? "Yes" : "No");
+		info_printf("\t\t\"TCP Protocol\" : \"%s\",\n", tls_stats->tcp_protocol? "HTTP/2": "HTTP/1.1");
+		info_printf("\t\t\"Cert-chain Size\" : %u,\n", tls_stats->cert_chain_size);
+		info_printf("\t\t\"TLS negotiation duration\" : %lld,\n", tls_stats->millisecs);
+		printf("\t}"); // can't use info_printf
+		if (it < vector_size - 1)
+			info_printf(",\n");
+		}
+
+		info_printf("\n]\n");
+
+		break;
+	}
+
+	default:
+		error_printf("Unknown stats type\n");
+		break;
+	}
+
+}
+
 void stats_printcvs(wget_stats_type_t type, const char **header, const int header_len)
 {
+	info_printf("\nTLS Statistics (CSV):\n");
 	for (int it = 0; it < header_len; it++) {
 		printf("%s", header[it]); // can't use info_printf as it prints newline mandatorily
 		if (it < header_len - 1)
@@ -166,7 +204,7 @@ void stats_printcvs(wget_stats_type_t type, const char **header, const int heade
 			printf("%u,", tls_stats->cert_chain_size);
 			printf("%lld\n", tls_stats->millisecs);
 		}
-
+		info_printf("\n");
 		break;
 	}
 
@@ -222,6 +260,7 @@ void stats_print(void)
 				"TLS negotiation duration"
 		};
 		stats_printcvs(WGET_STATS_TYPE_TLS, header, sizeof(header)/sizeof(header[0]));
+		stats_printjson(WGET_STATS_TYPE_TLS);
 
 		wget_vector_free(&tls_stats_v);
 	}

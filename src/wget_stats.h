@@ -59,6 +59,7 @@ typedef struct {
 
 void stats_init(void);
 void stats_printcvs(wget_stats_type_t, const char **, const int);
+void stats_printjson(wget_stats_type_t);
 void stats_print(void);
 
 #endif
