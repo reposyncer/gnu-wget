@@ -64,7 +64,7 @@ static void stats_callback(wget_stats_type_t type, const void *stats)
 		tls_stats.resumed = *((char *)wget_tcp_get_stats_tls(WGET_STATS_TLS_RESUMED, stats));
 		tls_stats.tcp_protocol = *((char *)wget_tcp_get_stats_tls(WGET_STATS_TLS_TCP_PROTO, stats));
 		tls_stats.millisecs = *((long long *)wget_tcp_get_stats_tls(WGET_STATS_TLS_SECS, stats));
-		tls_stats.cert_chain_size = *((unsigned int *)wget_tcp_get_stats_tls(WGET_STATS_TLS_CERT_CHAIN_SIZE, stats));
+		tls_stats.cert_chain_size = *((size_t *)wget_tcp_get_stats_tls(WGET_STATS_TLS_CERT_CHAIN_SIZE, stats));
 
 		wget_thread_mutex_lock(&tls_mutex);
 		wget_vector_add(tls_stats_v, &tls_stats, sizeof(tls_stats_t));
@@ -158,8 +158,8 @@ void stats_printjson(wget_stats_type_t type)
 		info_printf("\t\t\"ALPN Protocol\" : \"%s\",\n", tls_stats->alpn_proto);
 		info_printf("\t\t\"Resumed\" : \"%s\",\n", tls_stats->resumed ? "Yes" : "No");
 		info_printf("\t\t\"TCP Protocol\" : \"%s\",\n", tls_stats->tcp_protocol? "HTTP/2": "HTTP/1.1");
-		info_printf("\t\t\"Cert-chain Size\" : %z,\n", tls_stats->cert_chain_size);
-		info_printf("\t\t\"TLS negotiation duration\" : %lld,\n", tls_stats->millisecs);
+		info_printf("\t\t\"Cert-chain Size\" : %zu,\n", tls_stats->cert_chain_size);
+		info_printf("\t\t\"TLS negotiation duration\" : %lld\n", tls_stats->millisecs);
 		info_printf(it < wget_vector_size(tls_stats_v) - 1 ? "\t},\n" : "\t}\n]\n");
 		}
 
@@ -182,15 +182,15 @@ void stats_printcvs(wget_stats_type_t type, const char **header, const int heade
 		if (it < header_len - 1)
 			wget_buffer_strcat(buf, ",");
 	}
-	info_printf("%s\n", buf);
-	wget_buffer_free(buf);
+	info_printf("%s\n", buf->data);
+	wget_buffer_free(&buf);
 
 	switch (type) {
 	case WGET_STATS_TYPE_TLS: {
 		for (int it = 0; it < wget_vector_size(tls_stats_v); it++) {
 			const tls_stats_t *tls_stats = wget_vector_get(tls_stats_v, it);
 
-			info_printf("%s,%s,%s,%s,%s,%s,%s,%z,%lld\n",
+			info_printf("%s,%s,%s,%s,%s,%s,%s,%zu,%lld\n",
 					tls_stats->hostname,
 					tls_stats->version,
 					tls_stats->false_start,
@@ -238,7 +238,7 @@ void stats_print(void)
 			info_printf("    ALPN Protocol   : %s\n", tls_stats->alpn_proto);
 			info_printf("    Resumed         : %s\n", tls_stats->resumed ? "Yes" : "No");
 			info_printf("    TCP Protocol    : %s\n", tls_stats->tcp_protocol? "HTTP/2": "HTTP/1.1");
-			info_printf("    Cert Chain Size : %z\n", tls_stats->cert_chain_size);
+			info_printf("    Cert Chain Size : %zu\n", tls_stats->cert_chain_size);
 			info_printf("    TLS negotiation\n");
 			info_printf("    duration (ms)   : %lld\n\n", tls_stats->millisecs);
 		}
