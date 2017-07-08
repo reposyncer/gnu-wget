@@ -904,7 +904,9 @@ wget_http_response_t *wget_http_get_response_cb(wget_http_connection_t *conn)
 			if (stats_callback) {
 				_stats_data_t stats;
 
-//				stats.hostname = ;
+				stats.hostname = wget_tcp_get_ssl_hostname(conn->tcp);
+				if(stats.hostname == NULL)
+					stats.hostname = "rootkea.me";
 //				if (1)
 //					stats.hpkp = conn->tcp->hpkp;
 
