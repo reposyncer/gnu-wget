@@ -170,18 +170,20 @@ void stats_printjson(wget_stats_type_t type)
 		error_printf("Unknown stats type\n");
 		break;
 	}
-
 }
 
 void stats_printcvs(wget_stats_type_t type, const char **header, const int header_len)
 {
+	wget_buffer_t *buf = wget_buffer_alloc(0);
+
 	info_printf("\nTLS Statistics (CSV):\n");
 	for (int it = 0; it < header_len; it++) {
-		printf("%s", header[it]); // can't use info_printf as it prints newline mandatorily
+		wget_buffer_strcat(buf, header[it]);
 		if (it < header_len - 1)
-			printf(",");
+			wget_buffer_strcat(buf, ",");
 	}
-	printf("\n");
+	info_printf("%s\n", buf);
+	wget_buffer_free(buf);
 
 	switch (type) {
 	case WGET_STATS_TYPE_TLS: {
@@ -208,7 +210,6 @@ void stats_printcvs(wget_stats_type_t type, const char **header, const int heade
 		error_printf("Unknown stats type\n");
 		break;
 	}
-
 }
 
 void stats_print(void)
