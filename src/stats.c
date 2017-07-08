@@ -197,7 +197,7 @@ void stats_printcsv(wget_stats_type_t type, const char **header, const int heade
 	info_printf("\nTLS Statistics (CSV):\n");
 	for (int it = 0; it < header_len; it++) {
 		wget_buffer_printf_append(buf, "%s", header[it]);
-		wget_buffer_printf_append(buf, "%s", it < header_len - 1 ? "," : "\n", header[it]);
+		wget_buffer_printf_append(buf, "%s", it < header_len - 1 ? "," : "\n");
 	}
 	info_printf("%s", buf->data);
 	if (fd != -1)
