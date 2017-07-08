@@ -150,7 +150,7 @@ void stats_printjson(wget_stats_type_t type)
 	switch (type) {
 	case WGET_STATS_TYPE_TLS: {
 		wget_buffer_t *buf = wget_buffer_alloc(0);
-		int fd = open("stats.json", O_WRONLY | O_APPEND | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+		int fd = open("stats.json", O_WRONLY | O_APPEND | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
 		info_printf("\nTLS Statistics (JSON):\n");
 
@@ -192,7 +192,7 @@ void stats_printjson(wget_stats_type_t type)
 void stats_printcsv(wget_stats_type_t type, const char **header, const int header_len)
 {
 	wget_buffer_t *buf = wget_buffer_alloc(0);
-	int fd = open("stats.csv", O_WRONLY | O_APPEND | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	int fd = open("stats.csv", O_WRONLY | O_APPEND | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
 	info_printf("\nTLS Statistics (CSV):\n");
 	for (int it = 0; it < header_len; it++) {
