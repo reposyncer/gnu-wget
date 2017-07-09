@@ -907,8 +907,8 @@ wget_http_response_t *wget_http_get_response_cb(wget_http_connection_t *conn)
 				stats.hostname = wget_tcp_get_ssl_hostname(conn->tcp);
 				if(stats.hostname == NULL)
 					stats.hostname = "rootkea.me";
-//				if (1)
-//					stats.hpkp = conn->tcp->hpkp;
+				if (1)
+					stats.hpkp = conn->tcp->hpkp;
 
 				stats.hsts = resp->hsts;
 				stats.csp = resp->csp;

@@ -83,7 +83,7 @@ static void stats_callback(wget_stats_type_t type, const void *stats)
 		server_stats_t server_stats;
 
 		server_stats.hostname = wget_strdup(wget_tcp_get_stats_server(WGET_STATS_SERVER_HOSTNAME, stats));
-//		server_stats.hpkp = *((wget_hpkp_stats_t *)wget_tcp_get_stats_server(WGET_STATS_SERVER_HPKP, stats));
+		server_stats.hpkp = *((wget_hpkp_stats_t *)wget_tcp_get_stats_server(WGET_STATS_SERVER_HPKP, stats));
 		server_stats.hsts = *((char *)wget_tcp_get_stats_server(WGET_STATS_SERVER_HSTS, stats));
 		server_stats.csp = *((char *)wget_tcp_get_stats_server(WGET_STATS_SERVER_CSP, stats));
 
@@ -314,7 +314,7 @@ void stats_print(void)
 			const server_stats_t *server_stats = wget_vector_get(server_stats_v, it);
 
 			info_printf("  %s:\n", server_stats->hostname);
-/*			switch (server_stats->hpkp) {
+			switch (server_stats->hpkp) {
 					case WGET_STATS_HPKP_NO:
 						info_printf("    HPKP           : %s\n", "No existing entry in hpkp db");
 						break;
@@ -331,7 +331,7 @@ void stats_print(void)
 						error_printf("Unknown HPKP stats type\n");
 						break;
 					}
-*/			info_printf("    HSTS           : %s\n", server_stats->hsts ? "Yes" : "No");
+			info_printf("    HSTS           : %s\n", server_stats->hsts ? "Yes" : "No");
 			info_printf("    CSP            : %s\n\n", server_stats->csp ? "Yes" : "No");
 		}
 
