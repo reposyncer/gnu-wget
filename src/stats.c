@@ -297,7 +297,7 @@ void stats_print(void)
 				"False Start",
 				"TFO",
 				"ALPN",
-				"Resumed"
+				"Resumed",
 				"TCP",
 				"Cert-chain Length",
 				"TLS negotiation duration"
