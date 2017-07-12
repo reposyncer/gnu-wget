@@ -88,6 +88,7 @@ typedef struct
 
 static wget_stats_callback_t stats_callback;
 static char ocsp_stats;
+static char tls_stats;
 
 static struct _config {
 	const char
@@ -1424,7 +1425,7 @@ int wget_ssl_open(wget_tcp_t *tcp)
 
 #ifdef MSG_FASTOPEN
 	if ((rc = wget_tcp_get_tcp_fastopen(tcp))) {
-		if (stats_callback)
+		if (tls_stats)
 			stats.tfo = rc ? "on": "off";
 
 		// prepare for TCP FASTOPEN... sendmsg() instead of connect/write on first write
@@ -1456,12 +1457,12 @@ int wget_ssl_open(wget_tcp_t *tcp)
 		}
 	}
 
-	if (stats_callback)
+	if (tls_stats)
 		before_millisecs = wget_get_timemillis();
 
 	ret = _do_handshake(session, sockfd, connect_timeout);
 
-	if (stats_callback) {
+	if (tls_stats) {
 		long long after_millisecs = wget_get_timemillis();
 		stats.tls_secs = after_millisecs - before_millisecs;
 		stats.tls_con = 1;
@@ -1477,12 +1478,12 @@ int wget_ssl_open(wget_tcp_t *tcp)
 			debug_printf("GnuTLS: Get ALPN: %s\n", gnutls_strerror(rc));
 		else {
 			debug_printf("ALPN: Server accepted protocol '%.*s'\n", (int) protocol.size, protocol.data);
-			if (stats_callback)
+			if (tls_stats)
 				stats.alpn_protocol = wget_strmemdup(protocol.data, protocol.size);
 
 			if (!memcmp(protocol.data, "h2", 2)) {
 				tcp->protocol = WGET_PROTOCOL_HTTP_2_0;
-				if (stats_callback)
+				if (tls_stats)
 					stats.tcp_protocol = WGET_PROTOCOL_HTTP_2_0;
 			}
 		}
@@ -1495,7 +1496,7 @@ int wget_ssl_open(wget_tcp_t *tcp)
 	if (ret == WGET_E_SUCCESS) {
 		int resumed = gnutls_session_is_resumed(session);
 
-		if (stats_callback) {
+		if (tls_stats) {
 			stats.resumed = resumed;
 			stats.version = gnutls_protocol_get_name(gnutls_protocol_get_version(session));
 			gnutls_certificate_get_peers(session, (unsigned int *)&(stats.cert_chain_size));
@@ -1519,7 +1520,7 @@ int wget_ssl_open(wget_tcp_t *tcp)
 		}
 	}
 
-	if (stats_callback) {
+	if (tls_stats) {
 		stats.hostname = hostname;
 		stats_callback(WGET_STATS_TYPE_TLS, &stats);
 		xfree(stats.alpn_protocol);
@@ -1790,6 +1791,7 @@ ssize_t wget_ssl_write_timeout(void *session, const char *buf, size_t count, int
 void wget_tcp_set_stats_tls(wget_stats_callback_t fn)
 {
 	stats_callback = fn;
+	tls_stats = 1;
 }
 
 const void *wget_tcp_get_stats_tls(wget_tls_stats_t type, const void *_stats)
