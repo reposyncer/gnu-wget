@@ -2463,6 +2463,10 @@ void deinit(void)
 	xfree(config.post_data);
 	xfree(config.post_file);
 
+	for (int it = 0; it < countof(stats_opts); it++) {
+		xfree(stats_opts[it].file);
+	}
+
 	wget_iri_free(&config.base);
 
 	wget_vector_free(&config.domains);
