@@ -154,25 +154,25 @@ static void free_ocsp_stats(server_stats_t *stats)
 void stats_init(void)
 {
 
-	if (config.stats_dns) {
+	if (stats_opts[WGET_STATS_TYPE_DNS].var) {
 		dns_stats_v = wget_vector_create(8, -2, NULL);
 		wget_vector_set_destructor(dns_stats_v, (wget_vector_destructor_t) free_dns_stats);
 		wget_tcp_set_stats_dns(stats_callback);
 	}
 
-	if (config.stats_tls) {
+	if (stats_opts[WGET_STATS_TYPE_TLS].var) {
 		tls_stats_v = wget_vector_create(8, -2, NULL);
 		wget_vector_set_destructor(tls_stats_v, (wget_vector_destructor_t) free_tls_stats);
 		wget_tcp_set_stats_tls(stats_callback);
 	}
 
-	if (config.stats_server) {
+	if (stats_opts[WGET_STATS_TYPE_SERVER].var) {
 		server_stats_v = wget_vector_create(8, -2, NULL);
 		wget_vector_set_destructor(server_stats_v, (wget_vector_destructor_t) free_server_stats);
 		wget_tcp_set_stats_server(stats_callback);
 	}
 
-	if (config.stats_ocsp) {
+	if (stats_opts[WGET_STATS_TYPE_OCSP].var) {
 		ocsp_stats_v = wget_vector_create(8, -2, NULL);
 		wget_vector_set_destructor(ocsp_stats_v, (wget_vector_destructor_t) free_ocsp_stats);
 		wget_tcp_set_stats_ocsp(stats_callback);
@@ -461,7 +461,7 @@ static void stats_print_csv(wget_stats_type_t type)
 
 void stats_print(void)
 {
-	if (config.stats_dns) {
+	if (stats_opts[WGET_STATS_TYPE_DNS].var) {
 		info_printf("\nDNS timings:\n");
 		info_printf("  %4s %s\n", "ms", "Host");
 		for (int it = 0; it < wget_vector_size(dns_stats_v); it++) {
@@ -476,7 +476,7 @@ void stats_print(void)
 		wget_vector_free(&dns_stats_v);
 	}
 
-	if (config.stats_tls) {
+	if (stats_opts[WGET_STATS_TYPE_TLS].var) {
 		info_printf("\nTLS Statistics:\n");
 		for (int it = 0; it < wget_vector_size(tls_stats_v); it++) {
 			const tls_stats_t *tls_stats = wget_vector_get(tls_stats_v, it);
@@ -499,7 +499,7 @@ void stats_print(void)
 		wget_vector_free(&tls_stats_v);
 	}
 
-	if (config.stats_server) {
+	if (stats_opts[WGET_STATS_TYPE_SERVER].var) {
 		info_printf("\nServer Statistics:\n");
 		for (int it = 0; it < wget_vector_size(server_stats_v); it++) {
 			const server_stats_t *server_stats = wget_vector_get(server_stats_v, it);
@@ -517,7 +517,7 @@ void stats_print(void)
 		wget_vector_free(&server_stats_v);
 	}
 
-	if (config.stats_ocsp) {
+	if (stats_opts[WGET_STATS_TYPE_OCSP].var) {
 		info_printf("\nOCSP Statistics:\n");
 		for (int it = 0; it < wget_vector_size(ocsp_stats_v); it++) {
 			const ocsp_stats_t *ocsp_stats = wget_vector_get(ocsp_stats_v, it);
