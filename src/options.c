@@ -618,6 +618,7 @@ static int parse_prefer_family(option_t opt, const char *val, G_GNUC_WGET_UNUSED
 
 static int parse_stats(option_t opt, const char *val, const char invert)
 {
+printf("val = %s\n", val);
 	if (parse_bool((option_t)(opt->var), val, invert) == 1) {
 		if (invert) {
 			parse_bool((option_t)(opt->var), NULL, invert);
@@ -636,7 +637,9 @@ static int parse_stats(option_t opt, const char *val, const char invert)
 			((stats_opts_t *)opt->var)->file = val ? _shell_expand(val) : NULL;
 		}
 	}
-
+printf("((stats_opts_t *)opt->var)->var = %c\n", ((stats_opts_t *)opt->var)->var);
+printf("((stats_opts_t *)opt->var)->format = %d\n", ((stats_opts_t *)opt->var)->format);
+printf("((stats_opts_t *)opt->var)->file = %s\n", ((stats_opts_t *)opt->var)->file);
 	return 0;
 }
 
