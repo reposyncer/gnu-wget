@@ -211,7 +211,7 @@ static void stats_print_human(wget_stats_type_t type)
 	switch (type) {
 	case WGET_STATS_TYPE_DNS: {
 		const char *filename = stats_opts[WGET_STATS_TYPE_DNS].file;
-		if (filename && *filename && !wget_strcmp(filename, "-"))
+		if (filename && *filename && wget_strcmp(filename, "-"))
 			fp = fopen(filename, "w");
 		else
 			fp = stdout;
@@ -231,15 +231,17 @@ static void stats_print_human(wget_stats_type_t type)
 		}
 
 		wget_buffer_free(&buf);
-		if ((fp != NULL) && (fp != stdout))
+		if ((fp != NULL) && (fp != stdout)) {
 			fclose(fp);
+			info_printf("DNS stats saved in %s\n", filename);
+		}
 
 		break;
 	}
 
 	case WGET_STATS_TYPE_TLS: {
 		const char *filename = stats_opts[WGET_STATS_TYPE_TLS].file;
-		if (filename && *filename && !wget_strcmp(filename, "-"))
+		if (filename && *filename && wget_strcmp(filename, "-"))
 			fp = fopen(filename, "w");
 		else
 			fp = stdout;
@@ -267,15 +269,16 @@ static void stats_print_human(wget_stats_type_t type)
 		}
 
 		wget_buffer_free(&buf);
-		if ((fp != NULL) && (fp != stdout))
+		if ((fp != NULL) && (fp != stdout)) {
 			fclose(fp);
-
+			info_printf("TLS stats saved in %s\n", filename);
+		}
 		break;
 	}
 
 	case WGET_STATS_TYPE_SERVER: {
 		const char *filename = stats_opts[WGET_STATS_TYPE_SERVER].file;
-		if (filename && *filename && !wget_strcmp(filename, "-"))
+		if (filename && *filename && wget_strcmp(filename, "-"))
 			fp = fopen(filename, "w");
 		else
 			fp = stdout;
@@ -298,15 +301,17 @@ static void stats_print_human(wget_stats_type_t type)
 		}
 
 		wget_buffer_free(&buf);
-		if ((fp != NULL) && (fp != stdout))
+		if ((fp != NULL) && (fp != stdout)) {
 			fclose(fp);
+			info_printf("Server stats saved in %s\n", filename);
+		}
 
 		break;
 	}
 
 	case WGET_STATS_TYPE_OCSP: {
 		const char *filename = stats_opts[WGET_STATS_TYPE_OCSP].file;
-		if (filename && *filename && !wget_strcmp(filename, "-"))
+		if (filename && *filename && wget_strcmp(filename, "-"))
 			fp = fopen(filename, "w");
 		else
 			fp = stdout;
@@ -328,8 +333,10 @@ static void stats_print_human(wget_stats_type_t type)
 		}
 
 		wget_buffer_free(&buf);
-		if ((fp != NULL) && (fp != stdout))
+		if ((fp != NULL) && (fp != stdout)) {
 			fclose(fp);
+			info_printf("OCSP stats saved in %s\n", filename);
+		}
 
 		break;
 	}
@@ -348,7 +355,7 @@ static void stats_print_json(wget_stats_type_t type)
 	switch (type) {
 	case WGET_STATS_TYPE_DNS: {
 		const char *filename = stats_opts[WGET_STATS_TYPE_DNS].file;
-		if (filename && *filename && !wget_strcmp(filename, "-"))
+		if (filename && *filename && wget_strcmp(filename, "-"))
 			fp = fopen(filename, "w");
 		else
 			fp = stdout;
@@ -359,7 +366,7 @@ static void stats_print_json(wget_stats_type_t type)
 			wget_buffer_printf_append(buf, "\t{\n");
 			wget_buffer_printf_append(buf, "\t\t\"Hostname\" : \"%s\",\n", dns_stats->host);
 			wget_buffer_printf_append(buf, "\t\t\"IP\" : \"%s\",\n", dns_stats->ip);
-			wget_buffer_printf_append(buf, "\t\t\"DNS resolution duration\" : %lld\n", dns_stats->millisecs);
+			wget_buffer_printf_append(buf, "\t\t\"DNS resolution duration (ms)\" : %lld\n", dns_stats->millisecs);
 			wget_buffer_printf_append(buf, it < wget_vector_size(dns_stats_v) - 1 ? "\t},\n" : "\t}\n]\n");
 
 			if ((buf->length > 64*1024) || (it == wget_vector_size(dns_stats_v) - 1)) {
@@ -370,15 +377,17 @@ static void stats_print_json(wget_stats_type_t type)
 		}
 
 		wget_buffer_free(&buf);
-		if ((fp != NULL) && (fp != stdout))
+		if ((fp != NULL) && (fp != stdout)) {
 			fclose(fp);
+			info_printf("DNS stats saved in %s\n", filename);
+		}
 
 		break;
 	}
 
 	case WGET_STATS_TYPE_TLS: {
 		const char *filename = stats_opts[WGET_STATS_TYPE_TLS].file;
-		if (filename && *filename && !wget_strcmp(filename, "-"))
+		if (filename && *filename && wget_strcmp(filename, "-"))
 			fp = fopen(filename, "w");
 		else
 			fp = stdout;
@@ -395,7 +404,7 @@ static void stats_print_json(wget_stats_type_t type)
 			wget_buffer_printf_append(buf, "\t\t\"Resumed\" : \"%s\",\n", tls_stats->resumed ? "Yes" : "No");
 			wget_buffer_printf_append(buf, "\t\t\"TCP Protocol\" : \"%s\",\n", tls_stats->tcp_protocol? "HTTP/2": "HTTP/1.1");
 			wget_buffer_printf_append(buf, "\t\t\"Cert-chain Size\" : %zu,\n", tls_stats->cert_chain_size);
-			wget_buffer_printf_append(buf, "\t\t\"TLS negotiation duration\" : %lld\n", tls_stats->millisecs);
+			wget_buffer_printf_append(buf, "\t\t\"TLS negotiation duration (ms)\" : %lld\n", tls_stats->millisecs);
 			wget_buffer_printf_append(buf, it < wget_vector_size(tls_stats_v) - 1 ? "\t},\n" : "\t}\n]\n");
 
 			if ((buf->length > 64*1024) || (it == wget_vector_size(tls_stats_v) - 1)) {
@@ -406,15 +415,17 @@ static void stats_print_json(wget_stats_type_t type)
 		}
 
 		wget_buffer_free(&buf);
-		if ((fp != NULL) && (fp != stdout))
+		if ((fp != NULL) && (fp != stdout)) {
 			fclose(fp);
+			info_printf("TLS stats saved in %s\n", filename);
+		}
 
 		break;
 	}
 
 	case WGET_STATS_TYPE_SERVER: {
 		const char *filename = stats_opts[WGET_STATS_TYPE_SERVER].file;
-		if (filename && *filename && !wget_strcmp(filename, "-"))
+		if (filename && *filename && wget_strcmp(filename, "-"))
 			fp = fopen(filename, "w");
 		else
 			fp = stdout;
@@ -438,15 +449,17 @@ static void stats_print_json(wget_stats_type_t type)
 		}
 
 		wget_buffer_free(&buf);
-		if ((fp != NULL) && (fp != stdout))
+		if ((fp != NULL) && (fp != stdout)) {
 			fclose(fp);
+			info_printf("Server stats saved in %s\n", filename);
+		}
 
 		break;
 	}
 
 	case WGET_STATS_TYPE_OCSP: {
 		const char *filename = stats_opts[WGET_STATS_TYPE_OCSP].file;
-		if (filename && *filename && !wget_strcmp(filename, "-"))
+		if (filename && *filename && wget_strcmp(filename, "-"))
 			fp = fopen(filename, "w");
 		else
 			fp = stdout;
@@ -469,8 +482,10 @@ static void stats_print_json(wget_stats_type_t type)
 		}
 
 		wget_buffer_free(&buf);
-		if ((fp != NULL) && (fp != stdout))
+		if ((fp != NULL) && (fp != stdout)) {
 			fclose(fp);
+			info_printf("OCSP stats saved in %s\n", filename);
+		}
 
 		break;
 	}
@@ -489,12 +504,12 @@ static void stats_print_csv(wget_stats_type_t type)
 	switch (type) {
 	case WGET_STATS_TYPE_DNS: {
 		const char *filename = stats_opts[WGET_STATS_TYPE_DNS].file;
-		if (filename && *filename && !wget_strcmp(filename, "-"))
+		if (filename && *filename && wget_strcmp(filename, "-"))
 			fp = fopen(filename, "w");
 		else
 			fp = stdout;
 
-		const char *header = "Hostname,IP,DNS resolution duration";
+		const char *header = "Hostname,IP,DNS resolution duration (ms)";
 		if (fp != NULL)
 			fprintf(fp, "%s\n", header);
 
@@ -508,20 +523,22 @@ static void stats_print_csv(wget_stats_type_t type)
 		}
 
 		wget_buffer_free(&buf);
-		if ((fp != NULL) && (fp != stdout))
+		if ((fp != NULL) && (fp != stdout)) {
 			fclose(fp);
+			info_printf("DNS stats saved in %s\n", filename);
+		}
 
 		break;
 	}
 
 	case WGET_STATS_TYPE_TLS: {
 		const char *filename = stats_opts[WGET_STATS_TYPE_TLS].file;
-		if (filename && *filename && !wget_strcmp(filename, "-"))
+		if (filename && *filename && wget_strcmp(filename, "-"))
 			fp = fopen(filename, "w");
 		else
 			fp = stdout;
 
-		const char *header = "Hostname,Version,False Start,TFO,ALPN,Resumed,TCP,Cert-chain Length,TLS negotiation duration";
+		const char *header = "Hostname,Version,False Start,TFO,ALPN,Resumed,TCP,Cert-chain Length,TLS negotiation duration (ms)";
 		if (fp != NULL)
 			fprintf(fp, "%s\n", header);
 
@@ -544,15 +561,17 @@ static void stats_print_csv(wget_stats_type_t type)
 		}
 
 		wget_buffer_free(&buf);
-		if ((fp != NULL) && (fp != stdout))
+		if ((fp != NULL) && (fp != stdout)) {
 			fclose(fp);
+			info_printf("TLS stats saved in %s\n", filename);
+		}
 
 		break;
 	}
 
 	case WGET_STATS_TYPE_SERVER: {
 		const char *filename = stats_opts[WGET_STATS_TYPE_SERVER].file;
-		if (filename && *filename && !wget_strcmp(filename, "-"))
+		if (filename && *filename && wget_strcmp(filename, "-"))
 			fp = fopen(filename, "w");
 		else
 			fp = stdout;
@@ -576,15 +595,17 @@ static void stats_print_csv(wget_stats_type_t type)
 		}
 
 		wget_buffer_free(&buf);
-		if ((fp != NULL) && (fp != stdout))
+		if ((fp != NULL) && (fp != stdout)) {
 			fclose(fp);
+			info_printf("Server stats saved in %s\n", filename);
+		}
 
 		break;
 	}
 
 	case WGET_STATS_TYPE_OCSP: {
 		const char *filename = stats_opts[WGET_STATS_TYPE_OCSP].file;
-		if (filename && *filename && !wget_strcmp(filename, "-"))
+		if (filename && *filename && wget_strcmp(filename, "-"))
 			fp = fopen(filename, "w");
 		else
 			fp = stdout;
@@ -604,8 +625,10 @@ static void stats_print_csv(wget_stats_type_t type)
 		}
 
 		wget_buffer_free(&buf);
-		if ((fp != NULL) && (fp != stdout))
+		if ((fp != NULL) && (fp != stdout)) {
 			fclose(fp);
+			info_printf("OCSP stats saved in %s\n", filename);
+		}
 
 		break;
 	}

@@ -451,17 +451,14 @@ static int parse_taglist(option_t opt, const char *val, G_GNUC_WGET_UNUSED const
 static int parse_bool(option_t opt, const char *val, const char invert)
 {
 	if (opt->var) {
-printf("Here!\n");
-		if (!val)
-			*((char *) opt->var) = !invert;
-		else if (!strcmp(val, "1") || !wget_strcasecmp_ascii(val, "y") || !wget_strcasecmp_ascii(val, "yes") || !wget_strcasecmp_ascii(val, "on"))
+		if (!val || !strcmp(val, "1") || !wget_strcasecmp_ascii(val, "y") || !wget_strcasecmp_ascii(val, "yes") || !wget_strcasecmp_ascii(val, "on"))
 			*((char *) opt->var) = !invert;
 		else if (!*val || !strcmp(val, "0") || !wget_strcasecmp_ascii(val, "n") || !wget_strcasecmp_ascii(val, "no") || !wget_strcasecmp_ascii(val, "off"))
 			*((char *) opt->var) = invert;
 		else
 			return 1;
 	}
-printf("Hmm!!\n");
+
 	return 0;
 }
 
@@ -619,28 +616,31 @@ static int parse_prefer_family(option_t opt, const char *val, G_GNUC_WGET_UNUSED
 
 static int parse_stats(option_t opt, const char *val, const char invert)
 {
-printf("val = %s\n", val);
-	if (parse_bool((option_t)(opt->var), val, invert) == 1) {
-		if (invert) {
-			parse_bool((option_t)(opt->var), NULL, invert);
-		} else {
+	if (opt->var) {
+		if (!val || !strcmp(val, "1") || !wget_strcasecmp_ascii(val, "y") || !wget_strcasecmp_ascii(val, "yes") || !wget_strcasecmp_ascii(val, "on"))
+			((stats_opts_t *)(opt->var))->status = !invert;
+		else if (!*val || !strcmp(val, "0") || !wget_strcasecmp_ascii(val, "n") || !wget_strcasecmp_ascii(val, "no") || !wget_strcasecmp_ascii(val, "off"))
+			((stats_opts_t *)(opt->var))->status = invert;
+		else {
+			((stats_opts_t *)(opt->var))->status = !invert;
+
 			char *p;
 			if ((p = strchr(val, ':'))) {
-				if (!wget_strncmp("human", val, p - val) || !wget_strncmp("human", val, p - val))
+				if (!wget_strncasecmp_ascii("human", val, p - val) || !wget_strncasecmp_ascii("h", val, p - val))
 					((stats_opts_t *)opt->var)->format = STATS_FORMAT_HUMAN;
-				else if (!wget_strncmp("csv", val, p - val) || !wget_strncmp("CSV", val, p - val))
+				else if (!wget_strncasecmp_ascii("csv", val, p - val))
 					((stats_opts_t *)opt->var)->format = STATS_FORMAT_CSV;
-				else if (!wget_strncmp("json", val, p - val) || !wget_strncmp("JSON", val,p - val ))
+				else if (!wget_strncasecmp_ascii("json", val, p - val))
 					((stats_opts_t *)opt->var)->format = STATS_FORMAT_JSON;
+
+				val = p + 1;
 			}
 
 			xfree(((stats_opts_t *)opt->var)->file);
 			((stats_opts_t *)opt->var)->file = val ? _shell_expand(val) : NULL;
 		}
 	}
-printf("((stats_opts_t *)opt->var)->status = %d\n", ((stats_opts_t *)opt->var)->status);
-printf("((stats_opts_t *)opt->var)->format = %u\n", ((stats_opts_t *)opt->var)->format);
-printf("((stats_opts_t *)opt->var)->file = %s\n", ((stats_opts_t *)opt->var)->file);
+
 	return 0;
 }
 
