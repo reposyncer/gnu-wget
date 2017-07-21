@@ -1870,5 +1870,7 @@ int wget_ssl_server_open(wget_tcp_t *tcp) { return WGET_E_TLS_DISABLED; }
 void wget_ssl_server_close(void **session) { }
 void wget_tcp_set_stats_tls(const wget_stats_callback_t fn) { }
 const void *wget_tcp_get_stats_tls(const wget_tls_stats_t type, const void *stats) { }
+void wget_tcp_set_stats_ocsp(const wget_stats_callback_t fn) { }
+const void *wget_tcp_get_stats_ocsp(const wget_ocsp_stats_t type, const void *stats) { }
 
 #endif // WITH_GNUTLS
