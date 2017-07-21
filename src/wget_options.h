@@ -202,7 +202,7 @@ struct config {
 };
 
 typedef struct {
-	char var;
+	char status;
 	stats_format_t format;
 	const char *file;
 } stats_opts_t;

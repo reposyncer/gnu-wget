@@ -451,6 +451,7 @@ static int parse_taglist(option_t opt, const char *val, G_GNUC_WGET_UNUSED const
 static int parse_bool(option_t opt, const char *val, const char invert)
 {
 	if (opt->var) {
+printf("Here!\n");
 		if (!val)
 			*((char *) opt->var) = !invert;
 		else if (!strcmp(val, "1") || !wget_strcasecmp_ascii(val, "y") || !wget_strcasecmp_ascii(val, "yes") || !wget_strcasecmp_ascii(val, "on"))
@@ -460,7 +461,7 @@ static int parse_bool(option_t opt, const char *val, const char invert)
 		else
 			return 1;
 	}
-
+printf("Hmm!!\n");
 	return 0;
 }
 
@@ -637,8 +638,8 @@ printf("val = %s\n", val);
 			((stats_opts_t *)opt->var)->file = val ? _shell_expand(val) : NULL;
 		}
 	}
-printf("((stats_opts_t *)opt->var)->var = %c\n", ((stats_opts_t *)opt->var)->var);
-printf("((stats_opts_t *)opt->var)->format = %d\n", ((stats_opts_t *)opt->var)->format);
+printf("((stats_opts_t *)opt->var)->status = %d\n", ((stats_opts_t *)opt->var)->status);
+printf("((stats_opts_t *)opt->var)->format = %u\n", ((stats_opts_t *)opt->var)->format);
 printf("((stats_opts_t *)opt->var)->file = %s\n", ((stats_opts_t *)opt->var)->file);
 	return 0;
 }
@@ -2466,7 +2467,7 @@ void deinit(void)
 	xfree(config.post_data);
 	xfree(config.post_file);
 
-	for (int it = 0; it < countof(stats_opts); it++) {
+	for (unsigned int it = 0; it < countof(stats_opts); it++) {
 		xfree(stats_opts[it].file);
 	}
 

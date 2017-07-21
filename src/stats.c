@@ -154,25 +154,25 @@ static void free_ocsp_stats(server_stats_t *stats)
 void stats_init(void)
 {
 
-	if (stats_opts[WGET_STATS_TYPE_DNS].var) {
+	if (stats_opts[WGET_STATS_TYPE_DNS].status) {
 		dns_stats_v = wget_vector_create(8, -2, NULL);
 		wget_vector_set_destructor(dns_stats_v, (wget_vector_destructor_t) free_dns_stats);
 		wget_tcp_set_stats_dns(stats_callback);
 	}
 
-	if (stats_opts[WGET_STATS_TYPE_TLS].var) {
+	if (stats_opts[WGET_STATS_TYPE_TLS].status) {
 		tls_stats_v = wget_vector_create(8, -2, NULL);
 		wget_vector_set_destructor(tls_stats_v, (wget_vector_destructor_t) free_tls_stats);
 		wget_tcp_set_stats_tls(stats_callback);
 	}
 
-	if (stats_opts[WGET_STATS_TYPE_SERVER].var) {
+	if (stats_opts[WGET_STATS_TYPE_SERVER].status) {
 		server_stats_v = wget_vector_create(8, -2, NULL);
 		wget_vector_set_destructor(server_stats_v, (wget_vector_destructor_t) free_server_stats);
 		wget_tcp_set_stats_server(stats_callback);
 	}
 
-	if (stats_opts[WGET_STATS_TYPE_OCSP].var) {
+	if (stats_opts[WGET_STATS_TYPE_OCSP].status) {
 		ocsp_stats_v = wget_vector_create(8, -2, NULL);
 		wget_vector_set_destructor(ocsp_stats_v, (wget_vector_destructor_t) free_ocsp_stats);
 		wget_tcp_set_stats_ocsp(stats_callback);
@@ -618,7 +618,7 @@ static void stats_print_csv(wget_stats_type_t type)
 
 void stats_print(void)
 {
-	if (stats_opts[WGET_STATS_TYPE_DNS].var) {
+	if (stats_opts[WGET_STATS_TYPE_DNS].status) {
 		switch (stats_opts[WGET_STATS_TYPE_DNS].format) {
 		case STATS_FORMAT_HUMAN:
 			stats_print_human(WGET_STATS_TYPE_DNS);
@@ -639,7 +639,7 @@ void stats_print(void)
 		wget_vector_free(&dns_stats_v);
 	}
 
-	if (stats_opts[WGET_STATS_TYPE_TLS].var) {
+	if (stats_opts[WGET_STATS_TYPE_TLS].status) {
 		switch (stats_opts[WGET_STATS_TYPE_TLS].format) {
 		case STATS_FORMAT_HUMAN:
 			stats_print_human(WGET_STATS_TYPE_TLS);
@@ -660,7 +660,7 @@ void stats_print(void)
 		wget_vector_free(&tls_stats_v);
 	}
 
-	if (stats_opts[WGET_STATS_TYPE_SERVER].var) {
+	if (stats_opts[WGET_STATS_TYPE_SERVER].status) {
 		switch (stats_opts[WGET_STATS_TYPE_SERVER].format) {
 		case STATS_FORMAT_HUMAN:
 			stats_print_human(WGET_STATS_TYPE_SERVER);
@@ -681,7 +681,7 @@ void stats_print(void)
 		wget_vector_free(&server_stats_v);
 	}
 
-	if (stats_opts[WGET_STATS_TYPE_OCSP].var) {
+	if (stats_opts[WGET_STATS_TYPE_OCSP].status) {
 		switch (stats_opts[WGET_STATS_TYPE_OCSP].format) {
 		case STATS_FORMAT_HUMAN:
 			stats_print_human(WGET_STATS_TYPE_OCSP);
