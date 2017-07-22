@@ -47,9 +47,18 @@ static void stats_callback(wget_stats_type_t type, const void *stats)
 	case WGET_STATS_TYPE_DNS: {
 		dns_stats_t dns_stats;
 
-		dns_stats.host = wget_strdup(wget_tcp_get_stats_dns(WGET_STATS_DNS_HOST, stats));
-		dns_stats.ip = wget_strdup(wget_tcp_get_stats_dns(WGET_STATS_DNS_IP, stats));
-		dns_stats.millisecs = *((long long *)wget_tcp_get_stats_dns(WGET_STATS_DNS_SECS, stats));
+		if (wget_tcp_get_stats_dns(WGET_STATS_DNS_HOST, stats))
+			dns_stats.host = wget_strdup(wget_tcp_get_stats_dns(WGET_STATS_DNS_HOST, stats));
+		else
+			dns_stats.host = wget_strdup("-");
+
+		if (wget_tcp_get_stats_dns(WGET_STATS_DNS_IP, stats))
+			dns_stats.ip = wget_strdup(wget_tcp_get_stats_dns(WGET_STATS_DNS_IP, stats));
+		else
+			dns_stats.ip = wget_strdup("-");
+
+		if (wget_tcp_get_stats_dns(WGET_STATS_DNS_SECS, stats))
+			dns_stats.millisecs = *((long long *)wget_tcp_get_stats_dns(WGET_STATS_DNS_SECS, stats));
 
 		wget_thread_mutex_lock(&dns_mutex);
 		wget_vector_add(dns_stats_v, &dns_stats, sizeof(dns_stats_t));
@@ -61,11 +70,31 @@ static void stats_callback(wget_stats_type_t type, const void *stats)
 	case WGET_STATS_TYPE_TLS: {
 		tls_stats_t tls_stats;
 
-		tls_stats.hostname = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_HOSTNAME, stats));
-		tls_stats.version = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_VERSION, stats));
-		tls_stats.false_start = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_FALSE_START, stats));
-		tls_stats.tfo = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_TFO, stats));
-		tls_stats.alpn_proto = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_ALPN_PROTO, stats));
+		if (wget_tcp_get_stats_tls(WGET_STATS_TLS_HOSTNAME, stats))
+			tls_stats.hostname = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_HOSTNAME, stats));
+		else
+			tls_stats.hostname = wget_strdup("-");
+
+		if (wget_tcp_get_stats_tls(WGET_STATS_TLS_VERSION, stats))
+			tls_stats.version = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_VERSION, stats));
+		else
+			tls_stats.version = wget_strdup("-");
+
+		if (wget_tcp_get_stats_tls(WGET_STATS_TLS_FALSE_START, stats))
+			tls_stats.false_start = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_FALSE_START, stats));
+		else
+			tls_stats.false_start = wget_strdup("-");
+
+		if (wget_tcp_get_stats_tls(WGET_STATS_TLS_TFO, stats))
+			tls_stats.tfo = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_TFO, stats));
+		else
+			tls_stats.tfo = wget_strdup("-");
+
+		if (wget_tcp_get_stats_tls(WGET_STATS_TLS_ALPN_PROTO, stats))
+			tls_stats.alpn_proto = wget_strdup(wget_tcp_get_stats_tls(WGET_STATS_TLS_ALPN_PROTO, stats));
+		else
+			tls_stats.alpn_proto = wget_strdup("-");
+
 		tls_stats.tls_con = *((char *)wget_tcp_get_stats_tls(WGET_STATS_TLS_CON, stats));
 		tls_stats.resumed = *((char *)wget_tcp_get_stats_tls(WGET_STATS_TLS_RESUMED, stats));
 		tls_stats.tcp_protocol = *((char *)wget_tcp_get_stats_tls(WGET_STATS_TLS_TCP_PROTO, stats));
@@ -82,11 +111,27 @@ static void stats_callback(wget_stats_type_t type, const void *stats)
 	case WGET_STATS_TYPE_SERVER: {
 		server_stats_t server_stats;
 
-		server_stats.hostname = wget_strdup(wget_tcp_get_stats_server(WGET_STATS_SERVER_HOSTNAME, stats));
+		if (wget_tcp_get_stats_server(WGET_STATS_SERVER_HOSTNAME, stats))
+			server_stats.hostname = wget_strdup(wget_tcp_get_stats_server(WGET_STATS_SERVER_HOSTNAME, stats));
+		else
+			server_stats.hostname = wget_strdup("-");
+
 		server_stats.hpkp = *((wget_hpkp_stats_t *)wget_tcp_get_stats_server(WGET_STATS_SERVER_HPKP, stats));
-		server_stats.hpkp_new = wget_strdup(wget_tcp_get_stats_server(WGET_STATS_SERVER_HPKP_NEW, stats));
-		server_stats.hsts = wget_strdup(wget_tcp_get_stats_server(WGET_STATS_SERVER_HSTS, stats));
-		server_stats.csp = wget_strdup(wget_tcp_get_stats_server(WGET_STATS_SERVER_CSP, stats));
+
+		if (wget_tcp_get_stats_server(WGET_STATS_SERVER_HPKP_NEW, stats))
+			server_stats.hpkp_new = wget_strdup(wget_tcp_get_stats_server(WGET_STATS_SERVER_HPKP_NEW, stats));
+		else
+			server_stats.hpkp_new = wget_strdup("-");
+
+		if (wget_tcp_get_stats_server(WGET_STATS_SERVER_HSTS, stats))
+			server_stats.hsts = wget_strdup(wget_tcp_get_stats_server(WGET_STATS_SERVER_HSTS, stats));
+		else
+			server_stats.hsts = wget_strdup("-");
+
+		if (wget_tcp_get_stats_server(WGET_STATS_SERVER_CSP, stats))
+			server_stats.csp = wget_strdup(wget_tcp_get_stats_server(WGET_STATS_SERVER_CSP, stats));
+		else
+			server_stats.csp = wget_strdup("-");
 
 		wget_thread_mutex_lock(&server_mutex);
 		wget_vector_add(server_stats_v, &server_stats, sizeof(server_stats_t));
@@ -98,7 +143,11 @@ static void stats_callback(wget_stats_type_t type, const void *stats)
 	case WGET_STATS_TYPE_OCSP: {
 		ocsp_stats_t ocsp_stats;
 
-		ocsp_stats.hostname = wget_strdup(wget_tcp_get_stats_ocsp(WGET_STATS_OCSP_HOSTNAME, stats));
+		if (wget_tcp_get_stats_ocsp(WGET_STATS_OCSP_HOSTNAME, stats))
+			ocsp_stats.hostname = wget_strdup(wget_tcp_get_stats_ocsp(WGET_STATS_OCSP_HOSTNAME, stats));
+		else
+			ocsp_stats.hostname = wget_strdup("-");
+
 		ocsp_stats.nvalid = *((size_t *)wget_tcp_get_stats_ocsp(WGET_STATS_OCSP_VALID, stats));
 		ocsp_stats.nrevoked = *((size_t *)wget_tcp_get_stats_ocsp(WGET_STATS_OCSP_REVOKED, stats));
 		ocsp_stats.nignored = *((size_t *)wget_tcp_get_stats_ocsp(WGET_STATS_OCSP_IGNORED, stats));
