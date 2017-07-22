@@ -527,6 +527,7 @@ static void stats_print_json(wget_stats_type_t type)
 				info_printf("Server stats saved in %s\n", filename);
 			}
 
+		} else
 			error_printf("File could not be opened.\n");
 
 		wget_buffer_free(&buf);
