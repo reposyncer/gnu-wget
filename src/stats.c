@@ -279,10 +279,11 @@ static void stats_print_human(wget_stats_type_t type)
 				}
 			}
 
-			if (fp != stdout)
+			if (fp != stdout) {
 				fclose(fp);
+				info_printf("DNS stats saved in %s\n", filename);
+			}
 
-			info_printf("DNS stats saved in %s\n", filename);
 		} else
 			error_printf("File could not be opened.\n");
 
@@ -320,10 +321,11 @@ static void stats_print_human(wget_stats_type_t type)
 				}
 			}
 
-			if (fp != stdout)
+			if (fp != stdout) {
 				fclose(fp);
+				info_printf("TLS stats saved in %s\n", filename);
+			}
 
-			info_printf("TLS stats saved in %s\n", filename);
 		} else
 			error_printf("File could not be opened.\n");
 
@@ -356,10 +358,11 @@ static void stats_print_human(wget_stats_type_t type)
 				}
 			}
 
-			if (fp != stdout)
+			if (fp != stdout) {
 				fclose(fp);
+				info_printf("Server stats saved in %s\n", filename);
+			}
 
-			info_printf("Server stats saved in %s\n", filename);
 		} else
 			error_printf("File could not be opened.\n");
 
@@ -391,10 +394,11 @@ static void stats_print_human(wget_stats_type_t type)
 				}
 			}
 
-			if (fp != stdout)
+			if (fp != stdout) {
 				fclose(fp);
+				info_printf("OCSP stats saved in %s\n", filename);
+			}
 
-			info_printf("OCSP stats saved in %s\n", filename);
 		} else
 			error_printf("File could not be opened.\n");
 
@@ -438,10 +442,11 @@ static void stats_print_json(wget_stats_type_t type)
 				}
 			}
 
-			if (fp != stdout)
+			if (fp != stdout) {
 				fclose(fp);
+				info_printf("DNS stats saved in %s\n", filename);
+			}
 
-			info_printf("DNS stats saved in %s\n", filename);
 		} else
 			error_printf("File could not be opened.\n");
 
@@ -479,10 +484,11 @@ static void stats_print_json(wget_stats_type_t type)
 				}
 			}
 
-			if (fp != stdout)
+			if (fp != stdout) {
 				fclose(fp);
+				info_printf("TLS stats saved in %s\n", filename);
+			}
 
-			info_printf("TLS stats saved in %s\n", filename);
 		} else
 			error_printf("File could not be opened.\n");
 
@@ -516,11 +522,11 @@ static void stats_print_json(wget_stats_type_t type)
 				}
 			}
 
-			if (fp != stdout)
+			if (fp != stdout) {
 				fclose(fp);
+				info_printf("Server stats saved in %s\n", filename);
+			}
 
-			info_printf("Server stats saved in %s\n", filename);
-		} else
 			error_printf("File could not be opened.\n");
 
 		wget_buffer_free(&buf);
@@ -552,10 +558,11 @@ static void stats_print_json(wget_stats_type_t type)
 				}
 			}
 
-			if (fp != stdout)
+			if (fp != stdout) {
 				fclose(fp);
+				info_printf("OCSP stats saved in %s\n", filename);
+			}
 
-			info_printf("OCSP stats saved in %s\n", filename);
 		} else
 			error_printf("File could not be opened.\n");
 
@@ -594,10 +601,11 @@ static void stats_print_csv(wget_stats_type_t type)
 				fprintf(fp, "%s", buf->data);
 			}
 
-			if (fp != stdout)
+			if (fp != stdout) {
 				fclose(fp);
+				info_printf("DNS stats saved in %s\n", filename);
+			}
 
-			info_printf("DNS stats saved in %s\n", filename);
 		} else
 			error_printf("File could not be opened.\n");
 
@@ -634,10 +642,11 @@ static void stats_print_csv(wget_stats_type_t type)
 				fprintf(fp, "%s", buf->data);
 			}
 
-			if (fp != stdout)
+			if (fp != stdout) {
 				fclose(fp);
+				info_printf("TLS stats saved in %s\n", filename);
+			}
 
-			info_printf("TLS stats saved in %s\n", filename);
 		} else
 			error_printf("File could not be opened.\n");
 
@@ -670,10 +679,11 @@ static void stats_print_csv(wget_stats_type_t type)
 				fprintf(fp, "%s", buf->data);
 			}
 
-			if (fp != stdout)
+			if (fp != stdout) {
 				fclose(fp);
+				info_printf("Server stats saved in %s\n", filename);
+			}
 
-			info_printf("Server stats saved in %s\n", filename);
 		} else
 			error_printf("File could not be opened.\n");
 
@@ -702,10 +712,11 @@ static void stats_print_csv(wget_stats_type_t type)
 				fprintf(fp, "%s", buf->data);
 			}
 
-			if (fp != stdout)
+			if (fp != stdout) {
 				fclose(fp);
+				info_printf("OCSP stats saved in %s\n", filename);
+			}
 
-			info_printf("OCSP stats saved in %s\n", filename);
 		} else
 			error_printf("File could not be opened.\n");
 
