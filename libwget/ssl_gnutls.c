@@ -69,7 +69,7 @@ typedef struct
 		*tfo,
 		*alpn_protocol;
 	long long tls_secs;	//milliseconds
-	size_t cert_chain_size;
+	int cert_chain_size;
 	char
 		tls_con,
 		resumed,
@@ -80,7 +80,7 @@ typedef struct
 {
 	const char *hostname;
 
-	size_t
+	int
 		nvalid,
 		nrevoked,
 		nignored;

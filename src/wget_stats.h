@@ -43,7 +43,7 @@ typedef struct {
 		tls_con,
 		resumed,
 		tcp_protocol;
-	size_t cert_chain_size;
+	int cert_chain_size;
 	long long millisecs;
 } tls_stats_t;
 
@@ -61,7 +61,7 @@ typedef struct {
 typedef struct {
 	const char
 		*hostname;
-	size_t
+	int
 		nvalid,
 		nrevoked,
 		nignored;
