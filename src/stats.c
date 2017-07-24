@@ -135,9 +135,9 @@ static void stats_callback(wget_stats_type_t type, const void *stats)
 			server_stats.hostname = wget_strdup("-");
 
 		if (wget_tcp_get_stats_server(WGET_STATS_SERVER_HPKP, stats))
-			server_stats.hpkp = *((wget_hpkp_stats_t *)wget_tcp_get_stats_server(WGET_STATS_SERVER_HPKP, stats));
+			server_stats.hpkp = *((char *)wget_tcp_get_stats_server(WGET_STATS_SERVER_HPKP, stats));
 		else
-			server_stats.hpkp = WGET_STATS_HPKP_NA;
+			server_stats.hpkp = -1;
 
 		if (wget_tcp_get_stats_server(WGET_STATS_SERVER_HPKP_NEW, stats))
 			server_stats.hpkp_new = wget_strdup(wget_tcp_get_stats_server(WGET_STATS_SERVER_HPKP_NEW, stats));
@@ -261,7 +261,7 @@ void stats_init(void)
 
 }
 
-static const char *stats_server_hpkp(wget_hpkp_stats_t hpkp)
+static const char *stats_server_hpkp(const char hpkp)
 {
 	const char *msg;
 
@@ -275,7 +275,7 @@ static const char *stats_server_hpkp(wget_hpkp_stats_t hpkp)
 	case WGET_STATS_HPKP_NOMATCH:
 		msg = "Pubkey pinning mismatch";
 		break;
-	case WGET_STATS_HPKP_NA:
+	case -1:
 		msg = "-";
 		break;
 	default:

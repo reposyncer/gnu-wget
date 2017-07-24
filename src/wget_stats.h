@@ -54,7 +54,7 @@ typedef struct {
 	*csp,
 	*hpkp_new;
 
-	wget_hpkp_stats_t
+	char
 		hpkp;
 } server_stats_t;
 
