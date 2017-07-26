@@ -158,24 +158,27 @@ HOST_DOCS *host_docs_add(wget_iri_t *iri, int status, long long size)
 	wget_thread_mutex_lock(&host_docs_mutex);
 
 	if ((hostp = host_get(iri))) {
-		host_docs = hostp->host_docs;
-
-		if (!host_docs) {
+		if (!(host_docs = hostp->host_docs)) {
 			host_docs = wget_hashmap_create(16, (wget_hashmap_hash_t)_host_docs_hash, (wget_hashmap_compare_t)_host_docs_compare);
 			wget_hashmap_set_key_destructor(host_docs, (wget_hashmap_key_destructor_t)_free_host_docs_entry);
-
-		} else {
-			host_docsp = host_docs_get(host_docs, status);
-			docs = host_docsp->docs;
 		}
 
-		if (!docs)
+		if (!(host_docsp = host_docs_get(host_docs, status))) {
+			host_docsp = wget_malloc(sizeof(HOST_DOCS)); // free() this later
+			host_docsp->http_status = status;
+			host_docsp->n_docs = 0;
+			host_docsp->docs = NULL;
+			wget_hashmap_put_noalloc(host_docs, host_docsp, host_docsp);
+		}
+
+		if (!(docs = host_docsp->docs))
 			docs = wget_vector_create(8, -2, NULL);
 
 		doc = wget_malloc(sizeof(DOC));	// free() this later
 		doc->iri = iri;
 		doc->size = size;
 		wget_vector_add_noalloc(docs, doc);
+		host_docsp->n_docs++;
 	}
 
 	wget_thread_mutex_unlock(&host_docs_mutex);
