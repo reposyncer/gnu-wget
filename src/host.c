@@ -66,6 +66,14 @@ static int _host_compare(const HOST *host1, const HOST *host2)
 #ifdef __clang__
 __attribute__((no_sanitize("integer")))
 #endif
+static int _host_docs_compare(const HOST_DOCS *host_docsp1, const HOST_DOCS *host_docsp2)
+{
+	if (host_docsp1->http_status != host_docsp2->http_status)
+		return host_docsp1->http_status < host_docsp2->http_status ? -1 : 1;
+
+	return 0;
+}
+
 static unsigned int _host_hash(const HOST *host)
 {
 	unsigned int hash = host->port; // use port as SALT if hash table attacks doesn't matter
@@ -84,12 +92,36 @@ static unsigned int _host_hash(const HOST *host)
 	return hash;
 }
 
+static unsigned int _host_docs_hash(const HOST_DOCS *host_docsp)
+{
+	unsigned int hash = 0; // use 0 as SALT if hash table attacks doesn't matter
+	const unsigned char *p;
+	char *buf;
+
+	wget_asprintf(&buf, "%d", host_docsp->http_status);
+
+	for (p = (const unsigned char *)buf; p && *p; p++)
+		hash = hash * 101 + *p;
+
+	xfree(buf);
+
+	return hash;
+}
+
 static void _free_host_entry(HOST *host)
 {
 	if (host) {
 		host_queue_free(host);
 		wget_robots_free(&host->robots);
 		wget_xfree(host);
+	}
+}
+
+static void _free_host_docs_entry(HOST_DOCS *host_docsp)
+{
+	if (host_docsp) {
+		wget_vector_free(&host_docsp->docs);
+		wget_xfree(host_docsp);
 	}
 }
 
@@ -120,17 +152,27 @@ HOST_DOCS *host_docs_add(wget_iri_t *iri, int status, long long size)
 	HOST *hostp;
 	wget_hashmap_t *host_docs;
 	HOST_DOCS *host_docsp;
-	wget_vector_t docs;
+	wget_vector_t *docs;
 	DOC *doc;
 
 	wget_thread_mutex_lock(&host_docs_mutex);
 
 	if ((hostp = host_get(iri))) {
 		host_docs = hostp->host_docs;
-		host_docsp = host_docs_get(host_docs, status);
-		docs = host_docsp->docs;
 
-		doc = xmalloc(sizeof(DOC));
+		if (!host_docs) {
+			host_docs = wget_hashmap_create(16, (wget_hashmap_hash_t)_host_docs_hash, (wget_hashmap_compare_t)_host_docs_compare);
+			wget_hashmap_set_key_destructor(host_docs, (wget_hashmap_key_destructor_t)_free_host_docs_entry);
+
+		} else {
+			host_docsp = host_docs_get(host_docs, status);
+			docs = host_docsp->docs;
+		}
+
+		if (!docs)
+			docs = wget_vector_create(8, -2, NULL);
+
+		doc = wget_malloc(sizeof(DOC));	// free() this later
 		doc->iri = iri;
 		doc->size = size;
 		wget_vector_add_noalloc(docs, doc);
