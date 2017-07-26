@@ -40,6 +40,8 @@ static wget_hashmap_t
 	*hosts;
 static wget_thread_mutex_t
 	hosts_mutex = WGET_THREAD_MUTEX_INITIALIZER;
+static wget_thread_mutex_t
+	host_docs_mutex = WGET_THREAD_MUTEX_INITIALIZER;
 static int
 	qsize; // overall number of jobs
 
@@ -113,17 +115,57 @@ HOST *host_add(wget_iri_t *iri)
 	return hostp;
 }
 
+HOST_DOCS *host_docs_add(wget_iri_t *iri, int status, long long size)
+{
+	HOST *hostp;
+	wget_hashmap_t *host_docs;
+	HOST_DOCS *host_docsp;
+	wget_vector_t docs;
+	DOC *doc;
+
+	wget_thread_mutex_lock(&host_docs_mutex);
+
+	if ((hostp = host_get(iri))) {
+		host_docs = hostp->host_docs;
+		host_docsp = host_docs_get(host_docs, status);
+		docs = host_docsp->docs;
+
+		doc = xmalloc(sizeof(DOC));
+		doc->iri = iri;
+		doc->size = size;
+		wget_vector_add_noalloc(docs, doc);
+	}
+
+	wget_thread_mutex_unlock(&host_docs_mutex);
+
+	return host_docsp;
+}
+
+HOST_DOCS *host_docs_get(wget_hashmap_t *host_docs, int status)
+{
+	HOST_DOCS *host_docsp;
+	wget_thread_mutex_lock(&host_docs_mutex);
+
+	if (host_docs)
+		host_docsp = wget_hashmap_get(host_docs, &status);
+	else
+		host_docsp = NULL;
+
+	wget_thread_mutex_unlock(&host_docs_mutex);
+
+	return host_docsp;
+}
+
 HOST *host_get(wget_iri_t *iri)
 {
 	HOST *hostp, host = { .scheme = iri->scheme, .host = iri->host, .port = iri->port };
 
 	wget_thread_mutex_lock(&hosts_mutex);
 
-	if (hosts) {
+	if (hosts)
 		hostp = wget_hashmap_get(hosts, &host);
-	} else {
+	else
 		hostp = NULL;
-	}
 
 	wget_thread_mutex_unlock(&hosts_mutex);
 
