@@ -161,6 +161,7 @@ HOST_DOCS *host_docs_add(wget_iri_t *iri, int status, long long size)
 		if (!(host_docs = hostp->host_docs)) {
 			host_docs = wget_hashmap_create(16, (wget_hashmap_hash_t)_host_docs_hash, (wget_hashmap_compare_t)_host_docs_compare);
 			wget_hashmap_set_key_destructor(host_docs, (wget_hashmap_key_destructor_t)_free_host_docs_entry);
+			hostp->host_docs = host_docs;
 		}
 
 		if (!(host_docsp = host_docs_get(host_docs, status))) {
