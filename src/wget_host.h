@@ -60,8 +60,6 @@ typedef struct {
 typedef struct {
 	int
 		http_status;
-	size_t
-		n_docs;
 	wget_vector_t
 		*docs;
 } HOST_DOCS;

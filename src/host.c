@@ -111,8 +111,10 @@ static unsigned int _host_docs_hash(const HOST_DOCS *host_docsp)
 static void _free_host_entry(HOST *host)
 {
 	if (host) {
+printf("At least now??\n");
 		host_queue_free(host);
 		wget_robots_free(&host->robots);
+		wget_hashmap_free(&host->host_docs);
 		wget_xfree(host);
 	}
 }
@@ -120,6 +122,7 @@ static void _free_host_entry(HOST *host)
 static void _free_host_docs_entry(HOST_DOCS *host_docsp)
 {
 	if (host_docsp) {
+printf("Yes please!\n");
 		wget_vector_free(&host_docsp->docs);
 		wget_xfree(host_docsp);
 	}
@@ -159,19 +162,21 @@ HOST_DOCS *host_docs_add(wget_iri_t *iri, int status, long long size)
 
 	if ((hostp = host_get(iri))) {
 		if (!(host_docs = hostp->host_docs)) {
+printf("foo\n");
 			host_docs = wget_hashmap_create(16, (wget_hashmap_hash_t)_host_docs_hash, (wget_hashmap_compare_t)_host_docs_compare);
 			wget_hashmap_set_key_destructor(host_docs, (wget_hashmap_key_destructor_t)_free_host_docs_entry);
 			hostp->host_docs = host_docs;
 		}
 
+printf("Before\n");
 		if (!(host_docsp = host_docs_get(host_docs, status))) {
+printf("bar\n");
 			host_docsp = wget_malloc(sizeof(HOST_DOCS)); // free() this later
 			host_docsp->http_status = status;
-			host_docsp->n_docs = 0;
 			host_docsp->docs = NULL;
 			wget_hashmap_put_noalloc(host_docs, host_docsp, host_docsp);
 		}
-
+printf("What??\n");
 		if (!(docs = host_docsp->docs))
 			docs = wget_vector_create(8, -2, NULL);
 
@@ -179,7 +184,6 @@ HOST_DOCS *host_docs_add(wget_iri_t *iri, int status, long long size)
 		doc->iri = iri;
 		doc->size = size;
 		wget_vector_add_noalloc(docs, doc);
-		host_docsp->n_docs++;
 	}
 
 	wget_thread_mutex_unlock(&host_docs_mutex);
@@ -189,16 +193,14 @@ HOST_DOCS *host_docs_add(wget_iri_t *iri, int status, long long size)
 
 HOST_DOCS *host_docs_get(wget_hashmap_t *host_docs, int status)
 {
-	HOST_DOCS *host_docsp;
-	wget_thread_mutex_lock(&host_docs_mutex);
+printf("In\n");
+	HOST_DOCS *host_docsp, host_doc = {.http_status = status};
 
 	if (host_docs)
-		host_docsp = wget_hashmap_get(host_docs, &status);
+		host_docsp = wget_hashmap_get(host_docs, &host_doc);
 	else
 		host_docsp = NULL;
-
-	wget_thread_mutex_unlock(&host_docs_mutex);
-
+printf("Before out\n");
 	return host_docsp;
 }
 
