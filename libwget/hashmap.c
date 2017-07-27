@@ -226,10 +226,10 @@ void *wget_hashmap_get(const wget_hashmap_t *h, const void *key)
 	ENTRY *entry;
 	unsigned int hash = h->hash(key);
 	int pos = hash % h->max;
-printf("In hashmap_get()\n");
+
 	if ((entry = hashmap_find_entry(h, key, hash, pos)))
 		return entry->value; // watch out, value may be NULL
-printf("Out hashmap_get()\n");
+
 	return NULL;
 }
 
