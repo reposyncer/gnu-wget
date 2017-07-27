@@ -172,8 +172,10 @@ HOST_DOCS *host_docs_add(wget_iri_t *iri, int status, long long size)
 			wget_hashmap_put_noalloc(host_docs, host_docsp, host_docsp);
 		}
 
-		if (!(docs = host_docsp->docs))
+		if (!(docs = host_docsp->docs)) {
 			docs = wget_vector_create(8, -2, NULL);
+			host_docsp->docs = docs;
+		}
 
 		doc = wget_malloc(sizeof(DOC));	// free() this later
 		doc->iri = iri;
