@@ -2227,6 +2227,9 @@ WGETAPI void
 WGETAPI const void *
 	wget_tcp_get_stats_ocsp(wget_ocsp_stats_t type, const void *stats);
 
+WGETAPI void
+	host_ips_free(void);
+
 WGET_END_DECLS
 
 #endif /* _LIBWGET_LIBWGET_H */

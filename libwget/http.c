@@ -64,6 +64,17 @@ static wget_vector_t
 	*https_proxies,
 	*no_proxies;
 
+static wget_hashmap_t
+	*hosts;
+static wget_thread_mutex_t
+	hosts_mutex = WGET_THREAD_MUTEX_INITIALIZER;
+
+typedef struct {
+	const char
+		*hostname,
+		*ip;
+} HOST;
+
 typedef struct
 {
 	const char
@@ -523,6 +534,62 @@ static void setup_nghttp2_callbacks(nghttp2_session_callbacks *callbacks)
 }
 #endif
 
+static int _host_compare(const HOST *host1, const HOST *host2)
+{
+	int n;
+
+	if ((n = wget_strcmp(host1->hostname, host2->hostname)))
+		return n;
+
+	return wget_strcmp(host1->ip, host2->ip);
+}
+
+static unsigned int _host_hash(const HOST *host)
+{
+	unsigned int hash = 0; // use 0 as SALT if hash table attacks doesn't matter
+	const unsigned char *p;
+
+	for (p = (unsigned char *)host->hostname; p && *p; p++)
+			hash = hash * 101 + *p;
+
+	for (p = (unsigned char *)host->ip; p && *p; p++)
+		hash = hash * 101 + *p;
+
+	return hash;
+}
+
+static void _free_host_entry(HOST *host)
+{
+	if (host)
+		wget_xfree(host);
+}
+
+static HOST *host_add(const char *hostname, const char *ip)
+{
+	wget_thread_mutex_lock(&hosts_mutex);
+
+	if (!hosts) {
+		hosts = wget_hashmap_create(16, (wget_hashmap_hash_t)_host_hash, (wget_hashmap_compare_t)_host_compare);
+		wget_hashmap_set_key_destructor(hosts, (wget_hashmap_key_destructor_t)_free_host_entry);
+	}
+
+	HOST *hostp = NULL, host = { .hostname = hostname, .ip = ip };
+
+	hostp = wget_memdup(&host, sizeof(host));
+	wget_hashmap_put_noalloc(hosts, hostp, hostp);
+
+	wget_thread_mutex_unlock(&hosts_mutex);
+
+	return hostp;
+}
+
+void host_ips_free(void)
+{
+	// We don't need mutex locking here - this function is called on exit when all threads have ceased.
+	if (stats_callback)
+		wget_hashmap_free(&hosts);
+}
+
 int wget_http_open(wget_http_connection_t **_conn, const wget_iri_t *iri)
 {
 	static int next_http_proxy = -1;
@@ -616,15 +683,20 @@ int wget_http_open(wget_http_connection_t **_conn, const wget_iri_t *iri)
 #endif
 	} else {
 		if (stats_callback && (rc == WGET_E_CERTIFICATE)) {
-			_stats_data_t stats;
+			HOST host = { .hostname = wget_http_get_host(conn), .ip = conn->tcp->ip };
+			if (!hosts || !wget_hashmap_contains(hosts, &host)) {
+				_stats_data_t stats;
 
-			stats.hostname = wget_http_get_host(conn);
-			stats.ip = conn->tcp->ip;
-			stats.hpkp = conn->tcp->hpkp;
-			stats.hpkp_new = NULL;
-			stats.hsts = NULL;
-			stats.csp = NULL;
-			stats_callback(WGET_STATS_TYPE_SERVER, &stats);
+				stats.hostname = wget_http_get_host(conn);
+				stats.ip = conn->tcp->ip;
+				stats.hpkp = conn->tcp->hpkp;
+				stats.hpkp_new = NULL;
+				stats.hsts = NULL;
+				stats.csp = NULL;
+
+				stats_callback(WGET_STATS_TYPE_SERVER, &stats);
+				host_add(stats.hostname, stats.ip);
+			}
 		}
 
 		wget_http_close(_conn);
@@ -862,16 +934,20 @@ wget_http_response_t *wget_http_get_response_cb(wget_http_connection_t *conn)
 		}
 
 		if (stats_callback) {
-			_stats_data_t stats;
+			HOST host = { .hostname = wget_http_get_host(conn), .ip = conn->tcp->ip };
+			if (!hosts || !wget_hashmap_contains(hosts, &host)) {
+				_stats_data_t stats;
 
-			stats.hostname = wget_http_get_host(conn);
-			stats.ip = conn->tcp->ip;
-			stats.hpkp = conn->tcp->hpkp;
-			stats.hpkp_new = resp->hpkp ? "Yes" : "No";
-			stats.hsts = resp->hsts ? "Yes" : "No";
-			stats.csp = resp->csp ? "Yes" : "No";
+				stats.hostname = wget_http_get_host(conn);
+				stats.ip = conn->tcp->ip;
+				stats.hpkp = conn->tcp->hpkp;
+				stats.hpkp_new = resp->hpkp ? "Yes" : "No";
+				stats.hsts = resp->hsts ? "Yes" : "No";
+				stats.csp = resp->csp ? "Yes" : "No";
 
-			stats_callback(WGET_STATS_TYPE_SERVER, &stats);
+				stats_callback(WGET_STATS_TYPE_SERVER, &stats);
+				host_add(stats.hostname, stats.ip);
+			}
 		}
 
 		return resp;
@@ -929,16 +1005,20 @@ wget_http_response_t *wget_http_get_response_cb(wget_http_connection_t *conn)
 			resp->req = req;
 
 			if (stats_callback) {
-				_stats_data_t stats;
+				HOST host = { .hostname = wget_http_get_host(conn), .ip = conn->tcp->ip };
+				if (!hosts || !wget_hashmap_contains(hosts, &host)) {
+					_stats_data_t stats;
 
-				stats.hostname = wget_http_get_host(conn);
-				stats.ip = conn->tcp->ip;
-				stats.hpkp = conn->tcp->hpkp;
-				stats.hpkp_new = resp->hpkp ? "Yes" : "No";
-				stats.hsts = resp->hsts ? "Yes" : "No";
-				stats.csp = resp->csp ? "Yes" : "No";
+					stats.hostname = wget_http_get_host(conn);
+					stats.ip = conn->tcp->ip;
+					stats.hpkp = conn->tcp->hpkp;
+					stats.hpkp_new = resp->hpkp ? "Yes" : "No";
+					stats.hsts = resp->hsts ? "Yes" : "No";
+					stats.csp = resp->csp ? "Yes" : "No";
 
-				stats_callback(WGET_STATS_TYPE_SERVER, &stats);
+					stats_callback(WGET_STATS_TYPE_SERVER, &stats);
+					host_add(stats.hostname, stats.ip);
+				}
 			}
 
 			if (req->header_callback) {
