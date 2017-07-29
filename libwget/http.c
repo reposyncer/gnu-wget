@@ -72,7 +72,8 @@ static wget_thread_mutex_t
 typedef struct {
 	const char
 		*hostname,
-		*ip;
+		*ip,
+		*scheme;
 } HOST;
 
 typedef struct
@@ -80,6 +81,7 @@ typedef struct
 	const char
 		*hostname,
 		*ip,
+		*scheme,
 		*hsts,
 		*csp,
 		*hpkp_new;
@@ -541,7 +543,10 @@ static int _host_compare(const HOST *host1, const HOST *host2)
 	if ((n = wget_strcmp(host1->hostname, host2->hostname)))
 		return n;
 
-	return wget_strcmp(host1->ip, host2->ip);
+	if ((n = wget_strcmp(host1->ip, host2->ip)))
+		return n;
+
+	return wget_strcmp(host1->scheme, host2->scheme);
 }
 
 static unsigned int _host_hash(const HOST *host)
@@ -555,6 +560,9 @@ static unsigned int _host_hash(const HOST *host)
 	for (p = (unsigned char *)host->ip; p && *p; p++)
 		hash = hash * 101 + *p;
 
+	for (p = (unsigned char *)host->scheme; p && *p; p++)
+			hash = hash * 101 + *p;
+
 	return hash;
 }
 
@@ -563,21 +571,17 @@ static void _free_host_entry(HOST *host)
 	if (host)
 		wget_xfree(host->hostname);
 		wget_xfree(host->ip);
+		wget_xfree(host->scheme);
 		wget_xfree(host);
 }
 
-static HOST *host_add(const char *hostname, const char *ip)
+static const HOST *host_add(const HOST *hostp)
 {
 	if (!hosts) {
 		hosts = wget_hashmap_create(16, (wget_hashmap_hash_t)_host_hash, (wget_hashmap_compare_t)_host_compare);
 		wget_hashmap_set_key_destructor(hosts, (wget_hashmap_key_destructor_t)_free_host_entry);
 	}
 
-	HOST *hostp, host;
-	host.hostname = wget_strdup(hostname);
-	host.ip = wget_strdup(ip);
-
-	hostp = wget_memdup(&host, sizeof(host));
 	wget_hashmap_put_noalloc(hosts, hostp, hostp);
 
 	return hostp;
@@ -594,20 +598,26 @@ static void _server_stats_add(wget_http_connection_t *conn, wget_http_response_t
 {
 	wget_thread_mutex_lock(&hosts_mutex);
 
-	HOST host = { .hostname = wget_http_get_host(conn), .ip = conn->tcp->ip };
-	if (!hosts || !wget_hashmap_contains(hosts, &host)) {
+	HOST *hostp = wget_malloc(sizeof(HOST));
+	hostp->hostname = wget_strdup(wget_http_get_host(conn));
+	hostp->ip = wget_strdup(conn->tcp->ip);
+	hostp->scheme = wget_strdup(conn->scheme);
+
+	if (!hosts || !wget_hashmap_contains(hosts, hostp)) {
 		_stats_data_t stats;
 
-		stats.hostname = wget_http_get_host(conn);
-		stats.ip = conn->tcp->ip;
+		stats.hostname = hostp->hostname;
+		stats.ip = hostp->ip;
+		stats.scheme = hostp->scheme;
 		stats.hpkp = conn->tcp->hpkp;
 		stats.hpkp_new = resp ? (resp->hpkp ? "Yes" : "No"): NULL;
 		stats.hsts = resp ? (resp->hsts ? "Yes" : "No"): NULL;
 		stats.csp = resp ? (resp->csp ? "Yes" : "No"): NULL;
 
 		stats_callback(WGET_STATS_TYPE_SERVER, &stats);
-		host_add(stats.hostname, stats.ip);
-	}
+		host_add(hostp);
+	} else
+		_free_host_entry(hostp);
 
 	wget_thread_mutex_unlock(&hosts_mutex);
 }
@@ -1397,6 +1407,8 @@ const void *wget_tcp_get_stats_server(wget_server_stats_t type, const void *_sta
 		return stats->hostname;
 	case WGET_STATS_SERVER_IP:
 		return stats->ip;
+	case WGET_STATS_SERVER_SCHEME:
+		return stats->scheme;
 	case WGET_STATS_SERVER_HPKP:
 		return &(stats->hpkp);
 	case WGET_STATS_SERVER_HPKP_NEW:
