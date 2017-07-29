@@ -561,6 +561,8 @@ static unsigned int _host_hash(const HOST *host)
 static void _free_host_entry(HOST *host)
 {
 	if (host)
+		wget_xfree(host->hostname);
+		wget_xfree(host->ip);
 		wget_xfree(host);
 }
 
@@ -571,7 +573,9 @@ static HOST *host_add(const char *hostname, const char *ip)
 		wget_hashmap_set_key_destructor(hosts, (wget_hashmap_key_destructor_t)_free_host_entry);
 	}
 
-	HOST *hostp = NULL, host = { .hostname = hostname, .ip = ip };
+	HOST *hostp, host;
+	host.hostname = wget_strdup(hostname);
+	host.ip = wget_strdup(ip);
 
 	hostp = wget_memdup(&host, sizeof(host));
 	wget_hashmap_put_noalloc(hosts, hostp, hostp);
