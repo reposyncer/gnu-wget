@@ -152,7 +152,7 @@ HOST_DOCS *host_docs_add(wget_iri_t *iri, int status, long long size)
 {
 	HOST *hostp;
 	wget_hashmap_t *host_docs;
-	HOST_DOCS *host_docsp;
+	HOST_DOCS *host_docsp = NULL;
 	wget_vector_t *docs;
 	DOC *doc;
 
