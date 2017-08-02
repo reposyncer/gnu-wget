@@ -89,5 +89,6 @@ void host_reset_failure(HOST *host) G_GNUC_WGET_NONNULL((1));
 int queue_size(void) G_GNUC_WGET_PURE;
 int queue_empty(void) G_GNUC_WGET_PURE;
 void queue_print(HOST *host);
+void print_site_stats(wget_buffer_t *buf, FILE *fp);
 
 #endif /* _WGET_HOST_H */

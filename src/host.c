@@ -45,6 +45,11 @@ static wget_thread_mutex_t
 static int
 	qsize; // overall number of jobs
 
+struct site_stats{
+	wget_buffer_t *buf;
+	FILE *fp;
+};
+
 static int _host_compare(const HOST *host1, const HOST *host2)
 {
 	int n;
@@ -126,6 +131,12 @@ static void _free_host_docs_entry(HOST_DOCS *host_docsp)
 	}
 }
 
+static int hosts_hashmap_print(G_GNUC_WGET_UNUSED void *ctx, const HOST *host)
+{
+	printf("host->host %s\n", host->host);
+	return 0;
+}
+
 HOST *host_add(wget_iri_t *iri)
 {
 	wget_thread_mutex_lock(&hosts_mutex);
@@ -143,6 +154,8 @@ HOST *host_add(wget_iri_t *iri)
 		wget_hashmap_put_noalloc(hosts, hostp, hostp);
 	}
 
+	wget_hashmap_browse(hosts, (wget_hashmap_browse_t)hosts_hashmap_print, NULL);
+printf("--------------------------------------------------------------------------\n");
 	wget_thread_mutex_unlock(&hosts_mutex);
 
 	return hostp;
@@ -549,4 +562,35 @@ int queue_size(void)
 {
 	debug_printf("%s: qsize=%d\n", __func__, qsize);
 	return qsize;
+}
+
+static int host_docs_hashmap(struct site_stats *ctx, HOST_DOCS *host_docsp)
+{
+	wget_buffer_printf_append(ctx->buf, "  %8d  %6d\n", host_docsp->http_status, wget_vector_size(host_docsp->docs));
+	if (ctx->buf->length > 64*1024) {
+		fprintf(ctx->fp, "%s", ctx->buf->data);
+		wget_buffer_reset(ctx->buf);
+	}
+
+	return  0;
+}
+
+static int hosts_hashmap(struct site_stats *ctx, HOST *host)
+{
+	wget_buffer_printf_append(ctx->buf, "  %s:\n", host->host);
+	wget_buffer_printf_append(ctx->buf, "  %8s  %6s\n", "Status", "Docs");
+	wget_hashmap_browse(host->host_docs, (wget_hashmap_browse_t)host_docs_hashmap, ctx);
+
+	return 0;
+}
+
+void print_site_stats(wget_buffer_t *buf, FILE *fp)
+{
+	struct site_stats ctx = { .buf = buf, .fp = fp };
+	wget_thread_mutex_lock(&hosts_mutex);
+
+	wget_hashmap_browse(hosts, (wget_hashmap_browse_t)hosts_hashmap, &ctx);
+	fprintf(fp, "%s", buf->data);
+
+	wget_thread_mutex_unlock(&hosts_mutex);
 }
