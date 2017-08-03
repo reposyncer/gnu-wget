@@ -130,13 +130,15 @@ static void _free_host_docs_entry(HOST_DOCS *host_docsp)
 		wget_xfree(host_docsp);
 	}
 }
-
+/*
 static int hosts_hashmap_print(G_GNUC_WGET_UNUSED void *ctx, const HOST *host)
 {
 	printf("host->host %s\n", host->host);
+	printf("host->scheme %s\n", host->scheme);
+	printf("host->port %d\n", host->port);
 	return 0;
 }
-
+*/
 HOST *host_add(wget_iri_t *iri)
 {
 	wget_thread_mutex_lock(&hosts_mutex);
@@ -154,8 +156,9 @@ HOST *host_add(wget_iri_t *iri)
 		wget_hashmap_put_noalloc(hosts, hostp, hostp);
 	}
 
-	wget_hashmap_browse(hosts, (wget_hashmap_browse_t)hosts_hashmap_print, NULL);
-printf("--------------------------------------------------------------------------\n");
+//printf("--------------------------------------------------------------------------\n");
+//	wget_hashmap_browse(hosts, (wget_hashmap_browse_t)hosts_hashmap_print, NULL);
+//printf("--------------------------------------------------------------------------\n");
 	wget_thread_mutex_unlock(&hosts_mutex);
 
 	return hostp;
@@ -566,7 +569,13 @@ int queue_size(void)
 
 static int host_docs_hashmap(struct site_stats *ctx, HOST_DOCS *host_docsp)
 {
-	wget_buffer_printf_append(ctx->buf, "  %8d  %6d\n", host_docsp->http_status, wget_vector_size(host_docsp->docs));
+	wget_buffer_printf_append(ctx->buf, "  %8d  %13d\n", host_docsp->http_status, wget_vector_size(host_docsp->docs));
+
+	for (int it = 0; it < wget_vector_size(host_docsp->docs); it++) {
+		const DOC *doc = wget_vector_get(host_docsp->docs, it);
+		wget_buffer_printf_append(ctx->buf, "         %s  %d\n", doc->iri->uri, doc->size);
+	}
+
 	if (ctx->buf->length > 64*1024) {
 		fprintf(ctx->fp, "%s", ctx->buf->data);
 		wget_buffer_reset(ctx->buf);
@@ -577,9 +586,13 @@ static int host_docs_hashmap(struct site_stats *ctx, HOST_DOCS *host_docsp)
 
 static int hosts_hashmap(struct site_stats *ctx, HOST *host)
 {
-	wget_buffer_printf_append(ctx->buf, "  %s:\n", host->host);
-	wget_buffer_printf_append(ctx->buf, "  %8s  %6s\n", "Status", "Docs");
-	wget_hashmap_browse(host->host_docs, (wget_hashmap_browse_t)host_docs_hashmap, ctx);
+	if (host->host_docs)
+	{
+		wget_buffer_printf_append(ctx->buf, "\n  %s:\n", host->host);
+		wget_buffer_printf_append(ctx->buf, "  %8s  %13s\n", "Status", "No. of docs");
+
+		wget_hashmap_browse(host->host_docs, (wget_hashmap_browse_t)host_docs_hashmap, ctx);
+	}
 
 	return 0;
 }
