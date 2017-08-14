@@ -573,7 +573,7 @@ static int host_docs_hashmap(struct site_stats *ctx, HOST_DOCS *host_docsp)
 
 	for (int it = 0; it < wget_vector_size(host_docsp->docs); it++) {
 		const DOC *doc = wget_vector_get(host_docsp->docs, it);
-		wget_buffer_printf_append(ctx->buf, "         %s  %d\n", doc->iri->uri, doc->size);
+		wget_buffer_printf_append(ctx->buf, "         %s  %lld\n", doc->iri->uri, doc->size);
 	}
 
 	if (ctx->buf->length > 64*1024) {

@@ -1245,9 +1245,9 @@ static int establish_connection(DOWNLOADER *downloader, wget_iri_t **iri)
 static void add_statistics(wget_iri_t *iri, wget_http_response_t *resp)
 {
 	// do some statistics
-	if (resp->code == 200) {
-		JOB *job = resp->req->user_data;
+	JOB *job = resp->req->user_data;
 
+	if (resp->code == 200) {
 		if (job->part)
 			_atomic_increment_int(&stats.nchunks);
 		else
@@ -1259,6 +1259,9 @@ static void add_statistics(wget_iri_t *iri, wget_http_response_t *resp)
 		_atomic_increment_int(&stats.nnotmodified);
 	else
 		_atomic_increment_int(&stats.nerrors);
+
+	if (job == job->host->robot_job)
+		 iri = wget_iri_clone(iri);
 
 	host_docs_add(iri, resp->code, resp->content_length);
 }
