@@ -130,15 +130,13 @@ static void _free_host_docs_entry(HOST_DOCS *host_docsp)
 		wget_xfree(host_docsp);
 	}
 }
-/*
-static int hosts_hashmap_print(G_GNUC_WGET_UNUSED void *ctx, const HOST *host)
+
+static void _free_docs_entry(DOC *doc)
 {
-	printf("host->host %s\n", host->host);
-	printf("host->scheme %s\n", host->scheme);
-	printf("host->port %d\n", host->port);
-	return 0;
+	if (doc && doc->robot_iri)
+		wget_iri_free(&(doc->iri));
 }
-*/
+
 HOST *host_add(wget_iri_t *iri)
 {
 	wget_thread_mutex_lock(&hosts_mutex);
@@ -156,15 +154,12 @@ HOST *host_add(wget_iri_t *iri)
 		wget_hashmap_put_noalloc(hosts, hostp, hostp);
 	}
 
-//printf("--------------------------------------------------------------------------\n");
-//	wget_hashmap_browse(hosts, (wget_hashmap_browse_t)hosts_hashmap_print, NULL);
-//printf("--------------------------------------------------------------------------\n");
 	wget_thread_mutex_unlock(&hosts_mutex);
 
 	return hostp;
 }
 
-HOST_DOCS *host_docs_add(wget_iri_t *iri, int status, long long size)
+HOST_DOCS *host_docs_add(wget_iri_t *iri, int status, long long size, bool robot_iri)
 {
 	HOST *hostp;
 	wget_hashmap_t *host_docs;
@@ -182,7 +177,7 @@ HOST_DOCS *host_docs_add(wget_iri_t *iri, int status, long long size)
 		}
 
 		if (!(host_docsp = host_docs_get(host_docs, status))) {
-			host_docsp = wget_malloc(sizeof(HOST_DOCS)); // free() this later
+			host_docsp = wget_malloc(sizeof(HOST_DOCS));
 			host_docsp->http_status = status;
 			host_docsp->docs = NULL;
 			wget_hashmap_put_noalloc(host_docs, host_docsp, host_docsp);
@@ -190,12 +185,14 @@ HOST_DOCS *host_docs_add(wget_iri_t *iri, int status, long long size)
 
 		if (!(docs = host_docsp->docs)) {
 			docs = wget_vector_create(8, -2, NULL);
+			wget_vector_set_destructor(docs, (wget_vector_destructor_t)_free_docs_entry);
 			host_docsp->docs = docs;
 		}
 
-		doc = wget_malloc(sizeof(DOC));	// free() this later
+		doc = wget_malloc(sizeof(DOC));
 		doc->iri = iri;
 		doc->size = size;
+		doc->robot_iri = robot_iri;
 		wget_vector_add_noalloc(docs, doc);
 	}
 

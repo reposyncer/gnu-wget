@@ -1246,6 +1246,7 @@ static void add_statistics(wget_iri_t *iri, wget_http_response_t *resp)
 {
 	// do some statistics
 	JOB *job = resp->req->user_data;
+	bool robot_iri = false;
 
 	if (resp->code == 200) {
 		if (job->part)
@@ -1260,10 +1261,12 @@ static void add_statistics(wget_iri_t *iri, wget_http_response_t *resp)
 	else
 		_atomic_increment_int(&stats.nerrors);
 
-	if (job == job->host->robot_job)
-		 iri = wget_iri_clone(iri);
+	if (job == job->host->robot_job) {
+		iri = wget_iri_clone(iri);
+		robot_iri = true;
+	}
 
-	host_docs_add(iri, resp->code, resp->content_length);
+	host_docs_add(iri, resp->code, resp->content_length, robot_iri);
 }
 
 static int process_response_header(wget_http_response_t *resp)
