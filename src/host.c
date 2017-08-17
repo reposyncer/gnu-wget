@@ -162,7 +162,7 @@ HOST *host_add(wget_iri_t *iri)
 	return hostp;
 }
 
-HOST_DOCS *host_docs_add(wget_iri_t *iri, int status, long long size, bool robot_iri)
+HOST_DOCS *host_docs_add(wget_iri_t *iri, wget_http_response_t *resp, bool robot_iri)
 {
 	HOST *hostp;
 	wget_hashmap_t *host_docs;
@@ -179,9 +179,9 @@ HOST_DOCS *host_docs_add(wget_iri_t *iri, int status, long long size, bool robot
 			hostp->host_docs = host_docs;
 		}
 
-		if (!(host_docsp = host_docs_get(host_docs, status))) {
+		if (!(host_docsp = host_docs_get(host_docs, resp->code))) {
 			host_docsp = wget_malloc(sizeof(HOST_DOCS));
-			host_docsp->http_status = status;
+			host_docsp->http_status = resp->code;
 			host_docsp->docs = NULL;
 			wget_hashmap_put_noalloc(host_docs, host_docsp, host_docsp);
 		}
@@ -194,7 +194,7 @@ HOST_DOCS *host_docs_add(wget_iri_t *iri, int status, long long size, bool robot
 
 		doc = wget_malloc(sizeof(DOC));
 		doc->iri = iri;
-		doc->size = size;
+		doc->size = resp->cur_downloaded;
 		doc->robot_iri = robot_iri;
 		wget_vector_add_noalloc(docs, doc);
 	}

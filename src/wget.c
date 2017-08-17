@@ -1253,8 +1253,7 @@ static void add_statistics(wget_iri_t *iri, wget_http_response_t *resp)
 			_atomic_increment_int(&stats.nchunks);
 		else
 			_atomic_increment_int(&stats.ndownloads);
-	}
-	else if (resp->code == 301 || resp->code == 302)
+	} else if (resp->code == 301 || resp->code == 302)
 		_atomic_increment_int(&stats.nredirects);
 	else if (resp->code == 304)
 		_atomic_increment_int(&stats.nnotmodified);
@@ -1266,7 +1265,7 @@ static void add_statistics(wget_iri_t *iri, wget_http_response_t *resp)
 		robot_iri = true;
 	}
 
-	host_docs_add(iri, resp->code, resp->content_length, robot_iri);
+	host_docs_add(iri, resp, robot_iri);
 }
 
 static int process_response_header(wget_http_response_t *resp)
@@ -1296,14 +1295,7 @@ static int process_response_header(wget_http_response_t *resp)
 
 	// do some statistics
 	add_statistics(iri, resp);
-/*
-printf("iri->uri = %s\n", iri->uri);
-printf("iri->scheme = %s\n", iri->scheme);
-printf("iri->host = %s\n", iri->host);
-printf("iri->port = %d\n", iri->port);
-printf("resp->code = %hd\n", resp->code);
-printf("resp->content_length = %lu\n", resp->content_length);
-*/
+
 	wget_cookie_normalize_cookies(job->iri, resp->cookies); // sanitize cookies
 	wget_cookie_store_cookies(config.cookie_db, resp->cookies); // store cookies
 
