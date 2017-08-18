@@ -2503,6 +2503,7 @@ static int G_GNUC_WGET_NONNULL((1)) _prepare_file(wget_http_response_t *resp, co
 	char *alloced_fname = NULL;
 	int fd, multiple = 0, oflag = flag;
 	size_t fname_length;
+	long long old_quota;
 
 	if (!fname)
 		return -1;
@@ -2521,14 +2522,11 @@ static int G_GNUC_WGET_NONNULL((1)) _prepare_file(wget_http_response_t *resp, co
 
 	// - optimistic approach expects data being written without error
 	// - to be Wget compatible: quota_modify_read() returns old quota value
-	if (config.quota) {
-		if (quota_modify_read(config.save_headers ? resp->header->length : 0) >= config.quota) {
-			debug_printf("not saved '%s' (quota of %lld reached)\n", fname, config.quota);
-			return -1;
-		}
-	} else {
-		// just update number bytes read (body only) for display purposes
-		quota_modify_read(config.save_headers ? resp->header->length : 0);
+	old_quota = quota_modify_read(config.save_headers ? resp->header->length : 0);
+
+	if (config.quota && old_quota >= config.quota) {
+		debug_printf("not saved '%s' (quota of %lld reached)\n", fname, config.quota);
+		return -1;
 	}
 
 	if (fname == config.output_document) {

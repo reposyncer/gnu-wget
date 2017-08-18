@@ -569,11 +569,13 @@ int queue_size(void)
 
 static int host_docs_hashmap(struct site_stats *ctx, HOST_DOCS *host_docsp)
 {
+	char buf[16];
+
 	wget_buffer_printf_append(ctx->buf, "  %8d  %13d\n", host_docsp->http_status, wget_vector_size(host_docsp->docs));
 
 	for (int it = 0; it < wget_vector_size(host_docsp->docs); it++) {
 		const DOC *doc = wget_vector_get(host_docsp->docs, it);
-		wget_buffer_printf_append(ctx->buf, "         %s  %lld\n", doc->iri->uri, doc->size);
+		wget_buffer_printf_append(ctx->buf, "         %s  %s\n", doc->iri->uri, wget_human_readable(buf, sizeof(buf), doc->size));
 	}
 
 	if (ctx->buf->length > 64*1024) {
