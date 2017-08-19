@@ -1764,11 +1764,10 @@ void *downloader_thread(void *p)
 					break;
 				}
 
-				if (pending >= max_pending) {
+				if (pending >= max_pending)
 					action = ACTION_GET_RESPONSE;
-				} else {
+				else
 					wget_thread_mutex_lock(&main_mutex); locked = 1;
-				}
 			}
 			break;
 
@@ -1787,13 +1786,12 @@ void *downloader_thread(void *p)
 
 			// general response check to see if we need further processing
 			if (process_response_header(resp) == 0) {
-				if (job->head_first) {
+				if (job->head_first)
 					process_head_response(resp); // HEAD request/response
-				} else if (job->part) {
+				else if (job->part)
 					process_response_part(resp); // chunked/metalink GET download
-				} else {
+				else
 					process_response(resp); // GET + POST request/response
-				}
 			}
 
 			wget_http_free_request(&resp->req);
@@ -1802,9 +1800,8 @@ void *downloader_thread(void *p)
 			wget_thread_mutex_lock(&main_mutex); locked = 1;
 
 			// download of single-part file complete, remove from job queue
-			if (job && job->inuse) {
+			if (job && job->inuse)
 				host_remove_job(host, job);
-			}
 
 			wget_thread_cond_signal(&main_cond);
 

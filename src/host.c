@@ -195,6 +195,7 @@ HOST_DOCS *host_docs_add(wget_iri_t *iri, wget_http_response_t *resp, bool robot
 		doc = wget_malloc(sizeof(DOC));
 		doc->iri = iri;
 		doc->size = resp->cur_downloaded;
+		doc->encoding = resp->content_encoding;
 		doc->robot_iri = robot_iri;
 		wget_vector_add_noalloc(docs, doc);
 	}
@@ -567,6 +568,26 @@ int queue_size(void)
 	return qsize;
 }
 
+static char *print_encoding(char encoding)
+{
+	switch (encoding) {
+	case wget_content_encoding_identity:
+		return "identity";
+	case wget_content_encoding_gzip:
+		return "gzip";
+	case  wget_content_encoding_deflate:
+		return "deflate";
+	case wget_content_encoding_lzma:
+		return "lzma";
+	case wget_content_encoding_bzip2:
+		return "bzip2";
+	case wget_content_encoding_brotli:
+		return "brotli";
+	default:
+		return "unknown encoding";
+	}
+}
+
 static int host_docs_hashmap(struct site_stats *ctx, HOST_DOCS *host_docsp)
 {
 	char buf[16];
@@ -575,7 +596,7 @@ static int host_docs_hashmap(struct site_stats *ctx, HOST_DOCS *host_docsp)
 
 	for (int it = 0; it < wget_vector_size(host_docsp->docs); it++) {
 		const DOC *doc = wget_vector_get(host_docsp->docs, it);
-		wget_buffer_printf_append(ctx->buf, "         %s  %s\n", doc->iri->uri, wget_human_readable(buf, sizeof(buf), doc->size));
+		wget_buffer_printf_append(ctx->buf, "         %s  %s (%s)\n", doc->iri->uri, wget_human_readable(buf, sizeof(buf), doc->size), print_encoding(doc->encoding));
 	}
 
 	if (ctx->buf->length > 64*1024) {

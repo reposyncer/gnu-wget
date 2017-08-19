@@ -72,6 +72,8 @@ typedef struct {
 		robot_iri;
 	long long
 		size;
+	char
+		encoding;
 	time_t
 		resp_t;
 } DOC;
