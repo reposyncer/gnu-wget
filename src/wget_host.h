@@ -71,7 +71,8 @@ typedef struct {
 	bool
 		robot_iri;
 	long long
-		size;
+		size_downloaded,
+		size_decompressed;
 	char
 		encoding;
 	time_t

@@ -194,7 +194,8 @@ HOST_DOCS *host_docs_add(wget_iri_t *iri, wget_http_response_t *resp, bool robot
 
 		doc = wget_malloc(sizeof(DOC));
 		doc->iri = iri;
-		doc->size = resp->cur_downloaded;
+		doc->size_downloaded = resp->cur_downloaded;
+		doc->size_decompressed = resp->body->length;
 		doc->encoding = resp->content_encoding;
 		doc->robot_iri = robot_iri;
 		wget_vector_add_noalloc(docs, doc);
@@ -596,7 +597,12 @@ static int host_docs_hashmap(struct site_stats *ctx, HOST_DOCS *host_docsp)
 
 	for (int it = 0; it < wget_vector_size(host_docsp->docs); it++) {
 		const DOC *doc = wget_vector_get(host_docsp->docs, it);
-		wget_buffer_printf_append(ctx->buf, "         %s  %s (%s)\n", doc->iri->uri, wget_human_readable(buf, sizeof(buf), doc->size), print_encoding(doc->encoding));
+		wget_buffer_printf_append(ctx->buf, "         %s  %s (%s) : ",
+				doc->iri->uri,
+				wget_human_readable(buf, sizeof(buf),doc->size_downloaded),
+				print_encoding(doc->encoding));
+		wget_buffer_printf_append(ctx->buf, "%s (decompressed)\n",
+				wget_human_readable(buf, sizeof(buf),doc->size_decompressed));
 	}
 
 	if (ctx->buf->length > 64*1024) {
