@@ -42,6 +42,8 @@ static wget_thread_mutex_t
 	hosts_mutex = WGET_THREAD_MUTEX_INITIALIZER;
 static wget_thread_mutex_t
 	host_docs_mutex = WGET_THREAD_MUTEX_INITIALIZER;
+static wget_thread_mutex_t
+	tree_docs_mutex = WGET_THREAD_MUTEX_INITIALIZER;
 static int
 	qsize; // overall number of jobs
 
@@ -77,6 +79,11 @@ static int _host_docs_compare(const HOST_DOCS *host_docsp1, const HOST_DOCS *hos
 		return host_docsp1->http_status < host_docsp2->http_status ? -1 : 1;
 
 	return 0;
+}
+
+static int _tree_docs_compare(const TREE_DOCS *tree_docsp1, const TREE_DOCS *tree_docsp2)
+{
+	return wget_iri_compare(tree_docsp1->iri, tree_docsp2->iri);
 }
 
 #ifdef __clang__
@@ -116,6 +123,26 @@ static unsigned int _host_docs_hash(const HOST_DOCS *host_docsp)
 	return hash;
 }
 
+static unsigned int _tree_docs_hash(const TREE_DOCS *tree_docsp)
+{
+	unsigned int h = tree_docsp->iri->port; // use port as SALT if hash table attacks doesn't matter
+	const unsigned char *p;
+
+	for (p = (unsigned char *)tree_docsp->iri->scheme; p && *p; p++)
+		h = h * 101 + *p;
+
+	for (p = (unsigned char *)tree_docsp->iri->host; p && *p; p++)
+		h = h * 101 + *p;
+
+	for (p = (unsigned char *)tree_docsp->iri->path; p && *p; p++)
+		h = h * 101 + *p;
+
+	for (p = (unsigned char *)tree_docsp->iri->query; p && *p; p++)
+		h = h * 101 + *p;
+
+	return h;
+}
+
 static void _free_host_entry(HOST *host)
 {
 	if (host) {
@@ -135,6 +162,20 @@ static void _free_host_docs_entry(HOST_DOCS *host_docsp)
 }
 
 static void _free_docs_entry(DOC *doc)
+{
+	if (doc && doc->robot_iri)
+		wget_iri_free(&(doc->iri));
+}
+
+static void _free_tree_docs_entry(TREE_DOCS *tree_docsp)
+{
+	if (tree_docsp) {
+		wget_vector_free(&tree_docsp->children);
+		wget_xfree(tree_docsp);
+	}
+}
+
+static void _free_children_entry(DOC *doc)
 {
 	if (doc && doc->robot_iri)
 		wget_iri_free(&(doc->iri));
@@ -204,6 +245,58 @@ HOST_DOCS *host_docs_add(wget_iri_t *iri, wget_http_response_t *resp, bool robot
 	wget_thread_mutex_unlock(&host_docs_mutex);
 
 	return host_docsp;
+}
+
+HOST_DOCS *tree_docs_add(wget_iri_t *parent_iri, wget_iri_t *iri, wget_http_response_t *resp, bool robot_iri)
+{
+	HOST *hostp;
+	wget_hashmap_t *tree_docs;
+	TREE_DOCS *tree_docsp = NULL;
+	wget_vector_t *children;
+//	DOC *doc;
+
+	wget_thread_mutex_lock(&tree_docs_mutex);
+
+	if ((hostp = host_get(parent_iri))) {
+		if (!(tree_docs = hostp->tree_docs)) {
+			tree_docs = wget_hashmap_create(16, (wget_hashmap_hash_t)_tree_docs_hash, (wget_hashmap_compare_t)_tree_docs_compare);
+			wget_hashmap_set_key_destructor(tree_docs, (wget_hashmap_key_destructor_t)_free_tree_docs_entry);
+			hostp->tree_docs = tree_docs;
+		}
+
+		if (!(tree_docsp = tree_docs_get(tree_docs, parent_iri))) {
+			tree_docsp = wget_malloc(sizeof(TREE_DOCS));
+			tree_docsp->iri = parent_iri;
+			tree_docsp->children = NULL;
+			wget_hashmap_put_noalloc(tree_docs, tree_docsp, tree_docsp);
+		}
+
+		if (!(children = tree_docsp->children)) {
+			children = wget_vector_create(8, -2, NULL);
+			wget_vector_set_destructor(children, (wget_vector_destructor_t)_free_children_entry);
+			tree_docsp->children = children;
+		}
+
+		if (!(tree_docsp = tree_docs_get(tree_docs, iri))) {
+			tree_docsp = wget_malloc(sizeof(TREE_DOCS));
+			tree_docsp->iri = iri;
+			tree_docsp->children = NULL;
+			wget_hashmap_put_noalloc(tree_docs, tree_docsp, tree_docsp);
+		}
+/*
+		doc = wget_malloc(sizeof(DOC));
+		doc->iri = iri;
+		doc->size_downloaded = resp->cur_downloaded;
+		doc->size_decompressed = resp->body->length;
+		doc->encoding = resp->content_encoding;
+		doc->robot_iri = robot_iri;
+		wget_vector_add_noalloc(docs, doc);
+*/
+	}
+
+	wget_thread_mutex_unlock(&tree_docs_mutex);
+
+	return tree_docsp;
 }
 
 HOST_DOCS *host_docs_get(wget_hashmap_t *host_docs, int status)
