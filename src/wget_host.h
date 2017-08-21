@@ -84,14 +84,18 @@ typedef struct {
 typedef struct {
 	wget_iri_t
 		*iri;
+	bool
+		robot_iri;
 	wget_vector_t
 		*children;
 } TREE_DOCS;
 
 HOST *host_add(wget_iri_t *iri) G_GNUC_WGET_NONNULL((1));
 HOST_DOCS *host_docs_add(wget_iri_t *iri, wget_http_response_t *resp, bool robot_iri);
+TREE_DOCS *tree_docs_add(wget_iri_t *parent_iri, wget_iri_t *iri, bool robot_iri_parent, bool robot_iri_child);
 HOST *host_get(wget_iri_t *iri) G_GNUC_WGET_NONNULL((1));
 HOST_DOCS *host_docs_get(wget_hashmap_t *host_docs, int status);
+TREE_DOCS *tree_docs_get(wget_hashmap_t *tree_docs, wget_iri_t *iri);
 JOB *host_get_job(HOST *host, long long *pause);
 JOB *host_add_job(HOST *host, JOB *job) G_GNUC_WGET_NONNULL((1,2));
 JOB *host_add_robotstxt_job(HOST *host, wget_iri_t *iri, const char *encoding) G_GNUC_WGET_NONNULL((1,2));
