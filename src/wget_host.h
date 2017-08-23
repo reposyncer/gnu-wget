@@ -34,6 +34,15 @@
 struct JOB;
 typedef struct JOB JOB;
 
+typedef struct {
+	wget_iri_t
+		*iri;
+	bool
+		robot_iri;
+	wget_vector_t
+		*children;
+} TREE_DOCS;
+
 // everything host/domain specific should go here
 typedef struct {
 	const char
@@ -49,6 +58,8 @@ typedef struct {
 		*host_docs;
 	wget_hashmap_t
 		*tree_docs;
+	TREE_DOCS
+		*root;
 	long long
 		retry_ts; // timestamp of earliest retry in milliseconds
 	int
@@ -80,15 +91,6 @@ typedef struct {
 	time_t
 		resp_t;
 } DOC;
-
-typedef struct {
-	wget_iri_t
-		*iri;
-	bool
-		robot_iri;
-	wget_vector_t
-		*children;
-} TREE_DOCS;
 
 HOST *host_add(wget_iri_t *iri) G_GNUC_WGET_NONNULL((1));
 HOST_DOCS *host_docs_add(wget_iri_t *iri, wget_http_response_t *resp, bool robot_iri);

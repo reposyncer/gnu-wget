@@ -288,6 +288,9 @@ TREE_DOCS *tree_docs_add(wget_iri_t *parent_iri, wget_iri_t *iri)
 			}
 
 			wget_vector_add_noalloc(children, tree_docsp);
+		} else {
+			hostp->root = tree_docsp;
+//			printf("hostp->root->iri = %s\n", hostp->root->iri->uri);
 		}
 	}
 
@@ -713,32 +716,9 @@ static int host_docs_hashmap(struct site_stats *ctx, HOST_DOCS *host_docsp)
 	return  0;
 }
 
-static int tree_docs_hashmap(struct site_stats *ctx, TREE_DOCS *tree_docsp)
-{
-/*	wget_buffer_printf_append(ctx->buf, "  %8d  %13d\n", host_docsp->http_status, wget_vector_size(host_docsp->docs));
-
-	for (int it = 0; it < wget_vector_size(host_docsp->docs); it++) {
-		const DOC *doc = wget_vector_get(host_docsp->docs, it);
-		wget_buffer_printf_append(ctx->buf, "         %s  %s (%s) : ",
-				doc->iri->uri,
-				wget_human_readable(buf, sizeof(buf),doc->size_downloaded),
-				print_encoding(doc->encoding));
-		wget_buffer_printf_append(ctx->buf, "%s (decompressed)\n",
-				wget_human_readable(buf, sizeof(buf),doc->size_decompressed));
-	}
-
-	if (ctx->buf->length > 64*1024) {
-		fprintf(ctx->fp, "%s", ctx->buf->data);
-		wget_buffer_reset(ctx->buf);
-	}
-*/
-	return  0;
-}
-
 static int hosts_hashmap(struct site_stats *ctx, HOST *host)
 {
-	if (host->host_docs)
-	{
+	if (host->host_docs) {
 		wget_buffer_printf_append(ctx->buf, "\n  %s:\n", host->host);
 		wget_buffer_printf_append(ctx->buf, "  %8s  %13s\n", "Status", "No. of docs");
 
@@ -748,13 +728,35 @@ static int hosts_hashmap(struct site_stats *ctx, HOST *host)
 	return 0;
 }
 
+static void print_treeish(struct site_stats *ctx, TREE_DOCS *node)
+{
+	static int level = 0;
+
+	if (node) {
+		if (level) {
+			for (int i = 0; i < level - 1; i++)
+				wget_buffer_printf_append(ctx->buf, "|   ");
+		}
+
+		wget_buffer_printf_append(ctx->buf, "|--%s\n", node->iri->uri);
+
+		if (ctx->buf->length > 64*1024) {
+			fprintf(ctx->fp, "%s", ctx->buf->data);
+			wget_buffer_reset(ctx->buf);
+		}
+
+		if (node->children) {
+			level++;
+			wget_vector_browse(node->children, (wget_vector_browse_t) print_treeish, ctx);
+		}
+	}
+}
+
 static int hosts_hashmap_tree(struct site_stats *ctx, HOST *host)
 {
-	if (host->tree_docs)
-	{
+	if (host->tree_docs) {
 		wget_buffer_printf_append(ctx->buf, "\n  %s:\n", host->host);
-
-		wget_hashmap_browse(host->tree_docs, (wget_hashmap_browse_t)tree_docs_hashmap, ctx);
+		print_treeish(ctx, host->root);
 	}
 
 	return 0;

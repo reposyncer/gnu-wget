@@ -694,14 +694,18 @@ static void add_url(JOB *job, const char *encoding, const char *url, int flags)
 
 	if (job) {
 		if (flags & URL_FLG_REDIRECTION) {
+//printf("flags & URL_FLG_REDIRECTION\n");
 			new_job->redirection_level = job->redirection_level + 1;
 			new_job->referer = job->referer;
 			new_job->original_url = job->iri;
 		} else {
+//printf("NO!!\n");
 			new_job->level = job->level + 1;
 			new_job->referer = job->iri;
 			job->iri = NULL;
 		}
+//if (new_job->referer)
+//	printf("new_job->referer is NOT NULL\n");
 	}
 
 	if (plugin_verdict.accept) {
@@ -1268,6 +1272,17 @@ static void add_statistics(wget_http_response_t *resp)
 	}
 
 	host_docs_add(iri, resp, robot_iri);
+if (!(job->referer)) {
+	printf("############job->referer is NULL\n");
+	printf("iri->uri = %s\n", iri->uri);
+	printf("#############\n");
+} else {
+	printf("###########job->referer is NOT NULL!\n");
+	printf("iri->uri = %s\n", iri->uri);
+	printf("job->referer->uri = %s\n", job->referer->uri);
+	printf("#############\n");
+}
+	//printf("job->referer->uri = %s\n iri->uri = %s", job->referer->uri, iri->uri);
 	tree_docs_add(job->referer, iri);
 }
 
