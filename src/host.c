@@ -123,6 +123,9 @@ static unsigned int _host_docs_hash(const HOST_DOCS *host_docsp)
 	return hash;
 }
 
+#ifdef __clang__
+__attribute__((no_sanitize("integer")))
+#endif
 static unsigned int _tree_docs_hash(const TREE_DOCS *tree_docsp)
 {
 	unsigned int h = tree_docsp->iri->port; // use port as SALT if hash table attacks doesn't matter
@@ -149,6 +152,7 @@ static void _free_host_entry(HOST *host)
 		host_queue_free(host);
 		wget_robots_free(&host->robots);
 		wget_hashmap_free(&host->host_docs);
+		wget_hashmap_free(&host->tree_docs);
 		wget_xfree(host);
 	}
 }
@@ -170,9 +174,8 @@ static void _free_docs_entry(DOC *doc)
 static void _free_tree_docs_entry(TREE_DOCS *tree_docsp)
 {
 	if (tree_docsp) {
-		if (tree_docsp->robot_iri)
-			wget_iri_free(&(tree_docsp->iri));
-		wget_vector_free(&tree_docsp->children);
+		wget_vector_deinit(tree_docsp->children);
+		wget_xfree(tree_docsp->children);
 		wget_xfree(tree_docsp);
 	}
 }
@@ -243,12 +246,17 @@ HOST_DOCS *host_docs_add(wget_iri_t *iri, wget_http_response_t *resp, bool robot
 	return host_docsp;
 }
 
-TREE_DOCS *tree_docs_add(wget_iri_t *parent_iri, wget_iri_t *iri, bool robot_iri_parent, bool robot_iri_child)
+TREE_DOCS *tree_docs_add(wget_iri_t *parent_iri, wget_iri_t *iri)
 {
 	HOST *hostp;
 	wget_hashmap_t *tree_docs;
 	TREE_DOCS *tree_docsp = NULL;
 	wget_vector_t *children;
+
+	if (!parent_iri) {
+		parent_iri = iri;			// root
+		iri = NULL;
+	}
 
 	wget_thread_mutex_lock(&tree_docs_mutex);
 
@@ -262,25 +270,25 @@ TREE_DOCS *tree_docs_add(wget_iri_t *parent_iri, wget_iri_t *iri, bool robot_iri
 		if (!(tree_docsp = tree_docs_get(tree_docs, parent_iri))) {
 			tree_docsp = wget_malloc(sizeof(TREE_DOCS));
 			tree_docsp->iri = parent_iri;
-			tree_docsp->robot_iri = robot_iri_parent;
 			tree_docsp->children = NULL;
 			wget_hashmap_put_noalloc(tree_docs, tree_docsp, tree_docsp);
 		}
 
-		if (!(children = tree_docsp->children)) {
-			children = wget_vector_create(8, -2, NULL);
-			tree_docsp->children = children;
-		}
+		if (iri) {
+			if (!(children = tree_docsp->children)) {
+				children = wget_vector_create(8, -2, NULL);
+				tree_docsp->children = children;
+			}
 
-		if (!(tree_docsp = tree_docs_get(tree_docs, iri))) {
-			tree_docsp = wget_malloc(sizeof(TREE_DOCS));
-			tree_docsp->iri = iri;
-			tree_docsp->robot_iri = robot_iri_child;
-			tree_docsp->children = NULL;
-			wget_hashmap_put_noalloc(tree_docs, tree_docsp, tree_docsp);
-		}
+			if (!(tree_docsp = tree_docs_get(tree_docs, iri))) {
+				tree_docsp = wget_malloc(sizeof(TREE_DOCS));
+				tree_docsp->iri = iri;
+				tree_docsp->children = NULL;
+				wget_hashmap_put_noalloc(tree_docs, tree_docsp, tree_docsp);
+			}
 
-		wget_vector_add_noalloc(children, tree_docsp);
+			wget_vector_add_noalloc(children, tree_docsp);
+		}
 	}
 
 	wget_thread_mutex_unlock(&tree_docs_mutex);
@@ -705,6 +713,28 @@ static int host_docs_hashmap(struct site_stats *ctx, HOST_DOCS *host_docsp)
 	return  0;
 }
 
+static int tree_docs_hashmap(struct site_stats *ctx, TREE_DOCS *tree_docsp)
+{
+/*	wget_buffer_printf_append(ctx->buf, "  %8d  %13d\n", host_docsp->http_status, wget_vector_size(host_docsp->docs));
+
+	for (int it = 0; it < wget_vector_size(host_docsp->docs); it++) {
+		const DOC *doc = wget_vector_get(host_docsp->docs, it);
+		wget_buffer_printf_append(ctx->buf, "         %s  %s (%s) : ",
+				doc->iri->uri,
+				wget_human_readable(buf, sizeof(buf),doc->size_downloaded),
+				print_encoding(doc->encoding));
+		wget_buffer_printf_append(ctx->buf, "%s (decompressed)\n",
+				wget_human_readable(buf, sizeof(buf),doc->size_decompressed));
+	}
+
+	if (ctx->buf->length > 64*1024) {
+		fprintf(ctx->fp, "%s", ctx->buf->data);
+		wget_buffer_reset(ctx->buf);
+	}
+*/
+	return  0;
+}
+
 static int hosts_hashmap(struct site_stats *ctx, HOST *host)
 {
 	if (host->host_docs)
@@ -718,13 +748,31 @@ static int hosts_hashmap(struct site_stats *ctx, HOST *host)
 	return 0;
 }
 
+static int hosts_hashmap_tree(struct site_stats *ctx, HOST *host)
+{
+	if (host->tree_docs)
+	{
+		wget_buffer_printf_append(ctx->buf, "\n  %s:\n", host->host);
+
+		wget_hashmap_browse(host->tree_docs, (wget_hashmap_browse_t)tree_docs_hashmap, ctx);
+	}
+
+	return 0;
+}
+
 void print_site_stats(wget_buffer_t *buf, FILE *fp)
 {
 	struct site_stats ctx = { .buf = buf, .fp = fp };
-	wget_thread_mutex_lock(&hosts_mutex);
 
+	wget_thread_mutex_lock(&hosts_mutex);
 	wget_hashmap_browse(hosts, (wget_hashmap_browse_t)hosts_hashmap, &ctx);
 	fprintf(fp, "%s", buf->data);
+//	wget_thread_mutex_unlock(&hosts_mutex);
 
+	wget_buffer_reset(ctx.buf);
+
+//	wget_thread_mutex_lock(&hosts_mutex);
+	wget_hashmap_browse(hosts, (wget_hashmap_browse_t)hosts_hashmap_tree, &ctx);
+	fprintf(fp, "%s", buf->data);
 	wget_thread_mutex_unlock(&hosts_mutex);
 }

@@ -92,7 +92,7 @@ typedef struct {
 
 HOST *host_add(wget_iri_t *iri) G_GNUC_WGET_NONNULL((1));
 HOST_DOCS *host_docs_add(wget_iri_t *iri, wget_http_response_t *resp, bool robot_iri);
-TREE_DOCS *tree_docs_add(wget_iri_t *parent_iri, wget_iri_t *iri, bool robot_iri_parent, bool robot_iri_child);
+TREE_DOCS *tree_docs_add(wget_iri_t *parent_iri, wget_iri_t *iri);
 HOST *host_get(wget_iri_t *iri) G_GNUC_WGET_NONNULL((1));
 HOST_DOCS *host_docs_get(wget_hashmap_t *host_docs, int status);
 TREE_DOCS *tree_docs_get(wget_hashmap_t *tree_docs, wget_iri_t *iri);

@@ -571,11 +571,13 @@ static void add_url(JOB *job, const char *encoding, const char *url, int flags)
 
 	// Allow plugins to intercept URL
 	plugin_db_forward_url(iri, &plugin_verdict);
+
 	if (plugin_verdict.reject) {
 		plugin_db_forward_url_verdict_free(&plugin_verdict);
 		wget_iri_free(&iri);
 		return;
 	}
+
 	if (plugin_verdict.alt_iri) {
 		wget_iri_free(&iri);
 		iri = plugin_verdict.alt_iri;
@@ -609,13 +611,12 @@ static void add_url(JOB *job, const char *encoding, const char *url, int flags)
 		// only download content from given hosts
 		const char *reason = NULL;
 
-		if (!iri->host) {
+		if (!iri->host)
 			reason = _("missing ip/host/domain");
-		} else if (!config.span_hosts && config.domains && !in_host_pattern_list(config.domains, iri->host)) {
+		else if (!config.span_hosts && config.domains && !in_host_pattern_list(config.domains, iri->host))
 			reason = _("no host-spanning requested");
-		} else if (config.span_hosts && config.exclude_domains && in_host_pattern_list(config.exclude_domains, iri->host)) {
+		else if (config.span_hosts && config.exclude_domains && in_host_pattern_list(config.exclude_domains, iri->host))
 			reason = _("domain explicitly excluded");
-		}
 
 		if (reason) {
 			wget_thread_mutex_unlock(&downloader_mutex);
@@ -1242,10 +1243,11 @@ static int establish_connection(DOWNLOADER *downloader, wget_iri_t **iri)
 	return rc;
 }
 
-static void add_statistics(wget_iri_t *iri, wget_http_response_t *resp)
+static void add_statistics(wget_http_response_t *resp)
 {
 	// do some statistics
 	JOB *job = resp->req->user_data;
+	wget_iri_t *iri = job->iri;
 	bool robot_iri = false;
 
 	if (resp->code == 200) {
@@ -1266,6 +1268,7 @@ static void add_statistics(wget_iri_t *iri, wget_http_response_t *resp)
 	}
 
 	host_docs_add(iri, resp, robot_iri);
+	tree_docs_add(job->referer, iri);
 }
 
 static int process_response_header(wget_http_response_t *resp)
@@ -1294,7 +1297,7 @@ static int process_response_header(wget_http_response_t *resp)
 		wget_http_close(&downloader->conn);
 
 	// do some statistics
-	add_statistics(iri, resp);
+	add_statistics(resp);
 
 	wget_cookie_normalize_cookies(job->iri, resp->cookies); // sanitize cookies
 	wget_cookie_store_cookies(config.cookie_db, resp->cookies); // store cookies
@@ -1658,8 +1661,7 @@ static void process_response(wget_http_response_t *resp)
 				}
 			}
 		}
-	}
-	else if ((resp->code == 304 && config.timestamping) || resp->code == 416) { // local document is up-to-date
+	} else if ((resp->code == 304 && config.timestamping) || resp->code == 416) { // local document is up-to-date
 		if (config.recursive && (!config.level || job->level < config.level + config.page_requisites) && job->local_filename) {
 			const char *ext;
 
@@ -1929,7 +1931,7 @@ void html_parse(JOB *job, int level, const char *html, size_t html_len, const ch
 	wget_buffer_t buf;
 	char sbuf[1024];
 	int convert_links = config.convert_links && !config.delete_after;
-	int page_requisites = config.recursive && config.page_requisites && config.level && level < config.level;
+	bool page_requisites = config.recursive && config.page_requisites && config.level && level < config.level;
 
 	//	info_printf(_("page_req %d: %d %d %d %d\n"), page_requisites, config.recursive, config.page_requisites, config.level, level);
 
@@ -1961,9 +1963,8 @@ void html_parse(JOB *job, int level, const char *html, size_t html_len, const ch
 			// adjust behind BOM
 			html += 3;
 			html_len -= 3;
-		} else {
+		} else
 			reason = _("set by server response");
-		}
 	}
 
 	if (!wget_strncasecmp_ascii(encoding, "UTF-16", 6)) {
@@ -2037,8 +2038,7 @@ void html_parse(JOB *job, int level, const char *html, size_t html_len, const ch
 			if ((c_tolower(*html_url->dir) == 'a'
 				&& (html_url->dir[1] == 0 || !wget_strcasecmp_ascii(html_url->dir,"area")))
 				|| !html_url->link_inline
-				|| !wget_strcasecmp_ascii(html_url->dir,"embed"))
-			{
+				|| !wget_strcasecmp_ascii(html_url->dir,"embed")) {
 				info_printf(_("URL '%.*s' not followed (page requisites + level)\n"), (int)url->len, url->p);
 				continue;
 			}
