@@ -650,7 +650,24 @@ static void add_url(JOB *job, const char *encoding, const char *url, int flags)
 			return;
 		}
 	}
+/*
+printf("*********************************************************************\n");
+if (iri)
+	printf("add_url:iri->uri = %s\n", iri->uri);
+else
+	printf("add_url:iri is NULL!\n");
 
+if (job->referer)
+	printf("add_url:job->referer->uri = %s\n", job->referer->uri);
+else
+	printf("add_url:job->referer is NULL!\n");
+
+if (job->original_url)
+	printf("add_url:job->original_url->uri = %s\n", job->original_url->uri);
+else
+	printf("add_url:job->original_url is NULL!\n");
+printf("*********************************************************************\n");
+*/
 	if ((host = host_add(iri))) {
 		// a new host entry has been created
 		if (config.recursive && config.robots) {
@@ -694,18 +711,17 @@ static void add_url(JOB *job, const char *encoding, const char *url, int flags)
 
 	if (job) {
 		if (flags & URL_FLG_REDIRECTION) {
-//printf("flags & URL_FLG_REDIRECTION\n");
 			new_job->redirection_level = job->redirection_level + 1;
 			new_job->referer = job->referer;
 			new_job->original_url = job->iri;
+			if (job == job->host->robot_job) {
+				new_job->previous_robot_job = 1;
+				new_job->cloned_robot_iri = job->cloned_robot_iri;
+			}
 		} else {
-//printf("NO!!\n");
 			new_job->level = job->level + 1;
 			new_job->referer = job->iri;
-			job->iri = NULL;
 		}
-//if (new_job->referer)
-//	printf("new_job->referer is NOT NULL\n");
 	}
 
 	if (plugin_verdict.accept) {
@@ -1251,7 +1267,7 @@ static void add_statistics(wget_http_response_t *resp)
 {
 	// do some statistics
 	JOB *job = resp->req->user_data;
-	wget_iri_t *iri = job->iri;
+	wget_iri_t *iri = job->iri, *parent_iri;
 	bool robot_iri = false;
 
 	if (resp->code == 200) {
@@ -1269,21 +1285,43 @@ static void add_statistics(wget_http_response_t *resp)
 	if (job == job->host->robot_job) {
 		iri = wget_iri_clone(iri);
 		robot_iri = true;
+		job->cloned_robot_iri = iri;
 	}
 
 	host_docs_add(iri, resp, robot_iri);
-if (!(job->referer)) {
-	printf("############job->referer is NULL\n");
-	printf("iri->uri = %s\n", iri->uri);
-	printf("#############\n");
-} else {
-	printf("###########job->referer is NOT NULL!\n");
-	printf("iri->uri = %s\n", iri->uri);
-	printf("job->referer->uri = %s\n", job->referer->uri);
-	printf("#############\n");
-}
-	//printf("job->referer->uri = %s\n iri->uri = %s", job->referer->uri, iri->uri);
-	tree_docs_add(job->referer, iri);
+	parent_iri = job->redirection_level ?
+			(job->previous_robot_job ? job->cloned_robot_iri : job->original_url) : job->referer;
+	tree_docs_add(parent_iri, iri, robot_iri, (bool)job->redirection_level);
+
+/*	printf("*****************************add_stats****************************************\n");
+	if (iri)
+		printf("add_url:iri->uri = %s\n", iri->uri);
+	else
+		printf("add_url:iri is NULL!\n");
+
+	if (job->referer)
+		printf("add_url:job->referer->uri = %s\n", job->referer->uri);
+	else
+		printf("add_url:job->referer is NULL!\n");
+
+//	if (job->original_url)
+//		printf("add_url:job->original_url->uri = %s\n", job->original_url->uri);
+//	else
+//		printf("add_url:job->original_url is NULL!\n");
+
+	printf("add_url:job->redirection_level = %d: %s\n", job->redirection_level, job->redirection_level ? "job->original_url": "job->referer");
+
+	if (parent_iri)
+		printf("add_url:parent_iri->uri = %s\n", parent_iri->uri);
+	else
+		printf("add_url:parent_iri is NULL!\n");
+
+	if (robot_iri)
+		printf("robot iri\n");
+	else
+		printf("NOT robot iri!\n");
+	printf("*********************************************************************\n");
+*/
 }
 
 static int process_response_header(wget_http_response_t *resp)

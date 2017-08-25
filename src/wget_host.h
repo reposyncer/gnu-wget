@@ -38,7 +38,8 @@ typedef struct {
 	wget_iri_t
 		*iri;
 	bool
-		robot_iri;
+		robot_iri,
+		redirect;
 	wget_vector_t
 		*children;
 } TREE_DOCS;
@@ -59,7 +60,8 @@ typedef struct {
 	wget_hashmap_t
 		*tree_docs;
 	TREE_DOCS
-		*root;
+		*root,
+		*robot;
 	long long
 		retry_ts; // timestamp of earliest retry in milliseconds
 	int
@@ -94,7 +96,7 @@ typedef struct {
 
 HOST *host_add(wget_iri_t *iri) G_GNUC_WGET_NONNULL((1));
 HOST_DOCS *host_docs_add(wget_iri_t *iri, wget_http_response_t *resp, bool robot_iri);
-TREE_DOCS *tree_docs_add(wget_iri_t *parent_iri, wget_iri_t *iri);
+TREE_DOCS *tree_docs_add(wget_iri_t *parent_iri, wget_iri_t *iri, bool robot_iri, bool redirect);
 HOST *host_get(wget_iri_t *iri) G_GNUC_WGET_NONNULL((1));
 HOST_DOCS *host_docs_get(wget_hashmap_t *host_docs, int status);
 TREE_DOCS *tree_docs_get(wget_hashmap_t *tree_docs, wget_iri_t *iri);
