@@ -471,6 +471,57 @@ static void _wget_deinit(void)
 	wget_thread_cond_destroy(&worker_cond);
 }
 
+/* Check if 'subdir' is a subdirectory of 'dir'.
+ * E.g. if 'dir' is `/something', match_subdir() will return true if and
+ * only if 'subdir' begins with `/something/' or is exactly '/something'.
+ */
+static bool match_subdir(const char *dir, const char *subdir, char ignore_case)
+{
+	if (*dir == '\0')
+		return true;
+
+	if (ignore_case)
+		for (; *dir && *subdir && (c_tolower(*dir) == c_tolower(*subdir)); ++dir, ++subdir)
+			;
+	else
+		while (*dir && *subdir && (*dir++ == *subdir++))
+			;
+
+	return *dir == 0 && (*subdir == 0 || *subdir == '/');
+}
+
+static int in_directory_pattern_list(const wget_vector_t *v, const char *fname)
+{
+	if (*fname == '/')
+		fname++;
+
+	const char *e = strrchr(fname, '/');
+	if (!e)
+		return 0; // no path component found
+
+	char *path = wget_strmemdup(fname, e - fname);
+
+	for (int it = 0; it < wget_vector_size(v); it++) {
+		const char *pattern = wget_vector_get(v, it);
+
+		if (*pattern == '/')
+			pattern++;
+
+		debug_printf("directory[%d] '%s' - %s\n", it, pattern, path);
+
+		if (strpbrk(pattern, "*?[]")) {
+			// path="/we/all/love/wget" wouldn't match "/*/all/*" but "/*/all/*/*"
+			if (!fnmatch(pattern, path, FNM_PATHNAME | (config.ignore_case ? FNM_CASEFOLD : 0)))
+				return 1;
+		} else if (match_subdir(pattern, path, config.ignore_case)) {
+			// path="/we/all/love/wget" would match "/we/all/"
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 static int in_pattern_list(const wget_vector_t *v, const char *url)
 {
 	for (int it = 0; it < wget_vector_size(v); it++) {
@@ -832,6 +883,8 @@ static void add_url(JOB *job, const char *encoding, const char *url, int flags)
 			reason = _("no host-spanning requested");
 		else if (config.span_hosts && config.exclude_domains && in_host_pattern_list(config.exclude_domains, iri->host))
 			reason = _("domain explicitly excluded");
+		else if (config.exclude_directories && in_directory_pattern_list(config.exclude_directories, iri->path))
+			reason = _("directory explicitly excluded");
 
 		if (reason) {
 			wget_thread_mutex_unlock(downloader_mutex);

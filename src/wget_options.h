@@ -91,6 +91,7 @@ struct config {
 		*compression,
 		*config_files,
 		*domains,
+		*exclude_directories,
 		*exclude_domains,
 		*accept_patterns,
 		*reject_patterns,

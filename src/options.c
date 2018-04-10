@@ -1244,6 +1244,12 @@ static const struct optionw options[] = {
 		  "Entropy Gathering Daemon.\n"
 		}
 	},
+	{ "exclude-directories", &config.exclude_directories, parse_stringlist, 1, 'X',
+		SECTION_DOWNLOAD,
+		{ "Comma-separated list of directories NOT to download.\n",
+		  "Wildcards are allowed.\n"
+		}
+	},
 	{ "exclude-domains", &config.exclude_domains, parse_stringlist, 1, 0,
 		SECTION_DOWNLOAD,
 		{ "Comma-separated list of domains NOT to follow.\n"
@@ -1262,7 +1268,7 @@ static const struct optionw options[] = {
 	{ "filter-urls", &config.filter_urls, parse_bool, 0, 0,
 		SECTION_DOWNLOAD,
 		{ "Apply the accept and reject filters on the URL\n",
-                  "before starting a download. (default: off)\n"
+		  "before starting a download. (default: off)\n"
 		}
 	},
 	{ "follow-tags", &config.follow_tags, parse_taglist, 1, 0,
