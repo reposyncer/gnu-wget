@@ -86,7 +86,16 @@ struct config {
 		*stats_ocsp,
 		*stats_server,
 		*stats_site,
+		*hsts_file,
+		*hpkp_file,
+		*tls_session_file,
+		*ocsp_file,
+		*netrc_file,
+		*use_askpass_bin,
 		*stats_tls;
+	char
+		*username,
+		*password;
 	wget_vector_t
 		*compression,
 		*config_files,
@@ -116,15 +125,6 @@ struct config {
 		*netrc_db; // in-memory .netrc database
 	struct _wget_cookie_db_st
 		*cookie_db;
-	char
-		*hsts_file,
-		*hpkp_file,
-		*tls_session_file,
-		*ocsp_file,
-		*netrc_file,
-		*password,
-		*use_askpass_bin,
-		*username;
 	size_t
 		chunk_size;
 	long long
