@@ -1089,6 +1089,7 @@ struct config config = {
 	.cache = 1,
 	.clobber = 1,
 	.default_page = "index.html",
+	.doh_resolver = "https://dns.google.com", //Default DOH endpoint. (https://en.wikipedia.org/wiki/DNS_o ver_HTTPS#DNS_over_HTTPS_-_Public_DNS_Servers.)
 	.level = 5,
 	.parent = 1,
 	.robots = 1,
@@ -1353,9 +1354,21 @@ static const struct optionw options[] = {
 		  "Format is like /etc/hosts (IP<whitespace>hostname).\n"
 		}
 	},
+	{ "dns-cache-preload", &config.dns_cache_preload, parse_filename, -1, 0,
+		SECTION_DOWNLOAD,
+		{ "File to be used to preload the DNS cache.\n",
+		  "Format is like /etc/hosts (IP<whitespace>hostname).\n"
+		}
+	},
 	{ "dns-timeout", &config.dns_timeout, parse_timeout, 1, 0,
 		SECTION_DOWNLOAD,
 		{ "DNS lookup timeout in seconds.\n"
+		}
+	},
+	{ "doh-resolver", &config.doh_resolver, parse_string, 1, 0,
+		SECTION_DOWNLOAD,
+		{ "DNS-over-HTTPS resolver end point url preferred\n",
+			"Example: --doh_resolver=https://cloudflare-dns.com/dns-query\n"
 		}
 	},
 	{ "domains", &config.domains, parse_stringlist, 1, 'D',
@@ -1367,6 +1380,12 @@ static const struct optionw options[] = {
 		SECTION_SSL,
 		{ "File to be used as socket for random data from\n",
 		  "Entropy Gathering Daemon.\n"
+		}
+	},
+	{ "enable-dns-over-https", &config.enable_dns_over_https, parse_bool, 0, 0,
+		SECTION_DOWNLOAD,
+		{ "Enabling DOH resolver to initiate the query resolve under encrypted HTTPS\n",
+		  "rather than the default getaddrinfo resolver. (default: on)\n"
 		}
 	},
 	{ "exclude-directories", &config.exclude_directories, parse_excluded_directories, 1, 'X',
@@ -2832,6 +2851,7 @@ int init(int argc, const char **argv)
 	config.secure_protocol = wget_strdup(config.secure_protocol);
 	config.ca_directory = wget_strdup(config.ca_directory);
 	config.default_page = wget_strdup(config.default_page);
+	config.doh_resolver = wget_strdup(config.doh_resolver);
 
 	// create list of default config file names
 	const char *env;
@@ -3215,6 +3235,7 @@ void deinit(void)
 	xfree(config.crl_file);
 	xfree(config.default_page);
 	xfree(config.directory_prefix);
+	xfree(config.doh_resolver);
 	xfree(config.egd_file);
 	xfree(config.hsts_file);
 	xfree(config.hpkp_file);

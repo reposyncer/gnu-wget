@@ -231,7 +231,7 @@ static struct addrinfo *_wget_sort_preferred(struct addrinfo *addrinfo, int pref
 }
 
 // we can't provide a portable way of respecting a DNS timeout
-static int _wget_tcp_resolve(int family, int flags, const char *host, uint16_t port, struct addrinfo **out_addr)
+/*static int _wget_tcp_resolve(int family, int flags, const char *host, uint16_t port, struct addrinfo **out_addr)
 {
 	struct addrinfo hints = {
 		.ai_family = family,
@@ -252,6 +252,7 @@ static int _wget_tcp_resolve(int family, int flags, const char *host, uint16_t p
 		return getaddrinfo(host, NULL, &hints, out_addr);
 	}
 }
+*/
 
 /**
  *
@@ -275,7 +276,7 @@ int wget_tcp_dns_cache_add(const char *ip, const char *name, uint16_t port)
 	} else
 		return -1;
 
-	if ((rc = _wget_tcp_resolve(family, AI_NUMERICHOST, ip, port, &ai)) != 0) {
+	if ((rc = wget_dns_getaddrinfo_resolve(family, AI_NUMERICHOST, ip, port, &ai)) != 0) {
 		error_printf(_("Failed to resolve %s:%d: %s\n"), ip, port, gai_strerror(rc));
 		return -1;
 	}
@@ -326,6 +327,7 @@ struct addrinfo *wget_tcp_resolve(wget_tcp_t *tcp, const char *host, uint16_t po
 	char adr[NI_MAXHOST], sport[NI_MAXSERV];
 	long long before_millisecs = 0;
 	_stats_data_t stats;
+	wget_dns_t *dns = wget_dns_init();
 
 	if (!tcp)
 		tcp = &_global_tcp;
@@ -350,7 +352,10 @@ struct addrinfo *wget_tcp_resolve(wget_tcp_t *tcp, const char *host, uint16_t po
 
 		addrinfo = NULL;
 
-		rc = _wget_tcp_resolve(tcp->family, 0, host, port, &addrinfo);
+//		rc = _wget_tcp_resolve(tcp->family, 0, host, port, &addrinfo);
+
+		rc = wget_dns_getaddrinfo_resolve(tcp->family, 0, host, port, &addrinfo);
+
 		if (rc == 0 || rc != EAI_AGAIN)
 			break;
 
@@ -393,6 +398,7 @@ struct addrinfo *wget_tcp_resolve(wget_tcp_t *tcp, const char *host, uint16_t po
 			stats.ip = "???";
 
 		stats_callback(&stats);
+		wget_dns_deinit(&dns);
 	}
 
 	/* Finally, print the address list to the debug pipe if enabled */

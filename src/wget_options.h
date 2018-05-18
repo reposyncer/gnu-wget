@@ -101,6 +101,7 @@ struct config {
 		*ocsp_file,
 		*netrc_file,
 		*use_askpass_bin,
+		*doh_resolver,
 		*dns_cache_preload;
 	wget_vector_t
 		*compression,
@@ -238,7 +239,8 @@ struct config {
 		verify_save_failed,
 		verify_sig,
 		https_enforce,
-		retry_connrefused;
+		retry_connrefused,
+		enable_dns_over_https;
 };
 
 extern struct config

@@ -37,6 +37,7 @@
 #include <time.h>
 #include <stdbool.h>
 #include <inttypes.h>
+#include <arpa/nameser.h>
 
 #ifdef WGETVER_FILE
 #   include WGETVER_FILE
@@ -2732,5 +2733,45 @@ WGET_END_DECLS
 
 #define WGET_REGEX_TYPE_POSIX 0
 #define WGET_REGEX_TYPE_PCRE 1
+
+/*
+ * DNS resolver routines
+ */
+
+#define WGET_DNS_ADDR_FAMILY		1 // AF_INET, AF_INET6 or A, AAAA
+#define WGET_DNS_ADDR_CLASS		2	//C_IN
+#define WGET_DNS_TIMEOUT		3
+#define WGET_DNS_PORT			4
+#define WGET_DNS_RESOLVER		5
+
+#define WGET_DNS_ADDR_A_FAMILY  1 // AF_INET, A
+#define WGET_DNS_ADDR_AAAA_FAMILY   2 // AF_INET6, AAAA
+
+#define WGET_DNS_RESOLVER_DOH		1
+#define WGET_DNS_RESOLVER_GETADDRINFO	2
+
+#define WGET_DNS_RESOLVER_DOH_URL	1
+
+typedef struct wget_dns_st wget_dns_t;
+
+WGETAPI wget_dns_t
+	*wget_dns_init(void);
+WGETAPI void
+	wget_dns_deinit(wget_dns_t **);
+WGETAPI void
+	wget_dns_set_config_int(wget_dns_t *, int key, int value);
+WGETAPI void
+	wget_dns_set_config_string(wget_dns_t *, int key, const char *value);
+WGETAPI int
+	wget_dns_getaddrinfo_resolve(int family, int flags, const char *host, uint16_t port,
+		struct addrinfo **out_addr);
+WGETAPI int
+	wget_doh_resolve(wget_dns_t *, const char *host, const char *doh_server, uint16_t port, int family);
+WGETAPI int
+	wget_dns_query(const char* host, int class, int type);
+WGETAPI wget_http_response_t
+	*wget_doh_encode(wget_dns_t *dns, const char *host, const char *doh_server, int family, int class);
+WGETAPI int
+	wget_doh_decode(wget_dns_t *dns, wget_http_response_t *resp, int family);
 
 #endif /* WGET_WGET_H */
