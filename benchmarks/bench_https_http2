@@ -8,6 +8,8 @@ wget2_version=$(../src/wget2_noinstall --version 2>/dev/null|head -1|cut -d' ' -
 curl_options="-s --cert-status --http2 -o/dev/null"
 curl_version=$(curl --version|head -1|cut -d' ' -f2)
 
+[ -f /etc/os-release ] && os_info="$(awk -F'=' '/PRETTY_NAME/ {print $2}' /etc/os-release | awk -F'"' '{print $2}')" || os_info="$(uname) $(uname -r)"
+
 NCHECKS=3
 MINX=1
 MAXX=3
@@ -62,7 +64,7 @@ cat <<EOF | gnuplot
   set output "$0.svg"
 
   set title "${title}\n\
- Debian Sid amd64, Intel i3-2100 at 3.10GHz\n\
+ ${os_info} \($(uname -m)\)\n\
  50MBit/s DSL, RTT 35ms to www.google.com\n\
  wget ${wget_version} options: ${wget_options}\n\
  wget2 ${wget2_version} options: ${wget2_options}\n\
