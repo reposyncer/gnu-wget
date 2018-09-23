@@ -65,7 +65,6 @@ cat <<EOF | gnuplot
 
   set title "${title}\n\
  ${os_info} \($(uname -m)\)\n\
- 50MBit/s DSL, RTT 35ms to www.google.com\n\
  wget ${wget_version} options: ${wget_options}\n\
  wget2 ${wget2_version} options: ${wget2_options}\n\
  curl ${curl_version} options: ${curl_options}"
