@@ -3125,6 +3125,17 @@ int init(int argc, const char **argv)
 #endif
 	}
 
+	if(config.enable_dns_over_https) {
+		wget_http_response_t *resp;
+
+		if(resp) {
+			JOB *job = resp->req->user_data;
+			wget_iri_t *iri = job->iri;
+
+			wget_doh_resolve(NULL, iri->host, config.doh_resolver, 443, WGET_NET_FAMILY_IPV4);
+		}
+	}
+
 	if ((rc = wget_net_init())) {
 		wget_error_printf(_("Failed to init networking (%d)"), rc);
 		return -1;
