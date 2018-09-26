@@ -677,6 +677,14 @@ AS_IF([test "x$with_libmicrohttpd" != xno], [
 ])
 AM_CONDITIONAL([WITH_MICROHTTPD], [test "x$with_libmicrohttpd" = xyes])
 
+AC_ARG_WITH(doh, AS_HELP_STRING([--without-doh], [disable support for DNS-over-HTTPS (DoH)]), with_doh=$withval, with_doh=yes)
+AS_IF([test "x$with_doh" != xno], [
+  AC_SEARCH_LIBS(ns_initparse, resolv,
+    [with_doh=yes; AC_DEFINE([WITH_DOH], [1], [Use DNS-over-HTTPS (via libresolv)])],
+    [with_doh=no; AC_MSG_WARN(*** libresolv was not found. Several tests will not run.)])
+])
+AM_CONDITIONAL([WITH_DOH], [test "x$with_doh" = xyes])
+
 # Check for plugin support
 AC_CANONICAL_HOST
 case "$host_os" in
@@ -769,6 +777,7 @@ AC_MSG_NOTICE([Summary of build options:
   HTTP/2.0 support:   $with_libnghttp2
   Documentation:      $DOCS_INFO
   PCRE support:       ${HAVE_PCRE}
+  DNS-over-HTTPS:     $with_doh
   Tests:              ${TESTS_INFO}
   Assertions:         $ENABLE_ASSERT
   POSIX xattr:        $ENABLE_XATTR
