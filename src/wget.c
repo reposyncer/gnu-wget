@@ -2244,6 +2244,14 @@ void *downloader_thread(void *p)
 				} else {
 					wget_thread_mutex_lock(main_mutex); locked = 1;
 				}
+
+				if(config.enable_dns_over_https) {
+                    if(resp) {
+                        job = resp->req->user_data;
+                        wget_iri_t *iri = job->iri;
+                        wget_doh_resolve(NULL, iri->host, config.doh_resolver, 443, WGET_NET_FAMILY_IPV4);
+                    }
+                }
 			}
 			break;
 
