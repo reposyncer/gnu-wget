@@ -7,9 +7,9 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-WGET="$SCRIPT_DIR/../../wget/src/wget"
+WGET="wget"
 WGET2="$SCRIPT_DIR/../src/wget2_noinstall"
-CURL="$SCRIPT_DIR/../../curl/src/curl"
+CURL="curl"
 
 WGET_OPTIONS="-q --no-config -O/dev/null"
 WGET2_OPTIONS="-q --no-config -O/dev/null"
