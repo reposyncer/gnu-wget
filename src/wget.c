@@ -500,10 +500,12 @@ static int in_directory_pattern_list(const wget_vector_t *v, const char *fname)
 	char *path;
 	bool default_exclude = 0;
 
-	if (*fname == '/')
+	if (*fname == '/' || *fname == '\\')
 		fname++;
 
 	const char *e = strrchr(fname, '/');
+	if (!e)
+		e = strrchr(fname, '\\');
 	if (!e)
 		//return default_exclude; // no path component found
 		path = wget_strdup("/");
@@ -520,7 +522,7 @@ static int in_directory_pattern_list(const wget_vector_t *v, const char *fname)
 
 		pattern++;
 
-		if (*pattern == '/')
+		if (*pattern == '/' || *pattern == '\\')
 			pattern++;
 
 		debug_printf("directory[%d] '%s' - '%s' %c\n", it, pattern, path, "+-"[exclude]);
