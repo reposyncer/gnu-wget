@@ -308,8 +308,6 @@ int wget_dns_getaddrinfo_resolve(int family, int flags, const char *host, uint16
  */
 int wget_dns_query(const char* host, int class, int type)
 {
-
-	ns_msg message;
 	ns_rr rr;
 
 	wget_dns_t *dns = wget_dns_init();
@@ -450,8 +448,6 @@ out:
 
 int wget_doh_resolve(wget_dns_t *dns, const char *host, const char *doh_server, uint16_t port, int family)
 {
-	struct addrinfo *addrinfo = NULL;
-
 	wget_http_response_t *resp;
 
 	if (!dns)
@@ -463,11 +459,15 @@ int wget_doh_resolve(wget_dns_t *dns, const char *host, const char *doh_server, 
 
 	int dnsquery = wget_dns_query(host, dns->class, dns->family);
 
+	if (dnsquery < 0)
+		fprintf(stderr, "wget failed to create the query %d\n", dnsquery);
+
 	resp = wget_doh_encode(dns, host, doh_server, dns->family, dns->class);
 
 	int dohdecode = wget_doh_decode(dns, resp, dns->family);
 
-	// FIXME: if dohdecode returns error (-1)
+	if (dohdecode < 0)
+		fprintf(stderr, "wget failed to decode the DOH %d\n", dohdecode);
 
 	wget_tcp_dns_cache_add(dns->ip, host, port);
 
