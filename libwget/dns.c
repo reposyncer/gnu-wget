@@ -361,7 +361,8 @@ wget_http_response_t *wget_doh_encode(wget_dns_t *dns, const char *host, const c
 			0);
 
 	char payload_b64[wget_base64_get_encoded_length(sizeof(dns->querybuf))];
-	int rc;
+
+	int rc = 0;
 
 	wget_dns_set_config_int(dns, WGET_DNS_RESOLVER, WGET_DNS_RESOLVER_DOH);
 	wget_dns_set_config_string(dns, WGET_DNS_RESOLVER_DOH_URL, wget_strdup(doh_server));
@@ -500,7 +501,7 @@ int wget_doh_decode(wget_dns_t *dns, wget_http_response_t *resp, int family)
 	else
 		return -1;
 
-	ns_initparse(resp->body->data, resp->body->length, &message);
+	ns_initparse((const u_char*)resp->body->data, resp->body->length, &message);
 
 	int count = ns_msg_count(message, ns_s_an);
 
