@@ -377,7 +377,7 @@ wget_http_response_t *wget_doh_encode(wget_dns_t *dns, const char *host, const c
 		debug_printf("Failed to create the dns packet, length: %d\n", rc);
 	}
 
-	wget_base64_urlencode(payload_b64, dns->querybuf, sizeof(dns->querybuf));
+	wget_base64_urlencode(payload_b64, (const char*)dns->querybuf, sizeof(dns->querybuf));
 
 	char *url = wget_aprintf("%s?dns=%s", doh_server, payload_b64);
 	uri = wget_iri_parse(url, NULL);
