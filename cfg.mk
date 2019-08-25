@@ -1,5 +1,5 @@
 # Explicit syntax-check exceptions.
-VC_LIST_ALWAYS_EXCLUDE_REGEX = ^data/.*|tests/(files|gpg|certs)/.*|.*\.png|^fuzz/.*\.(in|repro)/.*$$
+VC_LIST_ALWAYS_EXCLUDE_REGEX = ^data/.*|tests/(files|gpg|certs)/.*|.*\.png|^fuzz/.*\.(in|repro)/.*|^async_dns/.*\.c$$
 
 # Syntax Check Rules that we want to skip
 #  * sc_immutable_NEWS: I can't make this test ever pass. If someone fixes it,
