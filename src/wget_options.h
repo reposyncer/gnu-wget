@@ -40,6 +40,8 @@
 #define INCLUDED_DIRECTORY_PREFIX '+'
 #define EXCLUDED_DIRECTORY_PREFIX '-'
 
+wget_async_dns *async_dns_;
+
 //types for --https-enforce
 typedef enum {
 	HTTPS_ENFORCE_NONE,
@@ -176,9 +178,17 @@ struct config {
 		cut_directories,
 		connect_timeout, // ms
 		dns_timeout, // ms
+#ifdef WITH_C_ARES
+		async_dns_maxqueries,
+		async_dns_maxtries,
+#endif
 		read_timeout, // ms
 		max_redirect,
 		max_threads;
+#ifdef WITH_C_ARES
+	wget_async_dns
+		*async_dns_st;
+#endif
 	uint16_t
 		default_http_port,
 		default_https_port;
@@ -264,7 +274,15 @@ struct config {
 		retry_connrefused,
 		unlink,
 		background,
+<<<<<<< HEAD
 		if_modified_since,
+=======
+#ifdef WITH_C_ARES
+		async_dns,
+#endif
+		if_modified_since;
+	bool
+>>>>>>> xxx
 		auth_no_challenge,
 		no_compression,
 		ocsp_date,

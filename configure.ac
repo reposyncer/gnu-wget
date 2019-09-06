@@ -680,6 +680,22 @@ AS_IF([test "x$with_lzip" != xno], [
 ])
 AM_CONDITIONAL([WITH_LZIP], [test "x$with_lzip" = xyes])
 
+AC_ARG_WITH(c_ares, AS_HELP_STRING([--without-c-ares], [disable libc-ares asynchronous DNS resolving support]), with_c_ares=$withval, with_c_ares=yes)
+AS_IF([test "x$with_c_ares" != xno], [
+  PKG_CHECK_MODULES([C_ARES], libcares, [
+    with_c_ares=yes
+    LIBS="$C_ARES_LIBS $LIBS"
+    CFLAGS="$C_ARES_CFLAGS $CFLAGS"
+    AC_DEFINE([WITH_C_ARES], [1], [Use c-ares])
+  ], [
+#    AC_SEARCH_LIBS(ZSTD_decompressStream, libc-ares,
+#      [with_c_ares=yes; AC_DEFINE([WITH_C_ARES], [1], [Use libc-ares])],
+#      [with_c_ares=no;  AC_MSG_WARN(*** libc-ares was not found. You will not be able to use the asynchronous DNS resolver)])
+	AC_MSG_WARN(*** libcares was not found. You will not be able to use the asynchronous DNS resolver)
+  ])
+])
+AM_CONDITIONAL([WITH_C_ARES], [test "x$with_c_ares" = xyes])
+
 # Support for internationalized domain names.
 # IDN support in Wget2 is provided in multiple ways:
 #   1. libidn2 >= 0.14.0 (IDNA 2008)
@@ -892,4 +908,5 @@ AC_MSG_NOTICE([Summary of build options:
   Microhttpd support: $with_libmicrohttpd (CFLAGS: ${TEST_CFLAGS}. LIBS: ${TEST_LIBS})
   Fuzzing build:      $enable_fuzzing, $LIB_FUZZING_ENGINE
   GPGME:              $with_gpgme
+  C-Ares:	      $with_c_ares
 ])

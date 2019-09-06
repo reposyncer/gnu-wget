@@ -1218,6 +1218,9 @@ struct config config = {
 	.report_speed = WGET_REPORT_SPEED_BYTES,
 	.default_http_port = 80,
 	.default_https_port = 443,
+#ifdef WITH_C_ARES
+	.async_dns = 1,
+#endif
 	.if_modified_since = 1
 };
 
@@ -1256,6 +1259,24 @@ static const struct optionw options[] = {
 		{ "Print prompt for password\n"
 		}
 	},
+#ifdef WITH_C_ARES
+	{ "async-dns", &config.async_dns, parse_bool, -1, 0,
+		SECTION_DOWNLOAD,
+		{ "Enable or disable Asynchronous DNS resolver support\n",
+		  "(default: on)\n"
+		}
+	},
+	{ "async-dns-maxqueries", &config.async_dns_maxqueries, parse_integer, 1, 0,
+		SECTION_DOWNLOAD,
+		{ "\n"
+		}
+	},
+	{ "async-dns-maxtries", &config.async_dns_maxtries, parse_integer, 1, 0,
+		SECTION_DOWNLOAD,
+		{ "\n"
+		}
+	},
+#endif
 	{ "auth-no-challenge", &config.auth_no_challenge, parse_bool, -1, 0,
 		SECTION_HTTP,
 		{ "send Basic HTTP Authentication before challenge\n" }
@@ -3495,6 +3516,11 @@ int init(int argc, const char **argv)
 	wget_dns_set_timeout(dns, config.dns_timeout);
 	wget_tcp_set_dns(NULL, dns);
 
+#ifdef WITH_C_ARES
+	if (config.async_dns)
+		wget_async_dns_create(&config.async_dns_st, dns, config.async_dns_maxqueries, config.dns_timeout, config.async_dns_maxtries);
+#endif
+
 	if (config.stats_dns_args) {
 		config.stats_dns_args->fp =
 			config.stats_dns_args->filename && *config.stats_dns_args->filename && strcmp(config.stats_dns_args->filename, "-")
@@ -3646,6 +3672,9 @@ void deinit(void)
 	get_xdg_config_home(NULL);
 	get_xdg_data_home(NULL);
 
+#ifdef WITH_C_ARES
+	wget_async_dns_destroy(&config.async_dns_st);
+#endif
 	wget_dns_free(&dns);
 	wget_dns_cache_free(&dns_cache);
 

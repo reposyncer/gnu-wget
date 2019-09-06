@@ -382,6 +382,7 @@ struct addrinfo *wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port
 		 * In case of a race condition the already existing addrinfo is returned.
 		 * The addrinfo argument given to wget_dns_cache_add() will be freed in this case.
 		 */
+
 		rc = wget_dns_cache_add(dns->cache, host, port, &addrinfo);
 		wget_thread_mutex_unlock(dns->mutex);
 		if ( rc < 0) {

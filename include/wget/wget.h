@@ -1868,6 +1868,18 @@ WGETAPI int
 	wget_dns_cache_ip(wget_dns *dns, const char *ip, const char *name, uint16_t port);
 
 /*
+ *
+ * Asynchronous DNS resolving routines
+ */
+
+typedef struct wget_async_dns_st wget_async_dns;
+
+WGETAPI int wget_async_dns_create(wget_async_dns **async_dns, wget_dns *dns, int maxwaiting, int timeout, int maxtries);
+WGETAPI void wget_async_dns_destroy(wget_async_dns **async_dns);
+WGETAPI void wget_async_dns_resolve(wget_async_dns *async_dns);
+WGETAPI void wget_async_dns_add(wget_async_dns *async_dns, const char *host);
+
+/*
  * TCP network routines
  */
 

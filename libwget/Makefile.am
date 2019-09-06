@@ -23,6 +23,10 @@ endif
 endif
 endif
 
+if WITH_C_ARES
+  libwget_la_SOURCES += async_dns.c
+endif
+
 libwget_la_CPPFLAGS =\
  -fPIC -I$(top_srcdir)/include/wget -I$(srcdir) -I$(top_builddir)/lib -I$(top_srcdir)/lib $(CFLAG_VISIBILITY) -DBUILDING_LIBWGET \
  $(CODE_COVERAGE_CPPFLAGS) \
