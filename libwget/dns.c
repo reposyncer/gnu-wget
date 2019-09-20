@@ -376,17 +376,14 @@ struct addrinfo *wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port
 				debug_printf("has ??? (%s)\n", gai_strerror(rc));
 		}
 	}
-//debug_printf("YEY!\n");
+
 	if (dns->cache) {
 		/*
 		 * In case of a race condition the already existing addrinfo is returned.
 		 * The addrinfo argument given to wget_dns_cache_add() will be freed in this case.
 		 */
-//debug_printf("YEY2\n");
 		rc = wget_dns_cache_add(dns->cache, host, port, &addrinfo);
-//debug_printf("YEY3\n");
 		wget_thread_mutex_unlock(dns->mutex);
-debug_printf("YEY4\n");
 		if ( rc < 0) {
 			freeaddrinfo(addrinfo);
 			return NULL;
