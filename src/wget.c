@@ -1292,10 +1292,17 @@ static void *async_dns_resolver_thread(void *p)
 {
 	void *ptr;
 	while (!terminate) {
+		wget_thread_mutex_lock(async_dns_mutex);
 		if (!(ptr = wget_list_getfirst(async_dns_queue))) {
-			wget_thread_mutex_unlock(async_dns_mutex); // avoid a bottleneck here
+			// This avoid a possible bottleneck but we may miss
+			// some domains if we don't check the list again after the lock (TODO)
+			//wget_thread_mutex_unlock(async_dns_mutex); // avoid a bottleneck here
 			wget_async_dns_resolve(config.async_dns_st);
-			//break;
+			//wget_thread_mutex_lock(async_dns_mutex);
+			//wget_thread_mutex_lock(main_mutex);
+			//wget_thread_cond_wait(worker_cond, main_mutex, 0);
+			wget_thread_mutex_unlock(async_dns_mutex);
+			break;
 		}
 		else {
 			wget_async_dns_add(config.async_dns_st, (char *)ptr);
@@ -1507,6 +1514,8 @@ int main(int argc, const char **argv)
 		if ((rc = wget_thread_join(&downloaders[n].thread)) != 0)
 			error_printf(_("Failed to wait for downloader #%d (%d %d)\n"), n, rc, errno);
 	}
+	// TODO: if here, just get rid of that memory leak
+	wget_thread_join(&async_dns_thread);
 
 	print_progress_report(start_time);
 	if (!config.progress && (config.recursive || config.page_requisites || (config.input_file && quota != 0)) && quota) {

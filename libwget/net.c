@@ -661,23 +661,28 @@ int wget_tcp_connect(wget_tcp *tcp, const char *host, uint16_t port)
 		return WGET_E_INVALID;
 
 	wget_dns_freeaddrinfo(tcp->dns, &tcp->addrinfo);
-printf("0\n");
 	tcp->addrinfo = wget_dns_resolve(tcp->dns, host, port, tcp->family, tcp->preferred_family);
-printf("1\n");
+//debug_printf("YEY6\n");
 	for (ai = tcp->addrinfo; ai; ai = ai->ai_next) {
 		if (debug) {
-printf("2\n");
+debug_printf("YEY7\n");
+//debug_printf("%lld|%d|%s|%zu|%s|%zu\n", ai->ai_addr, ai->ai_addrlen, adr, sizeof(adr), s_port, sizeof(s_port));
+//debug_printf("%d|%d|%d|%d|%zu|%s|%lld\n", ai->ai_flags, ai->ai_family, ai->ai_socktype, ai->ai_protocol, ai->ai_addrlen, ai->ai_canonname, ai->ai_next);
+//debug_printf("%d\n", AF_INET);
+//debug_printf("%lld\n", ai->ai_addr);
+debug_printf("%d|%s\n", ai->ai_addr->sa_family, ai->ai_addr->sa_data);
+
 			rc = getnameinfo(ai->ai_addr, ai->ai_addrlen,
 					adr, sizeof(adr),
 					s_port, sizeof(s_port),
 					NI_NUMERICHOST | NI_NUMERICSERV);
-printf("3\n");
+debug_printf("YEY8\n");
 			if (rc == 0)
 				debug_printf("trying %s:%s...\n", adr, s_port);
 			else
 				debug_printf("trying ???:%s (%s)...\n", s_port, gai_strerror(rc));
 		}
-printf("4\n");
+debug_printf("YEY9\n");
 		int sockfd;
 		if ((sockfd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol)) != -1) {
 			_set_async(sockfd);
