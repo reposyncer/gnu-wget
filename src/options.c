@@ -1218,7 +1218,7 @@ struct config config = {
 	.report_speed = WGET_REPORT_SPEED_BYTES,
 	.default_http_port = 80,
 	.default_https_port = 443,
-#ifdef WITH_C_ARES
+#ifdef WITH_CARES
 	.async_dns = 1,
 #endif
 	.if_modified_since = 1
@@ -1259,7 +1259,7 @@ static const struct optionw options[] = {
 		{ "Print prompt for password\n"
 		}
 	},
-#ifdef WITH_C_ARES
+#ifdef WITH_CARES
 	{ "async-dns", &config.async_dns, parse_bool, -1, 0,
 		SECTION_DOWNLOAD,
 		{ "Enable or disable Asynchronous DNS resolver support\n",
@@ -3516,7 +3516,7 @@ int init(int argc, const char **argv)
 	wget_dns_set_timeout(dns, config.dns_timeout);
 	wget_tcp_set_dns(NULL, dns);
 
-#ifdef WITH_C_ARES
+#ifdef WITH_CARES
 	if (config.async_dns)
 		wget_async_dns_create(&config.async_dns_st, dns, config.async_dns_maxqueries, config.dns_timeout, config.async_dns_maxtries);
 #endif
@@ -3672,7 +3672,7 @@ void deinit(void)
 	get_xdg_config_home(NULL);
 	get_xdg_data_home(NULL);
 
-#ifdef WITH_C_ARES
+#ifdef WITH_CARES
 	wget_async_dns_destroy(&config.async_dns_st);
 #endif
 	wget_dns_free(&dns);

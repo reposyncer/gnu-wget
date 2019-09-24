@@ -5,6 +5,7 @@ lib/spawn-pipe.c
 lib/w32spawn.h
 lib/wait-process.c
 lib/xalloc-die.c
+libwget/async_dns.c
 libwget/cookie.c
 libwget/cookie_parse.c
 libwget/css.c

@@ -23,7 +23,7 @@ endif
 endif
 endif
 
-if WITH_C_ARES
+if WITH_CARES
   libwget_la_SOURCES += async_dns.c
 endif
 

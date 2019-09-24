@@ -35,23 +35,29 @@
 #include <wget.h>
 #include "private.h"
 
-#define _SERVERS    "1.0.0.1,8.8.8.8" /* DNS server to use (Cloudflare & Google) */
+#define SERVERS    "1.0.0.1,8.8.8.8" /* DNS server to use (Cloudflare & Google) */
 
-#define _MAXWAITING 200 // Max. number of parallel DNS queries (default value)
-#define _TIMEOUT 2000 // Max. number of ms for first try (default value)
-#define _MAXTRIES 3 // Max. number of tries per domain (default value)
+#define MAXWAITING 200 // Max. number of parallel DNS queries (default value)
+#define TIMEOUT 2000 // Max. number of ms for first try (default value)
+#define MAXTRIES 3 // Max. number of tries per domain (default value)
 
-//TODO: Comprobar que wget2 compila si c-ares no está instalado
+//TODO: Check that wget2 compiles if c-ares is not installed
 
 //TODO: Document this file like the others
 
-//TODO: Aqui dejar huecos entre miembros como en otros archivos
+//TODO: create DNS statistics (if needed, see --stats-dns)
+
+//TODO: Allow custom servers, see https://github.com/Abss0x7tbh/bass fro a huge list of resolvers
+//      Using many resolvers reduces the chance of being blacklisted by the provider.
 
 struct wget_async_dns_st {
-	int nwaiting; // number of current pending parallel DNS queries
-	int maxwaiting; // max. number of parallel DNS queries
-	wget_dns *dns; // DNS data (including cache). see libwget/dns.c
-	ares_channel channel; // ares channel, to resolve DNS
+	int
+		nwaiting, // number of current pending parallel DNS queries
+		maxwaiting; // max. number of parallel DNS queries
+	wget_dns
+		*dns; // DNS data (including cache). see libwget/dns.c
+	ares_channel
+		channel; // ares channel, to resolve DNS
 };
 
 static void callback(void *arg, int status, int timeouts, struct hostent *host)
@@ -90,43 +96,39 @@ static void wait_ares(ares_channel channel)
 	}
 }
 
-//TODO: Allow custom servers
 int wget_async_dns_create(wget_async_dns **async_dns, wget_dns *dns, int maxwaiting, int timeout, int maxtries)
 {
+	int status;
 	wget_async_dns *_async_dns = wget_calloc(1, sizeof(wget_async_dns));
 
 	if (!_async_dns)
 		return WGET_E_MEMORY;
 
 	_async_dns->nwaiting = 0;
-	_async_dns->maxwaiting = maxwaiting ? maxwaiting : _MAXWAITING;
+	_async_dns->maxwaiting = maxwaiting ? maxwaiting : MAXWAITING;
 	_async_dns->dns = dns;
-
-	int status, optmask;
 
 	status = ares_library_init(ARES_LIB_INIT_ALL);
 	if (status != ARES_SUCCESS) {
-		error_printf(_("ares_library_init: %s\n"), ares_strerror(status));
-		//TODO: Find a correct ERROR-CODE
-		return 1;
+		error_printf(_("Failed to init c-ares: %s\n"), ares_strerror(status));
+		return WGET_E_UNKNOWN;
 	}
 
 	struct ares_options options = {
-		.timeout = timeout ? timeout : _TIMEOUT,     /* set first query timeout */
-		.tries = maxtries ? maxtries : _MAXTRIES       /* set max. number of tries */
+		.timeout = timeout ? timeout : TIMEOUT,     /* set first query timeout */
+		.tries = maxtries ? maxtries : MAXTRIES       /* set max. number of tries */
 	};
-	optmask = ARES_OPT_TIMEOUTMS | ARES_OPT_TRIES;
 
-	status = ares_init_options(&_async_dns->channel, &options, optmask);
+	status = ares_init_options(&_async_dns->channel, &options, ARES_OPT_TIMEOUTMS | ARES_OPT_TRIES);
 	if (status != ARES_SUCCESS) {
-		error_printf(_("ares_init_options: %s\n"), ares_strerror(status));
-		return 1;
+		error_printf(_("Failed to init c-ares options: %s\n"), ares_strerror(status));
+		return WGET_E_UNKNOWN;
 	}
 
-	status = ares_set_servers_csv(_async_dns->channel, _SERVERS);
+	status = ares_set_servers_csv(_async_dns->channel, SERVERS);
 	if (status != ARES_SUCCESS) {
-		error_printf(_("ares_set_servers_csv: %s\n"), ares_strerror(status));
-		return 1;
+		error_printf(_("Failed to set c-ares servers: %s\n"), ares_strerror(status));
+		return WGET_E_UNKNOWN;
 	}
 
 	*async_dns = _async_dns;

@@ -178,14 +178,14 @@ struct config {
 		cut_directories,
 		connect_timeout, // ms
 		dns_timeout, // ms
-#ifdef WITH_C_ARES
+#ifdef WITH_CARES
 		async_dns_maxqueries,
 		async_dns_maxtries,
 #endif
 		read_timeout, // ms
 		max_redirect,
 		max_threads;
-#ifdef WITH_C_ARES
+#ifdef WITH_CARES
 	wget_async_dns
 		*async_dns_st;
 #endif
@@ -274,15 +274,10 @@ struct config {
 		retry_connrefused,
 		unlink,
 		background,
-<<<<<<< HEAD
 		if_modified_since,
-=======
-#ifdef WITH_C_ARES
+#ifdef WITH_CARES
 		async_dns,
 #endif
-		if_modified_since;
-	bool
->>>>>>> xxx
 		auth_no_challenge,
 		no_compression,
 		ocsp_date,

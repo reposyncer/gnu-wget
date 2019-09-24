@@ -680,21 +680,26 @@ AS_IF([test "x$with_lzip" != xno], [
 ])
 AM_CONDITIONAL([WITH_LZIP], [test "x$with_lzip" = xyes])
 
-AC_ARG_WITH(c_ares, AS_HELP_STRING([--without-c-ares], [disable libc-ares asynchronous DNS resolving support]), with_c_ares=$withval, with_c_ares=yes)
-AS_IF([test "x$with_c_ares" != xno], [
-  PKG_CHECK_MODULES([C_ARES], libcares, [
-    with_c_ares=yes
-    LIBS="$C_ARES_LIBS $LIBS"
-    CFLAGS="$C_ARES_CFLAGS $CFLAGS"
-    AC_DEFINE([WITH_C_ARES], [1], [Use c-ares])
+AC_ARG_WITH(cares, AS_HELP_STRING([--without-cares], [disable libc-ares asynchronous DNS resolving support]), with_cares=$withval, with_cares=yes)
+AS_IF([test "x$with_cares" != xno], [
+  PKG_CHECK_MODULES([CARES], libcares, [
+    CFLAGS="$CARES_CFLAGS $CFLAGS"
+    AC_CHECK_HEADER(ares.h, [
+      with_cares=yes
+      LIBS="$CARES_LIBS $LIBS"
+      AC_DEFINE([WITH_CARES], [1], [Define if libcares is available.])
+    ])
   ], [
-#    AC_SEARCH_LIBS(ZSTD_decompressStream, libc-ares,
-#      [with_c_ares=yes; AC_DEFINE([WITH_C_ARES], [1], [Use libc-ares])],
-#      [with_c_ares=no;  AC_MSG_WARN(*** libc-ares was not found. You will not be able to use the asynchronous DNS resolver)])
-	AC_MSG_WARN(*** libcares was not found. You will not be able to use the asynchronous DNS resolver)
+    AC_CHECK_HEADER(ares.h, [
+      AC_CHECK_LIB(cares, ares_set_local_ip4, [
+        with_cares=yes
+        LIBS="-lcares $LIBS"
+        AC_DEFINE([WITH_CARES], 1, [Define if libcares is available.])
+      ])
+    ])
   ])
 ])
-AM_CONDITIONAL([WITH_C_ARES], [test "x$with_c_ares" = xyes])
+AM_CONDITIONAL([WITH_CARES], [test "x$with_cares" = xyes])
 
 # Support for internationalized domain names.
 # IDN support in Wget2 is provided in multiple ways:
@@ -908,5 +913,5 @@ AC_MSG_NOTICE([Summary of build options:
   Microhttpd support: $with_libmicrohttpd (CFLAGS: ${TEST_CFLAGS}. LIBS: ${TEST_LIBS})
   Fuzzing build:      $enable_fuzzing, $LIB_FUZZING_ENGINE
   GPGME:              $with_gpgme
-  C-Ares:	      $with_c_ares
+  AsyncDNS:           $with_cares
 ])

@@ -177,7 +177,7 @@ static volatile bool
 static int
 	nthreads;
 
-#ifdef WITH_C_ARES
+#ifdef WITH_CARES
 static wget_list *async_dns_queue;
 #endif
 
@@ -353,7 +353,7 @@ static wget_thread
 static wget_vector
 	*parents;
 static wget_thread_mutex
-#ifdef WITH_C_ARES
+#ifdef WITH_CARES
 	async_dns_mutex,
 #endif
 	downloader_mutex,
@@ -382,7 +382,7 @@ static void program_init(void)
 	wget_thread_mutex_init(&netrc_mutex);
 	wget_thread_mutex_init(&conversion_mutex);
 	wget_thread_mutex_init(&quota_mutex);
-#ifdef WITH_C_ARES
+#ifdef WITH_CARES
 	wget_thread_mutex_init(&async_dns_mutex);
 #endif
 	wget_thread_cond_init(&main_cond);
@@ -435,7 +435,7 @@ static void program_deinit(void)
 	wget_thread_mutex_destroy(&netrc_mutex);
 	wget_thread_mutex_destroy(&conversion_mutex);
 	wget_thread_mutex_destroy(&quota_mutex);
-#ifdef WITH_C_ARES
+#ifdef WITH_CARES
 	wget_thread_mutex_destroy(&async_dns_mutex);
 #endif
 	wget_thread_cond_destroy(&main_cond);
@@ -750,7 +750,7 @@ static void add_url_to_queue(const char *url, wget_iri *base, const char *encodi
 		}
 	}
 
-#ifdef WITH_C_ARES
+#ifdef WITH_CARES
 	wget_thread_mutex_lock(async_dns_mutex);
 	wget_list_append(&async_dns_queue, iri->host, strlen(iri->host) + 1);
 	wget_thread_mutex_unlock(async_dns_mutex);
@@ -1287,13 +1287,15 @@ static void print_progress_report(long long start_time)
 	}
 }
 
-#ifdef WITH_C_ARES
-static void *async_dns_resolver_thread(void *p)
+#ifdef WITH_CARES
+static void *async_dns_resolver_thread(WGET_GCC_UNUSED void *p)
 {
-	void *ptr;
 	while (!terminate) {
 		wget_thread_mutex_lock(async_dns_mutex);
-		if (!(ptr = wget_list_getfirst(async_dns_queue))) {
+
+		char *hostname = wget_list_getfirst(async_dns_queue);
+
+		if (!hostname) {
 			// This avoid a possible bottleneck but we may miss
 			// some domains if we don't check the list again after the lock (TODO)
 			//wget_thread_mutex_unlock(async_dns_mutex); // avoid a bottleneck here
@@ -1301,15 +1303,16 @@ static void *async_dns_resolver_thread(void *p)
 			//wget_thread_mutex_lock(async_dns_mutex);
 			//wget_thread_mutex_lock(main_mutex);
 			//wget_thread_cond_wait(worker_cond, main_mutex, 0);
+
 			wget_thread_mutex_unlock(async_dns_mutex);
 			break;
 		}
-		else {
-			wget_async_dns_add(config.async_dns_st, (char *)ptr);
-			wget_list_remove(&async_dns_queue, ptr);
-			wget_thread_mutex_unlock(async_dns_mutex);
-		}
+
+		wget_async_dns_add(config.async_dns_st, hostname);
+		wget_list_remove(&async_dns_queue, hostname);
+		wget_thread_mutex_unlock(async_dns_mutex);
 	}
+
 	return NULL;
 }
 #endif
@@ -1428,7 +1431,7 @@ int main(int argc, const char **argv)
 			config.progress = 0;
 			wget_info_printf(_("Wget2 built without thread support. Disabling progress report\n"));
 		}
-#ifdef WITH_C_ARES
+#ifdef WITH_CARES
 		if (config.async_dns) {
 			config.async_dns = 0;
 			async_dns_resolver_thread(NULL);
@@ -1458,7 +1461,7 @@ int main(int argc, const char **argv)
 
 	wget_thread_mutex_lock(main_mutex);
 
-#ifdef WITH_C_ARES
+#ifdef WITH_CARES
 	wget_thread async_dns_thread;
 	// TODO: Pasar una estructura con la lista y el mutex (evitamos variables globales y permite usar listas distintas)
 	if (config.async_dns && wget_thread_start(&async_dns_thread, async_dns_resolver_thread, NULL, 0) != 0)
@@ -1565,7 +1568,7 @@ int main(int argc, const char **argv)
 		wget_hashmap_free(&known_urls);
 		wget_stringmap_free(&etags);
 
-#ifdef WITH_C_ARES
+#ifdef WITH_CARES
 		wget_list_free(&async_dns_queue);
 #endif
 		deinit();
