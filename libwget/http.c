@@ -926,6 +926,16 @@ wget_http_response *wget_http_get_response_cb(wget_http_connection *conn)
 			server_stats_callback(conn, resp);
 
 		if (resp) {
+			// check if the response length is inconsistent
+			if (resp->cur_downloaded < resp->content_length) {
+				resp->length_inconsistent = true;
+				error_printf(_("Just got %zu of %zu bytes\n"), resp->cur_downloaded, resp->content_length);
+			} else if (resp->cur_downloaded  > resp->content_length) {
+				resp->length_inconsistent = true;
+				error_printf(_("Body too large: %zu instead of %zu bytes\n"), resp->cur_downloaded, resp->content_length);
+			}
+			resp->content_length = resp->cur_downloaded;
+
 			debug_printf("  ##  response status %d\n", resp->code);
 			wget_vector_remove_nofree(conn->received_http2_responses, 0);
 		}
