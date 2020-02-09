@@ -20,6 +20,16 @@ before_script:
   - echo $CCACHE_DIR
   - export CC="ccache gcc"
 
+# With just one virtual core, parallel builds only make sense when
+# I/O wait is involved. If too many parallel builds are used, the overall
+# time even increases (e.g. due to more cache misses).
+# $BUILDJOBS seems to be best with $(nproc)+1, while $CHECKJOBS can be much
+# higher because several tests have a large I/O waiting time.
+# The numbers are hard-coded since FreeBSD doesn't know the nproc command.
+  - export BUILDJOBS=`if command -v nproc >/dev/null; then echo $(($(nproc) + 1)); fi`
+  - export CHECKJOBS=`if command -v nproc >/dev/null; then echo $(($(nproc) + 3)); fi`
+
+
 after_script:
   # somehow after_script looses environment
   - export CCACHE_BASEDIR=${PWD}
@@ -77,8 +87,8 @@ Full+VPATH/Debian:
     - ./bootstrap --skip-po && touch .manywarnings
     - mkdir vpath && cd vpath
     - ../configure $CONFIGURE_BASE_FLAGS --cache-file ../cache/config.cache
-    - make -j$(nproc)
-    - make -j$(nproc) distcheck
+    - make -j$(BUILDJOBS)
+    - make -j$(CHECKJOBS) distcheck
     - mv wget2-*.gz ..
   tags:
     - shared
@@ -108,8 +118,8 @@ Debian/Testing:
     - export CFLAGS="$CFLAGS_DEFAULT"
     - ./bootstrap --skip-po && touch .manywarnings
     - ./configure $CONFIGURE_BASE_FLAGS
-    - make -j$(nproc)
-    - make check -j$(nproc)
+    - make -j$(BUILDJOBS)
+    - make -j$(CHECKJOBS) check
   tags:
     - shared
     - linux
@@ -132,8 +142,8 @@ Debian/Unstable:
     - export CFLAGS="$CFLAGS_DEFAULT"
     - ./bootstrap --skip-po && touch .manywarnings
     - ./configure $CONFIGURE_BASE_FLAGS
-    - make -j$(nproc)
-    - make check -j$(nproc)
+    - make -j$(BUILDJOBS)
+    - make -j$(CHECKJOBS) check
   tags:
     - shared
     - linux
@@ -155,8 +165,8 @@ Debian/WolfSSL:
     - export CFLAGS="$CFLAGS_DEFAULT"
     - ./bootstrap --skip-po && touch .manywarnings
     - ./configure $CONFIGURE_BASE_FLAGS --with-ssl=wolfssl
-    - make -j$(nproc)
-    - make check -j$(nproc)
+    - make -j$(BUILDJOBS)
+    - make -j$(CHECKJOBS) check
   tags:
     - shared
     - linux
@@ -178,8 +188,8 @@ Debian/OpenSSL:
     - export CFLAGS="$CFLAGS_DEFAULT"
     - ./bootstrap --skip-po && touch .manywarnings
     - ./configure $CONFIGURE_BASE_FLAGS --with-ssl=openssl
-    - make -j$(nproc)
-    - make check -j$(nproc)
+    - make -j$(BUILDJOBS)
+    - make -j$(CHECKJOBS) check
   tags:
     - shared
     - linux
@@ -208,8 +218,8 @@ Minimal/Debian:
         --disable-xattr --without-gnutls --without-libpsl --without-libnghttp2 --without-bzip2
         --without-gpgme --without-zlib --without-lzma --without-brotlidec --without-libidn2
         --without-libidn --without-libpcre2 --without-libpcre --without-plugin-support
-    - make -j$(nproc) -C lib
-    - make -j$(nproc) check CFLAGS="$CFLAGS_DEFAULT -Werror"
+    - make -j$(BUILDJOBS) -C lib
+    - make -j$(CHECKJOBS) check CFLAGS="$CFLAGS_DEFAULT -Werror"
   tags:
     - shared
   except:
@@ -238,8 +248,8 @@ Sanitizers/Debian:
     - export LSAN_OPTIONS=suppressions="$PWD/tests/clang-asan-suppressions"
     - export ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
     - ./configure $CONFIGURE_BASE_FLAGS --enable-fsanitize-asan --enable-fsanitize-ubsan
-    - make -j$(nproc) -C lib
-    - make -j$(nproc) check CFLAGS="$CFLAGS_DEFAULT -Werror"
+    - make -j$(BUILDJOBS) -C lib
+    - make -j$(CHECKJOBS) check CFLAGS="$CFLAGS_DEFAULT -Werror"
   tags:
     - shared
     - linux
@@ -261,8 +271,8 @@ Scan-Build/Debian:
     - export CFLAGS="$CFLAGS_DEFAULT"
     - ./bootstrap --skip-po && touch .manywarnings
     - CC=clang ./configure $CONFIGURE_BASE_FLAGS
-    - make -C lib -j$(nproc)
-    - scan-build -v --use-cc=clang -enable-checker valist,security,nullability --status-bugs -o scan-build make -j$(nproc)
+    - make -j$(BUILDJOBS) -C lib
+    - scan-build -v --use-cc=clang -enable-checker valist,security,nullability --status-bugs -o scan-build make -j$(BUILDJOBS)
   tags:
     - shared
     - linux
@@ -282,8 +292,8 @@ Valgrind/Debian:
     - export CFLAGS="$CFLAGS_DEFAULT"
     - ./bootstrap --skip-po
     - ./configure $CONFIGURE_BASE_FLAGS --enable-valgrind-tests
-    - make -j$(nproc)
-    - make check -j$(nproc)
+    - make -j$(BUILDJOBS)
+    - make -j$(CHECKJOBS) check
   tags:
     - shared
     - linux
@@ -306,8 +316,8 @@ Valgrind/i386:
     - export CFLAGS="$CFLAGS_DEFAULT"
     - ./bootstrap --skip-po
     - ./configure $CONFIGURE_BASE_FLAGS --enable-valgrind-tests --without-gpgme
-    - make -j$(nproc)
-    - make check -j$(nproc)
+    - make -j$(BUILDJOBS)
+    - make -j$(CHECKJOBS) check
   tags:
     - shared
     - linux
@@ -330,8 +340,8 @@ Simple/Fedora:
     - export CFLAGS="$CFLAGS_DEFAULT"
     - ./bootstrap --skip-po && touch .manywarnings
     - ./configure $CONFIGURE_BASE_FLAGS
-    - make -j$(nproc) -C lib
-    - make -j$(nproc) check CFLAGS="$CFLAGS_DEFAULT -Werror"
+    - make -j$(BUILDJOBS) -C lib
+    - make -j$(CHECKJOBS) check CFLAGS="$CFLAGS_DEFAULT -Werror"
   tags:
     - shared
     - linux
@@ -354,7 +364,7 @@ Alpine:
     - export CFLAGS="$CFLAGS_DEFAULT"
     - ./bootstrap --skip-po
     - ./configure $CONFIGURE_BASE_FLAGS
-    - make -j$(nproc) check
+    - make -j$(CHECKJOBS) check
   tags:
     - shared
     - linux
@@ -392,7 +402,7 @@ pages:
     - ./bootstrap --skip-po
     - export CFLAGS="$CFLAGS_DEFAULT"
     - ./configure $CONFIGURE_BASE_FLAGS
-    - make -j$(nproc) check-coverage
+    - make -j$(CHECKJOBS) check-coverage
     - make dist
     - mkdir -p public
     # Test suite coverage report
@@ -427,8 +437,8 @@ MinGW64:
     - export WINEPATH="$WINEPATH;/usr/$PREFIX/bin;/usr/$PREFIX/lib;$PWD/libwget/.libs;$GCCLIB"
     - echo "WINEPATH=$WINEPATH"
     - ./configure $CONFIGURE_BASE_FLAGS --build=x86_64-pc-linux-gnu --host=$PREFIX --enable-shared
-    - make -j$(nproc)
-    - make check -j$(nproc) LOG_COMPILER=wine
+    - make -j$(BUILDJOBS)
+    - make -j$(CHECKJOBS) check LOG_COMPILER=wine
   tags:
     - shared
     - linux
@@ -454,8 +464,8 @@ Arch:
     - sed -i 's/dist-lzip//g' configure.ac
     - ./bootstrap --skip-po && touch .manywarnings
     - ./configure $CONFIGURE_BASE_FLAGS
-    - make -j$(nproc)
-    - make check -j$(nproc)
+    - make -j$(BUILDJOBS)
+    - make -j$(CHECKJOBS) check
   tags:
     - shared
     - linux
@@ -487,11 +497,11 @@ Tarball:
     - cd wget2-*
     - unset CC
     - ./configure $CONFIGURE_BASE_FLAGS --disable-manywarnings
-    - make -j$(nproc)
-    - make -j$(nproc) check
+    - make -j$(BUILDJOBS)
+    - make -j$(CHECKJOBS) check
     # check if essential files are accidentally cleaned
     - make clean
-    - make -j$(nproc)
+    - make -j$(BUILDJOBS)
   tags:
     - shared
     - linux
@@ -531,8 +541,8 @@ Debian/HTTP2:
     - export CFLAGS="$CFLAGS_DEFAULT"
     - ./bootstrap --skip-po && touch .manywarnings
     - ./configure $CONFIGURE_BASE_FLAGS --enable-code-coverage
-    - make -j$(nproc)
-    - make check -j$(nproc)
+    - make -j$(BUILDJOBS)
+    - make -j$(CHECKJOBS) check
     - make code-coverage-capture
   tags:
     - shared
@@ -593,7 +603,7 @@ coverity:
     - tar xfz /tmp/coverity_tool.tgz
     - ./bootstrap --skip-po
     - CFLAGS="-g -Og" ./configure --cache-file cache/config.cache --disable-doc
-    - cov-analysis-linux64-*/bin/cov-build --dir cov-int make -j$(nproc)
+    - cov-analysis-linux64-*/bin/cov-build --dir cov-int make -j$(BUILDJOBS)
     - tar cfz cov-int.tar.gz cov-int
     - curl https://scan.coverity.com/builds?project=$COVERITY_SCAN_PROJECT_NAME
       --form token=$COVERITY_SCAN_TOKEN --form email=tim.ruehsen@gmx.de
