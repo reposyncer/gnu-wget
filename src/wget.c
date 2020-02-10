@@ -3584,12 +3584,16 @@ static void limit_transfer_rate(struct body_callback_context *ctx, size_t read_b
 		thread_rate_limit = config.limit_rate;
 	}
 
+	debug_printf("%s: read_bytes %zu", __func__, read_bytes);
+
 	ctx->limit_debt_bytes += (long long) read_bytes;
+	debug_printf("%s: limit_debt_bytes %lld", __func__, ctx->limit_debt_bytes);
 
 	curr_time_ms = wget_get_timemillis();
 	if (ctx->limit_prev_time_ms != 0) {
 		elapsed_ms = (curr_time_ms - ctx->limit_prev_time_ms);
 		ctx->limit_debt_bytes -= elapsed_ms * thread_rate_limit / 1000;
+		debug_printf("%s: elapsed_ms %ld limit %lld -> %lld", __func__, elapsed_ms, thread_rate_limit, ctx->limit_debt_bytes);
 	}
 
 	if (ctx->limit_debt_bytes <= 0) {
@@ -3599,6 +3603,7 @@ static void limit_transfer_rate(struct body_callback_context *ctx, size_t read_b
 	}
 
 	sleep_ms = ctx->limit_debt_bytes * 1000 / thread_rate_limit;
+	debug_printf("%s: sleep_ms %ld", __func__, sleep_ms);
 	wget_millisleep(sleep_ms);
 
 	ctx->limit_prev_time_ms = wget_get_timemillis();
