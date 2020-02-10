@@ -27,7 +27,7 @@ before_script:
 # higher because several tests have a large I/O waiting time.
 # The numbers are hard-coded since FreeBSD doesn't know the nproc command.
   - export BUILDJOBS=`if command -v nproc >/dev/null; then echo $(($(nproc) + 1)); fi`
-  - export CHECKJOBS=`if command -v nproc >/dev/null; then echo $(($(nproc) + 3)); fi`
+  - export CHECKJOBS=`if command -v nproc >/dev/null; then echo $(($(nproc) + 1)); fi`
 
 
 after_script:
