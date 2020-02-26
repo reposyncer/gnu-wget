@@ -1490,6 +1490,12 @@ static const struct optionw options[] = {
 		{ "DNS lookup timeout in seconds.\n"
 		}
 	},
+	{ "doh", &config.doh, parse_stringlist, 1, 0,
+		SECTION_DOWNLOAD,
+		{ "Comma-separated list of DNS-over-HTTPS URLs,\n",
+		  "e.g. --doh=https://doh.example.org/dns-query.\n"
+		}
+	},
 	{ "domains", &config.domains, parse_stringlist, 1, 'D',
 		SECTION_DOWNLOAD,
 		{ "Comma-separated list of domains to follow.\n"
@@ -3805,6 +3811,7 @@ void deinit(void)
 	wget_vector_free(&config.save_content_on);
 	wget_vector_free(&config.mime_types);
 	wget_vector_free(&config.http_retry_on_error);
+	wget_vector_free(&config.doh);
 	wget_vector_free(&config.domains);
 	wget_vector_free(&config.exclude_domains);
 	wget_vector_free(&config.follow_tags);

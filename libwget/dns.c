@@ -247,7 +247,10 @@ int wget_dns_cache_ip(wget_dns *dns, const char *ip, const char *name, uint16_t 
 	int rc, family;
 	struct addrinfo *ai;
 
-	if (!dns || !dns->cache || !name)
+	if (!dns)
+		dns = &default_dns;
+
+	if (!dns->cache || !name)
 		return WGET_E_INVALID;
 
 	if (wget_ip_is_family(ip, WGET_NET_FAMILY_IPV4)) {

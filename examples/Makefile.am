@@ -10,7 +10,8 @@ noinst_PROGRAMS = \
  websequencediagram\
  websequencediagram_high\
  check_url_types\
- relative_to_absolute_url
+ relative_to_absolute_url\
+ doh
 
 
 AM_CFLAGS = $(WERROR_CFLAGS) $(WARN_CFLAGS) -DMALLOC_RETURNS_NONNULL
@@ -23,3 +24,5 @@ LDADD = ../libwget/libwget.la\
  $(LIB_HARD_LOCALE) $(LIB_MBRTOWC) $(LIB_NANOSLEEP) $(LIB_POLL) $(LIB_POSIX_SPAWN) $(LIB_PTHREAD_SIGMASK) \
  $(LIB_SELECT) $(LIB_SETLOCALE) $(LIB_SETLOCALE_NULL) $(LTLIBICONV) $(LTLIBINTL) $(SERVENT_LIB) @INTL_MACOSX_LIBS@ \
  $(LIBS) ../lib/libgnu.la
+
+doh_LDADD = $(LDADD) -lresolv

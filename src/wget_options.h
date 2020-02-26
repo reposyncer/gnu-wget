@@ -121,6 +121,7 @@ struct config {
 		*method;
 	wget_vector
 		*compression,
+		*doh,
 		*domains,
 		*exclude_directories,
 		*exclude_domains,
