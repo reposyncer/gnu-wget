@@ -366,6 +366,9 @@ static wget_thread_mutex
 
 static wget_thread_cond
 	main_cond,   // is signaled whenever a job is done
+#ifdef WITH_CARES
+	async_dns_cond, // is signaled whenever a job requires asynchronous DNS resolution
+#endif
 	worker_cond; // is signaled whenever a job is added
 
 static void program_init(void)
@@ -384,6 +387,7 @@ static void program_init(void)
 	wget_thread_mutex_init(&quota_mutex);
 #ifdef WITH_CARES
 	wget_thread_mutex_init(&async_dns_mutex);
+	wget_thread_cond_init(&async_dns_cond);
 #endif
 	wget_thread_cond_init(&main_cond);
 	wget_thread_cond_init(&worker_cond);
@@ -437,6 +441,7 @@ static void program_deinit(void)
 	wget_thread_mutex_destroy(&quota_mutex);
 #ifdef WITH_CARES
 	wget_thread_mutex_destroy(&async_dns_mutex);
+	wget_thread_cond_destroy(&async_dns_cond);
 #endif
 	wget_thread_cond_destroy(&main_cond);
 	wget_thread_cond_destroy(&worker_cond);
@@ -753,6 +758,7 @@ static void add_url_to_queue(const char *url, wget_iri *base, const char *encodi
 #ifdef WITH_CARES
 	wget_thread_mutex_lock(async_dns_mutex);
 	wget_list_append(&async_dns_queue, iri->host, strlen(iri->host) + 1);
+	wget_thread_cond_signal(async_dns_cond); // tell the async DNS resolver there is work to do
 	wget_thread_mutex_unlock(async_dns_mutex);
 #endif
 
@@ -1290,27 +1296,26 @@ static void print_progress_report(long long start_time)
 #ifdef WITH_CARES
 static void *async_dns_resolver_thread(WGET_GCC_UNUSED void *p)
 {
+	wget_thread_mutex_lock(main_mutex);
 	while (!terminate) {
+		wget_thread_mutex_unlock(main_mutex);
 		wget_thread_mutex_lock(async_dns_mutex);
 
 		char *hostname = wget_list_getfirst(async_dns_queue);
 
 		if (!hostname) {
-			// This avoid a possible bottleneck but we may miss
-			// some domains if we don't check the list again after the lock (TODO)
-			//wget_thread_mutex_unlock(async_dns_mutex); // avoid a bottleneck here
+			// If this takes too long could block adding URLs
+			// which will block downloaders (TODO)
 			wget_async_dns_resolve(config.async_dns_st);
-			//wget_thread_mutex_lock(async_dns_mutex);
-			//wget_thread_mutex_lock(main_mutex);
-			//wget_thread_cond_wait(worker_cond, main_mutex, 0);
-
-			wget_thread_mutex_unlock(async_dns_mutex);
-			break;
+			if (wget_list_getfirst(async_dns_queue) == NULL)
+				wget_thread_cond_wait(async_dns_cond, async_dns_mutex, 0);
 		}
-
-		wget_async_dns_add(config.async_dns_st, hostname);
-		wget_list_remove(&async_dns_queue, hostname);
+		else {
+			wget_async_dns_add(config.async_dns_st, hostname);
+			wget_list_remove(&async_dns_queue, hostname);
+		}
 		wget_thread_mutex_unlock(async_dns_mutex);
+		wget_thread_mutex_lock(main_mutex);
 	}
 
 	return NULL;
@@ -1509,6 +1514,12 @@ int main(int argc, const char **argv)
 	terminate = 1;
 	wget_thread_cond_signal(worker_cond);
 	wget_thread_mutex_unlock(main_mutex);
+#ifdef WITH_CARES
+	// stop async DNS resolver
+	// TODO: lockear mutex
+	if (config.async_dns)
+		wget_thread_cond_signal(async_dns_cond);
+#endif
 
 	for (n = 0; n < nthreads; n++) {
 		// if the thread is not detached, we have to call wget_thread_join()/wget_thread_timedjoin_np()
@@ -1517,8 +1528,11 @@ int main(int argc, const char **argv)
 		if ((rc = wget_thread_join(&downloaders[n].thread)) != 0)
 			error_printf(_("Failed to wait for downloader #%d (%d %d)\n"), n, rc, errno);
 	}
-	// TODO: if here, just get rid of that memory leak
-	wget_thread_join(&async_dns_thread);
+
+#ifdef WITH_CARES
+	if (config.async_dns)
+		wget_thread_join(&async_dns_thread);
+#endif
 
 	print_progress_report(start_time);
 	if (!config.progress && (config.recursive || config.page_requisites || (config.input_file && quota != 0)) && quota) {
