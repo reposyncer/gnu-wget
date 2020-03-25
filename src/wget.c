@@ -949,6 +949,13 @@ static void add_url(JOB *job, const char *encoding, const char *url, int flags)
 		goto out;
 	}
 
+#ifdef WITH_CARES
+	wget_thread_mutex_lock(async_dns_mutex);
+	wget_list_append(&async_dns_queue, iri->host, strlen(iri->host) + 1);
+	wget_thread_cond_signal(async_dns_cond); // tell the async DNS resolver there is work to do
+	wget_thread_mutex_unlock(async_dns_mutex);
+#endif
+
 	if (config.recursive) {
 		// only download content from given hosts
 		const char *reason = NULL;
@@ -1516,7 +1523,6 @@ int main(int argc, const char **argv)
 	wget_thread_mutex_unlock(main_mutex);
 #ifdef WITH_CARES
 	// stop async DNS resolver
-	// TODO: lockear mutex
 	if (config.async_dns)
 		wget_thread_cond_signal(async_dns_cond);
 #endif
