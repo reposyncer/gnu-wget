@@ -26,29 +26,31 @@
 #include <stdio.h>
 #include <time.h>
 
-#if defined __linux
 /* libc on Linux has fsetxattr (5 arguments). */
 /* libc on Linux has fgetxattr (4 arguments). */
-#  include <sys/xattr.h>
-#  define USE_XATTR
-#elif defined __APPLE__
 /* libc on OS/X has fsetxattr (6 arguments). */
 /* libc on OS/X has fgetxattr (6 arguments). */
-#  include <sys/xattr.h>
-#  define fsetxattr(file, name, buffer, size, flags) \
-          fsetxattr((file), (name), (buffer), (size), 0, (flags))
-#  define fgetxattr(file, name, buffer, size) \
-          fgetxattr((file), (name), (buffer), (size), 0, 0)
+#if defined HAVE_FSETXATTR
 #  define USE_XATTR
-#elif defined __FreeBSD_version && (__FreeBSD_version > 500000)
+#  include <sys/xattr.h>
+
+#  if defined __APPLE__
+#    include <sys/xattr.h>
+#    define fsetxattr(file, name, buffer, size, flags) \
+          fsetxattr((file), (name), (buffer), (size), 0, (flags))
+#    define fgetxattr(file, name, buffer, size) \
+          fgetxattr((file), (name), (buffer), (size), 0, 0)
+#  endif
+
+#elif defined HAVE_EXTATTR_SET_FD
 /* FreeBSD */
 #  include <sys/types.h>
 #  include <sys/extattr.h>
+#  define USE_XATTR
 #  define fsetxattr(file, name, buffer, size, flags) \
           extattr_set_fd((file), EXTATTR_NAMESPACE_USER, (name), (buffer), (size))
 #  define fgetxattr(file, name, buffer, size) \
           extattr_set_fd((file), EXTATTR_NAMESPACE_USER, (name), (buffer), (size))
-#  define USE_XATTR
 #endif
 
 #endif /* SRC_WGET_XATTR_H */

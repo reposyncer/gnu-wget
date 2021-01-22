@@ -259,6 +259,12 @@ static int print_version(WGET_GCC_UNUSED option_t opt, WGET_GCC_UNUSED const cha
 #else
 	" -gpgme"
 #endif
+
+#if defined WITH_XATTR
+    " +xattr"
+#else
+    " -xattr"
+#endif
 	);
 #endif // #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 

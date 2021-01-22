@@ -49,8 +49,10 @@ test -n "$XTRA_CFLAGS" && CFLAGS="$CFLAGS $XTRA_CFLAGS"
 
 AC_USE_SYSTEM_EXTENSIONS
 AC_PROG_CC
+AC_PROG_CC_C99
+
 if test "$ac_cv_prog_cc_c99" = "no"; then
-  AC_MSG_ERROR(Compiler does not support C99. Aborting.)
+  AC_MSG_ERROR([Compiler does not support C99. Aborting.])
 fi
 
 gl_EARLY
@@ -334,22 +336,12 @@ AC_ARG_ENABLE([xattr],
   [ENABLE_XATTR=$enableval],
   [ENABLE_XATTR=yes])
 
-case "$host_os" in
-  *linux* | *darwin*) xattr_syscalls="fsetxattr" ;;
-  freebsd*)           xattr_syscalls="extattr_set_fd" ;;
-  *)  AC_MSG_NOTICE([Disabling Extended Attribute support: your system is not known to support extended attributes.])
-      ENABLE_XATTR=no
-esac
-
-if test "${ENABLE_XATTR}" = "yes" ; then
-  AC_CHECK_FUNCS([$xattr_syscalls], [], [
-    AC_MSG_NOTICE([Disabling Extended Attribute support: your system does not support $xattr_syscalls])
-    ENABLE_XATTR=no
-  ])
-fi
-
-test "${ENABLE_XATTR}" = "yes" && AC_DEFINE([ENABLE_XATTR], 1,
-    [Define if you want file meta-data storing into POSIX Extended Attributes compiled in.])
+AS_IF([test "${ENABLE_XATTR}" = "yes"], [
+       AC_CHECK_FUNCS([fsetxattr extattr_set_fd],
+                      AC_DEFINE([WITH_XATTR], [1], [Defined if POSIX Extended Attribute Support is enabled]),
+                      AC_MSG_NOTICE([Disabling Extended Attribute support])
+                      )
+])
 
 #
 # Gettext
