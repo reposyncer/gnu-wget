@@ -434,7 +434,7 @@ pages:
     paths:
       - public
   only:
-    - master
+    - tim-test-pages
 
 MinGW64:
   stage: stage1-testing

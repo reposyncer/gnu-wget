@@ -1,4 +1,4 @@
-EXTRA_DIST = wget2.md wget-logo.png DoxygenLayout.xml
+EXTRA_DIST = wget2.md wget2_doxygen.md wget-logo.png DoxygenLayout.xml
 DISTCLEANFILES =
 LOCAL_DISTCLEAN =
 STAMPS =
@@ -60,11 +60,14 @@ endif
 
 CLEANFILES = $(STAMPS)
 
-DISTCLEANFILES += README.md
+DISTCLEANFILES += README.md wget2_doxygen.md
 README.md: $(top_srcdir)/README.md
-	$(AM_V_at)sed -n '/# GNU Wget2/,$$p' $(top_srcdir)/README.md >$@
+	$(AM_V_at)sed -n '/# GNU Wget2/,$$p' $< >$@
 
-all-local: README.md $(STAMPS)
+wget2_doxygen.md: $(top_srcdir)/docs/wget2.md
+	$(AM_V_at)sed 's/<a .*\/>//g' $< >$@
+
+all-local: README.md wget2_doxygen.md $(STAMPS)
 
 distclean-local:
 	rm -rf $(LOCAL_DISTCLEAN)
