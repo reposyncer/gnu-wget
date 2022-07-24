@@ -36,6 +36,7 @@
 #include <sys/time.h>
 #include <signal.h>
 #include <wchar.h>
+#include <threads.h>
 
 #include <wget.h>
 #include "private.h"
@@ -129,7 +130,7 @@ struct wget_bar_st {
 	int
 		nslots,
 		max_width;
-	wget_thread_mutex
+	mtx_t
 		mutex;
 };
 
@@ -463,7 +464,7 @@ wget_bar *wget_bar_init(wget_bar *bar, int nslots)
 	} else
 		memset(bar, 0, sizeof(*bar));
 
-	wget_thread_mutex_init(&bar->mutex);
+	mtx_init(&bar->mutex, mtx_plain);
 	wget_bar_set_slots(bar, nslots);
 
 	return bar;
@@ -481,13 +482,13 @@ wget_bar *wget_bar_init(wget_bar *bar, int nslots)
  */
 void wget_bar_set_slots(wget_bar *bar, int nslots)
 {
-	wget_thread_mutex_lock(bar->mutex);
+	mtx_lock(&bar->mutex);
 	int more_slots = nslots - bar->nslots;
 
 	if (more_slots > 0) {
 		bar_slot *slots = wget_realloc(bar->slots, nslots * sizeof(bar_slot));
 		if (!slots) {
-			wget_thread_mutex_unlock(bar->mutex);
+			mtx_unlock(&bar->mutex);
 			return;
 		}
 		bar->slots = slots;
@@ -500,7 +501,7 @@ void wget_bar_set_slots(wget_bar *bar, int nslots)
 		bar_update_winsize(bar, true);
 		bar_update(bar);
 	}
-	wget_thread_mutex_unlock(bar->mutex);
+	mtx_unlock(&bar->mutex);
 }
 
 /**
@@ -515,7 +516,7 @@ void wget_bar_set_slots(wget_bar *bar, int nslots)
  */
 void wget_bar_slot_begin(wget_bar *bar, int slot, const char *filename, int new_file, ssize_t file_size)
 {
-	wget_thread_mutex_lock(bar->mutex);
+	mtx_lock(&bar->mutex);
 	bar_slot *slotp = &bar->slots[slot];
 
 	xfree(slotp->filename);
@@ -536,7 +537,7 @@ void wget_bar_slot_begin(wget_bar *bar, int slot, const char *filename, int new_
 	memset(&slotp->time_ring, 0, sizeof(slotp->time_ring));
 	memset(&slotp->bytes_ring, 0, sizeof(slotp->bytes_ring));
 
-	wget_thread_mutex_unlock(bar->mutex);
+	mtx_unlock(&bar->mutex);
 }
 
 /**
@@ -549,10 +550,10 @@ void wget_bar_slot_begin(wget_bar *bar, int slot, const char *filename, int new_
  */
 void wget_bar_slot_downloaded(wget_bar *bar, int slot, size_t nbytes)
 {
-	wget_thread_mutex_lock(bar->mutex);
+	mtx_lock(&bar->mutex);
 	bar->slots[slot].bytes_downloaded += nbytes;
 	bar->slots[slot].redraw = 1;
-	wget_thread_mutex_unlock(bar->mutex);
+	mtx_unlock(&bar->mutex);
 }
 
 /**
@@ -563,14 +564,14 @@ void wget_bar_slot_downloaded(wget_bar *bar, int slot, size_t nbytes)
  */
 void wget_bar_slot_deregister(wget_bar *bar, int slot)
 {
-	wget_thread_mutex_lock(bar->mutex);
+	mtx_lock(&bar->mutex);
 	if (slot >= 0 && slot < bar->nslots) {
 		bar_slot *slotp = &bar->slots[slot];
 
 		slotp->status = COMPLETE;
 		bar_update_slot(bar, slot);
 	}
-	wget_thread_mutex_unlock(bar->mutex);
+	mtx_unlock(&bar->mutex);
 }
 
 /**
@@ -580,9 +581,9 @@ void wget_bar_slot_deregister(wget_bar *bar, int slot)
  */
 void wget_bar_update(wget_bar *bar)
 {
-	wget_thread_mutex_lock(bar->mutex);
+	mtx_lock(&bar->mutex);
 	bar_update(bar);
-	wget_thread_mutex_unlock(bar->mutex);
+	mtx_unlock(&bar->mutex);
 }
 
 /**
@@ -602,7 +603,7 @@ void wget_bar_deinit(wget_bar *bar)
 		xfree(bar->known_size);
 		xfree(bar->unknown_size);
 		xfree(bar->slots);
-		wget_thread_mutex_destroy(&bar->mutex);
+		mtx_destroy(&bar->mutex);
 	}
 }
 
@@ -629,13 +630,13 @@ void wget_bar_free(wget_bar **bar)
  */
 void wget_bar_print(wget_bar *bar, int slot, const char *display)
 {
-	wget_thread_mutex_lock(bar->mutex);
+	mtx_lock(&bar->mutex);
 	bar_print_slot(bar, slot);
 	// CSI <n> G: Cursor horizontal absolute
 	wget_fprintf(stdout, "\033[27G[%-*.*s]", bar->max_width, bar->max_width, display);
 	restore_cursor_position();
 	fflush(stdout);
-	wget_thread_mutex_unlock(bar->mutex);
+	mtx_unlock(&bar->mutex);
 }
 
 /**
@@ -693,7 +694,7 @@ void wget_bar_screen_resized(void)
  */
 void wget_bar_write_line(wget_bar *bar, const char *buf, size_t len)
 {
-	wget_thread_mutex_lock(bar->mutex);
+	mtx_lock(&bar->mutex);
 	// ESC 7:    Save cursor
 	// CSI <n>S: Scroll up whole screen
 	// CSI <n>A: Cursor up
@@ -706,7 +707,7 @@ void wget_bar_write_line(wget_bar *bar, const char *buf, size_t len)
 	restore_cursor_position();
 
 	bar_update(bar);
-	wget_thread_mutex_unlock(bar->mutex);
+	mtx_unlock(&bar->mutex);
 }
 
 /**

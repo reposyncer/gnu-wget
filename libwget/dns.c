@@ -30,6 +30,7 @@
 #include <stdarg.h>
 #include <time.h>
 #include <errno.h>
+#include <threads.h>
 #include <netdb.h>
 #include <netinet/in.h>
 
@@ -51,7 +52,7 @@ struct wget_dns_st
 {
 	wget_dns_cache
 		*cache;
-	wget_thread_mutex
+	mtx_t
 		mutex;
 	wget_dns_stats_callback
 		*stats_callback;
@@ -72,7 +73,7 @@ static bool
 static void __attribute__((constructor)) net_init(void)
 {
 	if (!initialized) {
-		wget_thread_mutex_init(&default_dns.mutex);
+		mtx_init(&default_dns.mutex, mtx_plain);
 		initialized = true;
 	}
 }
@@ -80,7 +81,7 @@ static void __attribute__((constructor)) net_init(void)
 static void __attribute__((destructor)) net_exit(void)
 {
 	if (initialized) {
-		wget_thread_mutex_destroy(&default_dns.mutex);
+		mtx_destroy(&default_dns.mutex);
 		initialized = false;
 	}
 }
@@ -99,7 +100,9 @@ int wget_dns_init(wget_dns **dns)
 	if (!_dns)
 		return WGET_E_MEMORY;
 
-	if (wget_thread_mutex_init(&_dns->mutex)) {
+	int rc;
+	if ((rc = mtx_init(&_dns->mutex, mtx_plain)) != 0) {
+		debug_printf("mtx_init failed with %d\n", rc);
 		xfree(_dns);
 		return WGET_E_INVALID;
 	}
@@ -118,7 +121,7 @@ int wget_dns_init(wget_dns **dns)
 void wget_dns_free(wget_dns **dns)
 {
 	if (dns && *dns) {
-		wget_thread_mutex_destroy(&(*dns)->mutex);
+		mtx_destroy(&(*dns)->mutex);
 		xfree(*dns);
 	}
 }
@@ -311,11 +314,11 @@ struct addrinfo *wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port
 				return addrinfo;
 
 			// prevent multiple address resolutions of the same host
-			wget_thread_mutex_lock(dns->mutex);
+			mtx_lock(&dns->mutex);
 
 			// now try again
 			if ((addrinfo = wget_dns_cache_get(dns->cache, host, port))) {
-				wget_thread_mutex_unlock(dns->mutex);
+				mtx_unlock(&dns->mutex);
 				return addrinfo;
 			}
 		}
@@ -328,7 +331,7 @@ struct addrinfo *wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port
 
 		if (tries < max - 1) {
 			if (dns->cache)
-				wget_thread_mutex_unlock(dns->mutex);
+				mtx_unlock(&dns->mutex);
 			wget_millisleep(100);
 		}
 	}
@@ -345,7 +348,7 @@ struct addrinfo *wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port
 				(host ? host : ""), gai_strerror(rc));
 
 		if (dns->cache)
-			wget_thread_mutex_unlock(dns->mutex);
+			mtx_unlock(&dns->mutex);
 
 		if (dns->stats_callback) {
 			stats.ip = NULL;
@@ -383,7 +386,7 @@ struct addrinfo *wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port
 		 * The addrinfo argument given to wget_dns_cache_add() will be freed in this case.
 		 */
 		rc = wget_dns_cache_add(dns->cache, host, port, &addrinfo);
-		wget_thread_mutex_unlock(dns->mutex);
+		mtx_unlock(&dns->mutex);
 		if ( rc < 0) {
 			freeaddrinfo(addrinfo);
 			return NULL;

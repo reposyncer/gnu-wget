@@ -28,6 +28,7 @@
 #ifndef SRC_WGET_JOB_H
 #define SRC_WGET_JOB_H
 
+#include <threads.h>
 #include <sys/types.h> // for off_t
 
 #include <wget.h>
@@ -42,7 +43,7 @@ typedef struct {
 		length;
 	int
 		id;
-	wget_thread_id
+	thrd_t
 		used_by;
 	bool
 		inuse : 1,
@@ -85,7 +86,7 @@ struct JOB {
 	DOWNLOADER
 		*downloader;
 
-	wget_thread_id
+	thrd_t
 		used_by; // keep track of who uses this job, for host_release_jobs()
 	unsigned long long
 		id, // each job an unique ID value
@@ -114,7 +115,7 @@ struct JOB {
 };
 
 struct DOWNLOADER {
-	wget_thread
+	thrd_t
 		thread;
 	JOB
 		*job;
@@ -126,7 +127,7 @@ struct DOWNLOADER {
 		bufsize;
 	int
 		id;
-	wget_thread_cond
+	cnd_t
 		cond;
 	bool
 		final_error : 1;

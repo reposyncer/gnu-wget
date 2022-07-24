@@ -46,6 +46,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <threads.h>
 
 #include <gnutls/gnutls.h>
 #include <gnutls/x509.h>
@@ -1196,18 +1197,22 @@ out:
 }
 
 static int init;
-static wget_thread_mutex mutex;
+static mtx_t mutex;
+static bool initialized;
+
 
 static void __attribute__ ((constructor)) tls_init(void)
 {
-	if (!mutex)
-		wget_thread_mutex_init(&mutex);
+	if (!initialized) {
+		mtx_init(&mutex, mtx_plain);
+		initialized = true;
+	}
 }
 
 static void __attribute__ ((destructor)) tls_exit(void)
 {
-	if (mutex)
-		wget_thread_mutex_destroy(&mutex);
+	if (initialized)
+		mtx_destroy(&mutex);
 }
 
 static int key_type(int type)
@@ -1273,7 +1278,7 @@ void wget_ssl_init(void)
 {
 	tls_init();
 
-	wget_thread_mutex_lock(mutex);
+	mtx_lock(&mutex);
 
 	if (!init) {
 		int rc, ncerts = -1;
@@ -1387,7 +1392,7 @@ void wget_ssl_init(void)
 		debug_printf("GnuTLS init done\n");
 	}
 
-	wget_thread_mutex_unlock(mutex);
+	mtx_unlock(&mutex);
 }
 
 /**
@@ -1404,7 +1409,7 @@ void wget_ssl_init(void)
  */
 void wget_ssl_deinit(void)
 {
-	wget_thread_mutex_lock(mutex);
+	mtx_lock(&mutex);
 
 	if (init == 1) {
 		gnutls_certificate_free_credentials(credentials);
@@ -1414,7 +1419,7 @@ void wget_ssl_deinit(void)
 
 	if (init > 0) init--;
 
-	wget_thread_mutex_unlock(mutex);
+	mtx_unlock(&mutex);
 }
 
 static int do_handshake(gnutls_session_t session, int sockfd, int timeout)

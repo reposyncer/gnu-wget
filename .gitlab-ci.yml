@@ -43,7 +43,7 @@ variables:
   GET_SOURCES_ATTEMPTS: "3"
   GIT_DEPTH: "5"
   CONFIGURE_BASE_FLAGS: --enable-assert --cache-file cache/config.cache
-  CFLAGS_DEFAULT: -O1 -g -ggdb3
+  CFLAGS_DEFAULT: -O1 -g -ggdb3 -std=gnu11
 
 
 # We organize the CI runners as thus:

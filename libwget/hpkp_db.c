@@ -28,6 +28,7 @@
 #include <ctype.h>
 #include <sys/stat.h>
 #include <limits.h>
+#include <threads.h>
 #include "private.h"
 #include "hpkp.h"
 
@@ -44,7 +45,7 @@ struct wget_hpkp_db_st {
 		fname;
 	wget_hashmap *
 		entries;
-	wget_thread_mutex
+	mtx_t
 		mutex;
 	int64_t
 		load_time;
@@ -99,11 +100,11 @@ void wget_hpkp_db_deinit(wget_hpkp_db *hpkp_db)
 
 	if (hpkp_db) {
 		xfree(hpkp_db->fname);
-		wget_thread_mutex_lock(hpkp_db->mutex);
+		mtx_lock(&hpkp_db->mutex);
 		wget_hashmap_free(&hpkp_db->entries);
-		wget_thread_mutex_unlock(hpkp_db->mutex);
+		mtx_unlock(&hpkp_db->mutex);
 
-		wget_thread_mutex_destroy(&hpkp_db->mutex);
+		mtx_destroy(&hpkp_db->mutex);
 	}
 }
 
@@ -209,7 +210,7 @@ void wget_hpkp_db_add(wget_hpkp_db *hpkp_db, wget_hpkp **_hpkp)
 
 	wget_hpkp *hpkp = *_hpkp;
 
-	wget_thread_mutex_lock(hpkp_db->mutex);
+	mtx_lock(&hpkp_db->mutex);
 
 	if (hpkp->maxage == 0 || wget_vector_size(hpkp->pins) == 0) {
 		if (wget_hashmap_remove(hpkp_db->entries, hpkp))
@@ -236,7 +237,7 @@ void wget_hpkp_db_add(wget_hpkp_db *hpkp_db, wget_hpkp **_hpkp)
 		}
 	}
 
-	wget_thread_mutex_unlock(hpkp_db->mutex);
+	mtx_unlock(&hpkp_db->mutex);
 
 	*_hpkp = NULL;
 }
@@ -495,7 +496,7 @@ wget_hpkp_db *wget_hpkp_db_init(wget_hpkp_db *hpkp_db, const char *fname)
 	 * Since the value == key, we just need the value destructor for freeing hashmap entries.
 	 */
 
-	wget_thread_mutex_init(&hpkp_db->mutex);
+	mtx_init(&hpkp_db->mutex, mtx_plain);
 
 	return (wget_hpkp_db *) hpkp_db;
 }

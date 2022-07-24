@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <threads.h>
 
 #include <wolfssl/options.h>
 #include <wolfssl/ssl.h>
@@ -486,18 +487,23 @@ out:
 */
 
 static int init;
-static wget_thread_mutex mutex;
+static mtx_t mutex;
+static bool initialized;
 
 static void __attribute__ ((constructor)) tls_init(void)
 {
-	if (!mutex)
-		wget_thread_mutex_init(&mutex);
+	if (!initialized) {
+		mtx_init(&mutex, mtx_plain);
+		initialized = true;
+	}
 }
 
 static void __attribute__ ((destructor)) tls_exit(void)
 {
-	if (mutex)
-		wget_thread_mutex_destroy(&mutex);
+	if (initialized) {
+		mtx_destroy(&mutex);
+		initialized = false;
+	}
 }
 
 /*
@@ -555,7 +561,7 @@ void wget_ssl_init(void)
 {
 	tls_init();
 
-	wget_thread_mutex_lock(mutex);
+	mtx_lock(&mutex);
 
 	if (!init) {
 		WOLFSSL_METHOD *method;
@@ -648,7 +654,7 @@ out:
 		debug_printf("WolfSSL init done\n");
 	}
 
-	wget_thread_mutex_unlock(mutex);
+	mtx_unlock(&mutex);
 }
 
 /**
@@ -665,7 +671,7 @@ out:
  */
 void wget_ssl_deinit(void)
 {
-	wget_thread_mutex_lock(mutex);
+	mtx_lock(&mutex);
 
 	if (init == 1) {
 		wolfSSL_CTX_free(ssl_ctx); ssl_ctx = NULL;
@@ -674,7 +680,7 @@ void wget_ssl_deinit(void)
 
 	if (init > 0) init--;
 
-	wget_thread_mutex_unlock(mutex);
+	mtx_unlock(&mutex);
 }
 
 static int do_handshake(WOLFSSL *session, int sockfd, int timeout)

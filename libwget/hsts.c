@@ -33,6 +33,7 @@
 #include <ctype.h>
 #include <time.h>
 #include <errno.h>
+#include <threads.h>
 #include <sys/stat.h>
 #include <sys/file.h>
 
@@ -53,7 +54,7 @@ struct wget_hsts_db_st {
 		fname;
 	wget_hashmap *
 		entries;
-	wget_thread_mutex
+	mtx_t
 		mutex;
 	int64_t
 		load_time;
@@ -223,11 +224,11 @@ void wget_hsts_db_deinit(wget_hsts_db *hsts_db)
 
 	if (hsts_db) {
 		xfree(hsts_db->fname);
-		wget_thread_mutex_lock(hsts_db->mutex);
+		mtx_lock(&hsts_db->mutex);
 		wget_hashmap_free(&hsts_db->entries);
-		wget_thread_mutex_unlock(hsts_db->mutex);
+		mtx_unlock(&hsts_db->mutex);
 
-		wget_thread_mutex_destroy(&hsts_db->mutex);
+		mtx_destroy(&hsts_db->mutex);
 	}
 }
 
@@ -261,7 +262,7 @@ static void hsts_db_add_entry(wget_hsts_db *hsts_db, hsts_entry *hsts)
 	if (!hsts)
 		return;
 
-	wget_thread_mutex_lock(hsts_db->mutex);
+	mtx_lock(&hsts_db->mutex);
 
 	if (hsts->maxage == 0) {
 		if (wget_hashmap_remove(hsts_db->entries, hsts))
@@ -289,7 +290,7 @@ static void hsts_db_add_entry(wget_hsts_db *hsts_db, hsts_entry *hsts)
 		}
 	}
 
-	wget_thread_mutex_unlock(hsts_db->mutex);
+	mtx_unlock(&hsts_db->mutex);
 }
 
 /**
@@ -562,7 +563,7 @@ wget_hsts_db *wget_hsts_db_init(wget_hsts_db *hsts_db, const char *fname)
 	hsts_db->entries = entries;
 	wget_hashmap_set_key_destructor(hsts_db->entries, (wget_hashmap_key_destructor *) free_hsts);
 	wget_hashmap_set_value_destructor(hsts_db->entries, (wget_hashmap_value_destructor *) free_hsts);
-	wget_thread_mutex_init(&hsts_db->mutex);
+	mtx_init(&hsts_db->mutex, mtx_plain);
 
 	return hsts_db;
 }

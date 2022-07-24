@@ -38,6 +38,7 @@
 #include <c-ctype.h>
 #include <time.h>
 #include <errno.h>
+#include <threads.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #ifdef WITH_ZLIB
@@ -61,7 +62,7 @@ static wget_vector
 	*no_proxies;
 
 // protect access to the above vectors
-static wget_thread_mutex
+static mtx_t
 	proxy_mutex,
 	hosts_mutex;
 static bool
@@ -70,18 +71,18 @@ static bool
 static void __attribute__ ((constructor)) http_init(void)
 {
 	if (!initialized) {
-		wget_thread_mutex_init(&proxy_mutex);
-		wget_thread_mutex_init(&hosts_mutex);
-		initialized = 1;
+		mtx_init(&proxy_mutex, mtx_plain);
+		mtx_init(&hosts_mutex, mtx_plain);
+		initialized = true;
 	}
 }
 
 static void __attribute__ ((destructor)) http_exit(void)
 {
 	if (initialized) {
-		wget_thread_mutex_destroy(&proxy_mutex);
-		wget_thread_mutex_destroy(&hosts_mutex);
-		initialized = 0;
+		mtx_destroy(&proxy_mutex);
+		mtx_destroy(&hosts_mutex);
+		initialized = false;
 	}
 }
 
@@ -630,7 +631,7 @@ int wget_http_open(wget_http_connection **_conn, const wget_iri *iri)
 	host = iri->host;
 	port = iri->port;
 
-	wget_thread_mutex_lock(proxy_mutex);
+	mtx_lock(&proxy_mutex);
 	if (!wget_http_match_no_proxy(no_proxies, iri->host)) {
 		wget_iri *proxy;
 
@@ -646,7 +647,7 @@ int wget_http_open(wget_http_connection **_conn, const wget_iri *iri)
 			conn->proxied = 1;
 		}
 	}
-	wget_thread_mutex_unlock(proxy_mutex);
+	mtx_unlock(&proxy_mutex);
 
 	conn->tcp = wget_tcp_init();
 	if (ssl) {

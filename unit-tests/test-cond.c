@@ -19,54 +19,55 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <threads.h>
 
 #include <wget.h>
 
 static int
 	cond_value = 0;
-static wget_thread_mutex
+static mtx_t
 	lockcond;
-static wget_thread_cond
+static cnd_t
 	condtest;
 
-static void *cond_routine(WGET_GCC_UNUSED void *arg)
+static int cond_routine(WGET_GCC_UNUSED void *arg)
 {
-	wget_thread_mutex_lock(lockcond);
+	mtx_lock(&lockcond);
 	while (!cond_value)
-		wget_thread_cond_wait(condtest, lockcond, 0);
-	wget_thread_mutex_unlock(lockcond);
+		cnd_wait(&condtest, &lockcond);
+	mtx_unlock(&lockcond);
 
 	cond_value = 2;
 
-	return NULL;
+	return 0;
 }
 
 static void test_cond(void)
 {
 	int remain = 1;
-	wget_thread thread;
+	thrd_t thread;
 
 	cond_value = 0;
 
-	wget_thread_mutex_init(&lockcond);
-	wget_thread_cond_init(&condtest);
+	mtx_init(&lockcond, mtx_plain);
+	cnd_init(&condtest);
 
-	wget_thread_start(&thread, cond_routine, NULL, 0);
+	thrd_create(&thread, cond_routine, NULL);
 	do {
 //		yield();
 		remain = sleep(remain);
 	} while (remain);
 
 	/* signal condition */
-	wget_thread_mutex_lock(lockcond);
+	mtx_lock(&lockcond);
 	cond_value = 1;
-	wget_thread_cond_signal(condtest);
-	wget_thread_mutex_unlock(lockcond);
+	cnd_signal(&condtest);
+	mtx_unlock(&lockcond);
 
-	wget_thread_join(&thread);
+	thrd_join(thread, NULL);
 
-	wget_thread_cond_destroy(&condtest);
-	wget_thread_mutex_destroy(&lockcond);
+	cnd_destroy(&condtest);
+	mtx_destroy(&lockcond);
 
 	if (cond_value != 2)
 		exit(EXIT_FAILURE);
@@ -74,9 +75,9 @@ static void test_cond(void)
 
 int main(void)
 {
-	if (!wget_thread_support())
+/*	if (!wget_thread_support())
 		return 77;
-
+*/
 	test_cond();
 
 	return 0;

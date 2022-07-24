@@ -33,6 +33,7 @@
 #include <string.h>
 #include <time.h>
 #include <errno.h>
+#include <threads.h>
 #include <sys/time.h>
 
 #include <wget.h>
@@ -49,12 +50,12 @@ enum { BAR_THREAD_SLEEP_DURATION = 125 };
 
 static wget_bar
 	*bar;
-static wget_thread
+static thrd_t
 	progress_thread;
 static bool
 	terminate_thread;
 
-static void *bar_update_thread(void *p WGET_GCC_UNUSED)
+static int bar_update_thread(void *p WGET_GCC_UNUSED)
 {
 	while (!terminate_thread) {
 		wget_bar_update(bar);
@@ -62,7 +63,7 @@ static void *bar_update_thread(void *p WGET_GCC_UNUSED)
 		wget_millisleep(BAR_THREAD_SLEEP_DURATION);
 	}
 
-	return NULL;
+	return 0;
 }
 
 static void error_write(const char *buf, size_t len)
@@ -73,23 +74,21 @@ static void error_write(const char *buf, size_t len)
 
 bool bar_init(void)
 {
-	if (wget_thread_support()) {
-		if (!(bar = wget_bar_init(NULL, 1)))
-			goto nobar;
+	if (!(bar = wget_bar_init(NULL, 1)))
+		goto nobar;
 
-		wget_bar_set_speed_type(config.report_speed);
+	wget_bar_set_speed_type(config.report_speed);
 
-		// set custom write function for wget_error_printf()
-		wget_logger_set_func(wget_get_logger(WGET_LOGGER_ERROR), error_write);
+	// set custom write function for wget_error_printf()
+	wget_logger_set_func(wget_get_logger(WGET_LOGGER_ERROR), error_write);
 
-		terminate_thread = 0;
-		if (wget_thread_start(&progress_thread, bar_update_thread, NULL, 0)) {
-			wget_bar_free(&bar);
-			goto nobar;
-		}
-
-		return true;
+	terminate_thread = 0;
+	if (thrd_create(&progress_thread, bar_update_thread, NULL)) {
+		wget_bar_free(&bar);
+		goto nobar;
 	}
+
+	return true;
 
 nobar:
 	wget_error_printf(_("Cannot create progress bar thread. Disabling progress bar.\n"));
@@ -101,7 +100,7 @@ void bar_deinit(void)
 {
 	if (bar) {
 		terminate_thread = 1;
-		wget_thread_join(&progress_thread);
+		thrd_join(progress_thread, NULL);
 		wget_bar_free(&bar);
 	}
 }

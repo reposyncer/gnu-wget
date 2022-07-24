@@ -28,6 +28,7 @@
 #include <config.h>
 
 #include <stdarg.h>
+#include <threads.h>
 
 #include <wget.h>
 #include "private.h"
@@ -47,22 +48,22 @@ static struct config {
 static wget_dns_cache *dns_cache;
 
 static int global_initialized;
-static wget_thread_mutex _mutex;
+static mtx_t _mutex;
 static bool initialized;
 
 static void __attribute__ ((constructor)) global_init(void)
 {
 	if (!initialized) {
-		wget_thread_mutex_init(&_mutex);
-		initialized = 1;
+		mtx_init(&_mutex, mtx_plain);
+		initialized = true;
 	}
 }
 
 static void __attribute__ ((destructor)) global_exit(void)
 {
 	if (initialized) {
-		wget_thread_mutex_destroy(&_mutex);
-		initialized = 0;
+		mtx_destroy(&_mutex);
+		initialized = false;
 	}
 }
 
@@ -83,10 +84,10 @@ void wget_global_init(int first_key, ...)
 	// e.g. maybe a static build
 	global_init();
 
-	wget_thread_mutex_lock(_mutex);
+	mtx_lock(&_mutex);
 
 	if (global_initialized++) {
-		wget_thread_mutex_unlock(_mutex);
+		mtx_unlock(&_mutex);
 		return;
 	}
 
@@ -167,7 +168,7 @@ void wget_global_init(int first_key, ...)
 			wget_tcp_set_bind_interface(NULL, va_arg(args, const char *));
 			break;
 		default:
-			wget_thread_mutex_unlock(_mutex);
+			mtx_unlock(&_mutex);
 			wget_error_printf(_("%s: Unknown option %d"), __func__, key);
 			va_end(args);
 			return;
@@ -184,7 +185,7 @@ void wget_global_init(int first_key, ...)
 
 	rc = wget_net_init();
 
-	wget_thread_mutex_unlock(_mutex);
+	mtx_unlock(&_mutex);
 
 	if (rc)
 		wget_error_printf_exit(_("%s: Failed to init networking (%d)"), __func__, rc);

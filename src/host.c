@@ -30,6 +30,7 @@
 #include <config.h>
 
 #include <string.h>
+#include <threads.h>
 
 #include <wget.h>
 
@@ -41,19 +42,19 @@
 
 static wget_hashmap
 	*hosts;
-static wget_thread_mutex
+static mtx_t
 	hosts_mutex;
 static int
 	qsize; // overall number of jobs
 
 void host_init(void)
 {
-	wget_thread_mutex_init(&hosts_mutex);
+	mtx_init(&hosts_mutex, mtx_plain);
 }
 
 void host_exit(void)
 {
-	wget_thread_mutex_destroy(&hosts_mutex);
+	mtx_destroy(&hosts_mutex);
 }
 
 static int _host_compare(const HOST *host1, const HOST *host2)
@@ -105,7 +106,7 @@ static void _free_host_entry(HOST *host)
 
 HOST *host_add(const wget_iri *iri)
 {
-	wget_thread_mutex_lock(hosts_mutex);
+	mtx_lock(&hosts_mutex);
 
 	if (!hosts) {
 		hosts = wget_hashmap_create(16, (wget_hashmap_hash_fn *) _host_hash, (wget_hashmap_compare_fn *) _host_compare);
@@ -120,7 +121,7 @@ HOST *host_add(const wget_iri *iri)
 		wget_hashmap_put(hosts, hostp, hostp);
 	}
 
-	wget_thread_mutex_unlock(hosts_mutex);
+	mtx_unlock(&hosts_mutex);
 
 	return hostp;
 }
@@ -129,12 +130,12 @@ HOST *host_get(const wget_iri *iri)
 {
 	HOST *hostp, host = { .scheme = iri->scheme, .host = iri->host, .port = iri->port };
 
-	wget_thread_mutex_lock(hosts_mutex);
+	mtx_lock(&hosts_mutex);
 
 	if (!hosts || !wget_hashmap_get(hosts, &host, &hostp))
 		hostp = NULL;
 
-	wget_thread_mutex_unlock(hosts_mutex);
+	mtx_unlock(&hosts_mutex);
 
 	return hostp;
 }
@@ -153,7 +154,7 @@ static int _search_queue_for_free_job(struct _find_free_job_context *ctx, JOB *j
 
 			if (!part->inuse) {
 				part->inuse = 1;
-				part->used_by = wget_thread_self();
+				part->used_by = thrd_current();
 				job->part = part;
 				ctx->job = job;
 				debug_printf("dequeue chunk %d/%d %s\n", it + 1, wget_vector_size(job->parts), job->metalink->name);
@@ -170,7 +171,7 @@ static int _search_queue_for_free_job(struct _find_free_job_context *ctx, JOB *j
 		}
 
 		job->inuse = job->done = 1;
-		job->used_by = wget_thread_self();
+		job->used_by = thrd_current();
 		job->part = NULL;
 		ctx->job = job;
 		debug_printf("dequeue job %s\n", job->iri->uri);
@@ -204,7 +205,7 @@ static int WGET_GCC_NONNULL((1,2)) _search_host_for_free_job(void *_ctx, const v
 	if (host->robot_job) {
 		if (!host->robot_job->inuse) {
 			host->robot_job->inuse = host->robot_job->done = 1;
-			host->robot_job->used_by = wget_thread_self();
+			host->robot_job->used_by = thrd_current();
 			ctx->job = host->robot_job;
 			debug_printf("host %s dequeue robot job\n", host->host);
 			return 1;
@@ -238,9 +239,9 @@ JOB *host_get_job(HOST *host, long long *pause)
 	if (host) {
 		_search_host_for_free_job(&ctx, host, NULL);
 	} else {
-		wget_thread_mutex_lock(hosts_mutex);
+		mtx_lock(&hosts_mutex);
 		wget_hashmap_browse(hosts, _search_host_for_free_job, &ctx);
-		wget_thread_mutex_unlock(hosts_mutex);
+		mtx_unlock(&hosts_mutex);
 	}
 
 	if (pause)
@@ -249,9 +250,9 @@ JOB *host_get_job(HOST *host, long long *pause)
 	return ctx.job;
 }
 
-static int _release_job(wget_thread_id *ctx, JOB *job)
+static int _release_job(thrd_t *ctx, JOB *job)
 {
-	wget_thread_id self = *ctx;
+	thrd_t self = *ctx;
 
 	if (job->parts) {
 		for (int it = 0; it < wget_vector_size(job->parts); it++) {
@@ -277,9 +278,9 @@ void host_release_jobs(HOST *host)
 	if (!host)
 		return;
 
-	wget_thread_id self = wget_thread_self();
+	thrd_t self = thrd_current();
 
-	wget_thread_mutex_lock(hosts_mutex);
+	mtx_lock(&hosts_mutex);
 
 	if (host->robot_job) {
 		if (host->robot_job->inuse && host->robot_job->used_by == self) {
@@ -291,7 +292,7 @@ void host_release_jobs(HOST *host)
 
 	wget_list_browse(host->queue, (wget_list_browse_fn *) _release_job, &self);
 
-	wget_thread_mutex_unlock(hosts_mutex);
+	mtx_unlock(&hosts_mutex);
 }
 
 /**
@@ -309,7 +310,7 @@ void host_add_job(HOST *host, const JOB *job)
 	if (job->blacklist_entry)
 		debug_printf("%s: job fname %s\n", __func__, job->blacklist_entry->local_filename);
 
-	wget_thread_mutex_lock(hosts_mutex);
+	mtx_lock(&hosts_mutex);
 
 	jobp = wget_list_append(&host->queue, job, sizeof(JOB));
 	host->qsize++;
@@ -325,7 +326,7 @@ void host_add_job(HOST *host, const JOB *job)
 
 	debug_printf("%s: qsize %d host-qsize=%d\n", __func__, qsize, host->qsize);
 
-	wget_thread_mutex_unlock(hosts_mutex);
+	mtx_unlock(&hosts_mutex);
 }
 
 /**
@@ -350,7 +351,7 @@ void host_add_robotstxt_job(HOST *host, const wget_iri *base, const char *encodi
 	job->host = host;
 	job->robotstxt = 1;
 
-	wget_thread_mutex_lock(hosts_mutex);
+	mtx_lock(&hosts_mutex);
 	host->robot_job = job;
 	host->qsize++;
 	if (!host->blocked)
@@ -359,7 +360,7 @@ void host_add_robotstxt_job(HOST *host, const wget_iri *base, const char *encodi
 	debug_printf("%s: %p %s\n", __func__, (void *)job, job->iri->uri);
 	debug_printf("%s: qsize %d host-qsize=%d\n", __func__, qsize, host->qsize);
 
-	wget_thread_mutex_unlock(hosts_mutex);
+	mtx_unlock(&hosts_mutex);
 }
 
 static void _host_remove_job(HOST *host, JOB *job)
@@ -420,10 +421,10 @@ static void _host_remove_job(HOST *host, JOB *job)
  */
 void host_remove_job(HOST *host, JOB *job)
 {
-	wget_thread_mutex_lock(hosts_mutex);
+	mtx_lock(&hosts_mutex);
 	_host_remove_job(host, job);
 	debug_printf("%s: qsize=%d host->qsize=%d\n", __func__, qsize, host->qsize);
-	wget_thread_mutex_unlock(hosts_mutex);
+	mtx_unlock(&hosts_mutex);
 }
 
 void hosts_free(void)
@@ -434,7 +435,7 @@ void hosts_free(void)
 
 void host_increase_failure(HOST *host)
 {
-	wget_thread_mutex_lock(hosts_mutex);
+	mtx_lock(&hosts_mutex);
 	host->failures++;
 	host->retry_ts = wget_get_timemillis() + host->failures * 1000;
 	debug_printf("%s: %s failures=%d\n", __func__, host->host, host->failures);
@@ -446,23 +447,23 @@ void host_increase_failure(HOST *host)
 			debug_printf("%s: qsize=%d\n", __func__, qsize);
 		}
 	}
-	wget_thread_mutex_unlock(hosts_mutex);
+	mtx_unlock(&hosts_mutex);
 }
 
 void host_final_failure(HOST *host)
 {
-	wget_thread_mutex_lock(hosts_mutex);
+	mtx_lock(&hosts_mutex);
 	if (!host->blocked) {
 		host->blocked = 1;
 		qsize -= host->qsize;
 		debug_printf("%s: qsize=%d\n", __func__, qsize);
 	}
-	wget_thread_mutex_unlock(hosts_mutex);
+	mtx_unlock(&hosts_mutex);
 }
 
 void host_reset_failure(HOST *host)
 {
-	wget_thread_mutex_lock(hosts_mutex);
+	mtx_lock(&hosts_mutex);
 	host->failures = 0;
 	host->retry_ts = 0;
 	if (host->blocked) {
@@ -470,7 +471,7 @@ void host_reset_failure(HOST *host)
 		qsize += host->qsize;
 		debug_printf("%s: qsize=%d\n", __func__, qsize);
 	}
-	wget_thread_mutex_unlock(hosts_mutex);
+	mtx_unlock(&hosts_mutex);
 }
 
 /**
@@ -492,7 +493,7 @@ static int _queue_free_func(void *context WGET_GCC_UNUSED, JOB *job)
 
 void host_queue_free(HOST *host)
 {
-	wget_thread_mutex_lock(hosts_mutex);
+	mtx_lock(&hosts_mutex);
 	wget_list_browse(host->queue, (wget_list_browse_fn *) _queue_free_func, NULL);
 	wget_list_free(&host->queue);
 	if (host->robot_job) {
@@ -502,7 +503,7 @@ void host_queue_free(HOST *host)
 	if (!host->blocked)
 		qsize -= host->qsize;
 	host->qsize = 0;
-	wget_thread_mutex_unlock(hosts_mutex);
+	mtx_unlock(&hosts_mutex);
 }
 
 /*
@@ -519,9 +520,9 @@ void queue_print(HOST *host)
 	else
 		debug_printf("%s://%s\n", host->scheme, host->host);
 
-	wget_thread_mutex_lock(hosts_mutex);
+	mtx_lock(&hosts_mutex);
 	wget_list_browse(host->queue, (wget_list_browse_t)_queue_print_func, NULL);
-	wget_thread_mutex_unlock(hosts_mutex);
+	mtx_unlock(&hosts_mutex);
 }
 */
 

@@ -3,12 +3,12 @@ AM_CFLAGS = $(WERROR_CFLAGS) $(WARN_CFLAGS) $(CODE_COVERAGE_CFLAGS) $(MANYWARNIN
 # $(ALL_LIBS) is set to $LIBS in configure.ac
 LIBS =
 
-libwget_libadd = ../lib/libgnu.la $(CODE_COVERAGE_LIBS) \
+libwget_libadd = ../lib/libgnu.la \
  $(GETADDRINFO_LIB) $(GETHOSTNAME_LIB) $(HOSTENT_LIB) $(INET_NTOP_LIB) $(INET_PTON_LIB) \
- $(LIBMULTITHREAD) $(LIBSOCKET) $(LIBTHREAD) $(LIB_CLOCK_GETTIME) $(LIB_CRYPTO) $(LIB_GETLOGIN) \
+ $(LIBPTHREAD) $(LIBSOCKET) $(LIBSTDTHREAD) $(LIBTHREAD) $(LIBTHREADLOCAL) $(LIB_CLOCK_GETTIME) $(LIB_CRYPTO) $(LIB_GETLOGIN) \
  $(LIB_HARD_LOCALE) $(LIB_MBRTOWC) $(LIB_NANOSLEEP) $(LIB_POLL) $(LIB_POSIX_SPAWN) $(LIB_PTHREAD_SIGMASK) \
- $(LIB_SELECT) $(LIB_SETLOCALE) $(LIB_SETLOCALE_NULL) $(LTLIBICONV) $(LTLIBINTL) $(SERVENT_LIB) @INTL_MACOSX_LIBS@ \
- $(ALL_LIBS)
+ $(LIB_SELECT) $(LIB_SETLOCALE) $(LIB_SETLOCALE_NULL) $(LTLIBICONV) $(LTLIBINTL) $(LTLIBUNISTRING) $(SERVENT_LIB) @INTL_MACOSX_LIBS@ \
+ $(ALL_LIBS) $(CODE_COVERAGE_LIBS)
 
 lib_LTLIBRARIES = libwget.la
 
@@ -17,7 +17,7 @@ libwget_la_SOURCES = \
  decompressor.c dns_cache.c encoding.c hash_printf.c hashfile.c hashmap.c io.c hsts.c hpkp.c hpkp.h hpkp_db.c html_url.c http.c http.h \
  http_parse.c  init.c ip.c iri.c list.c log.c logger.c logger.h mem.c metalink.c net.c net.h netrc.c ocsp.c pipe.c \
  plugin.c printf.c random.c robots.c rss_url.c sitemap_url.c stringmap.c strlcpy.c \
- strscpy.c thread.c tls_session.c utils.c vector.c xalloc.c xml.c private.h http_highlevel.c error.c dns.c
+ strscpy.c tls_session.c utils.c vector.c xalloc.c xml.c private.h http_highlevel.c error.c dns.c
 
 if WITH_GNUTLS
   libwget_la_SOURCES += ssl_gnutls.c
@@ -81,13 +81,6 @@ libwget_common_la_CPPFLAGS = $(libwget_la_CPPFLAGS)
 libwget_common_la_LIBADD = libwget_alloc.la $(libwget_libadd)
 libwget_common_la_LDFLAGS = $(libwget_la_LDFLAGS)
 
-######## libwget thread ########
-lib_LTLIBRARIES += libwget_thread.la
-libwget_thread_la_SOURCES = thread.c
-libwget_thread_la_CPPFLAGS = $(libwget_la_CPPFLAGS)
-libwget_thread_la_LIBADD = libwget_alloc.la $(libwget_libadd)
-libwget_thread_la_LDFLAGS = $(libwget_la_LDFLAGS)
-
 ######## libwget encoding ########
 lib_LTLIBRARIES += libwget_encoding.la
 libwget_encoding_la_SOURCES = encoding.c
@@ -120,28 +113,28 @@ libwget_hashfile_la_LDFLAGS = $(libwget_la_LDFLAGS)
 lib_LTLIBRARIES += libwget_hpkp_db.la
 libwget_hpkp_db_la_SOURCES = hpkp_db.c hpkp.c hpkp.h
 libwget_hpkp_db_la_CPPFLAGS = $(libwget_la_CPPFLAGS)
-libwget_hpkp_db_la_LIBADD = libwget_hashfile.la libwget_io.la libwget_thread.la libwget_common.la libwget_alloc.la $(libwget_libadd)
+libwget_hpkp_db_la_LIBADD = libwget_hashfile.la libwget_io.la libwget_common.la libwget_alloc.la $(libwget_libadd)
 libwget_hpkp_db_la_LDFLAGS = $(libwget_la_LDFLAGS)
 
 ######## libwget hsts ########
 lib_LTLIBRARIES += libwget_hsts.la
 libwget_hsts_la_SOURCES = hsts.c
 libwget_hsts_la_CPPFLAGS = $(libwget_la_CPPFLAGS)
-libwget_hsts_la_LIBADD = libwget_io.la libwget_thread.la libwget_common.la libwget_alloc.la $(libwget_libadd)
+libwget_hsts_la_LIBADD = libwget_io.la libwget_common.la libwget_alloc.la $(libwget_libadd)
 libwget_hsts_la_LDFLAGS = $(libwget_la_LDFLAGS)
 
 ######## libwget ocsp ########
 lib_LTLIBRARIES += libwget_ocsp.la
 libwget_ocsp_la_SOURCES = ocsp.c
 libwget_ocsp_la_CPPFLAGS = $(libwget_la_CPPFLAGS)
-libwget_ocsp_la_LIBADD = libwget_io.la libwget_thread.la libwget_common.la libwget_alloc.la $(libwget_libadd)
+libwget_ocsp_la_LIBADD = libwget_io.la libwget_common.la libwget_alloc.la $(libwget_libadd)
 libwget_ocsp_la_LDFLAGS = $(libwget_la_LDFLAGS)
 
 ######## libwget tls_session ########
 lib_LTLIBRARIES += libwget_tls_session.la
 libwget_tls_session_la_SOURCES = tls_session.c
 libwget_tls_session_la_CPPFLAGS = $(libwget_la_CPPFLAGS)
-libwget_tls_session_la_LIBADD = libwget_io.la libwget_thread.la libwget_common.la libwget_alloc.la $(libwget_libadd)
+libwget_tls_session_la_LIBADD = libwget_io.la libwget_common.la libwget_alloc.la $(libwget_libadd)
 libwget_tls_session_la_LDFLAGS = $(libwget_la_LDFLAGS)
 
 ######## libwget http_parse ########
@@ -162,14 +155,14 @@ libwget_logger_la_LDFLAGS = $(libwget_la_LDFLAGS)
 lib_LTLIBRARIES += libwget_dnscache.la
 libwget_dnscache_la_SOURCES = dns_cache.c
 libwget_dnscache_la_CPPFLAGS = $(libwget_la_CPPFLAGS)
-libwget_dnscache_la_LIBADD = libwget_thread.la libwget_common.la libwget_alloc.la $(libwget_libadd)
+libwget_dnscache_la_LIBADD = libwget_common.la libwget_alloc.la $(libwget_libadd)
 libwget_dnscache_la_LDFLAGS = $(libwget_la_LDFLAGS)
 
 ######## libwget dns ########
 lib_LTLIBRARIES += libwget_dns.la
 libwget_dns_la_SOURCES = dns.c
 libwget_dns_la_CPPFLAGS = $(libwget_la_CPPFLAGS)
-libwget_dns_la_LIBADD = libwget_dnscache.la libwget_ip.la libwget_logger.la libwget_thread.la libwget_common.la libwget_alloc.la $(libwget_libadd)
+libwget_dns_la_LIBADD = libwget_dnscache.la libwget_ip.la libwget_logger.la libwget_common.la libwget_alloc.la $(libwget_libadd)
 libwget_dns_la_LDFLAGS = $(libwget_la_LDFLAGS)
 
 ######## libwget robots ########
@@ -218,7 +211,7 @@ libwget_css_la_LDFLAGS = $(libwget_la_LDFLAGS)
 lib_LTLIBRARIES += libwget_progress.la
 libwget_progress_la_SOURCES = bar.c
 libwget_progress_la_CPPFLAGS = $(libwget_la_CPPFLAGS)
-libwget_progress_la_LIBADD = libwget_thread.la libwget_common.la libwget_alloc.la $(libwget_libadd)
+libwget_progress_la_LIBADD = libwget_common.la libwget_alloc.la $(libwget_libadd)
 libwget_progress_la_LDFLAGS = $(libwget_la_LDFLAGS)
 
 ######## Test linking ########
@@ -299,12 +292,6 @@ test_linking_progress_SOURCES = test_linking_progress.c
 test_linking_progress_CPPFLAGS = -I$(top_srcdir)/include/wget -I$(top_builddir)/include/wget
 test_linking_progress_LDADD = libwget_progress.la
 test_linking_progress_LDFLAGS = -static -no-install
-
-noinst_PROGRAMS += test_linking_thread
-test_linking_thread_SOURCES = test_linking_thread.c
-test_linking_thread_CPPFLAGS = -I$(top_srcdir)/include/wget -I$(top_builddir)/include/wget
-test_linking_thread_LDADD = libwget_thread.la
-test_linking_thread_LDFLAGS = -static -no-install
 
 noinst_PROGRAMS += test_linking_dnscache
 test_linking_dnscache_SOURCES = test_linking_dnscache.c

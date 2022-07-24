@@ -29,6 +29,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <threads.h>
 
 #include <wget.h>
 
@@ -40,7 +41,7 @@
 static wget_hashmap
 	*blacklist;
 
-static wget_thread_mutex
+static mtx_t
 	mutex;
 
 // generate the local filename corresponding to an URI
@@ -209,7 +210,7 @@ static void free_value(void *value)
 
 void blacklist_init(void)
 {
-	wget_thread_mutex_init(&mutex);
+	mtx_init(&mutex, mtx_plain);
 
 	blacklist = wget_hashmap_create(128, hash_iri, (wget_hashmap_compare_fn *) wget_iri_compare);
 	wget_hashmap_set_key_destructor(blacklist, NULL); // destroy the key (iri) in free_value()
@@ -218,7 +219,7 @@ void blacklist_init(void)
 
 void blacklist_exit(void)
 {
-	wget_thread_mutex_destroy(&mutex);
+	mtx_destroy(&mutex);
 }
 
 /**
@@ -239,7 +240,7 @@ blacklist_entry *blacklist_add(const wget_iri *iri)
 {
 	blacklist_entry *entryp;
 
-	wget_thread_mutex_lock(mutex);
+	mtx_lock(&mutex);
 
 	if (!wget_hashmap_get(blacklist, iri, &entryp)) {
 		entryp = wget_malloc(sizeof(blacklist_entry));
@@ -249,12 +250,12 @@ blacklist_entry *blacklist_add(const wget_iri *iri)
 		// info_printf("Add to blacklist: %s\n",iri->uri);
 
 		wget_hashmap_put(blacklist, iri, entryp);
-		wget_thread_mutex_unlock(mutex);
+		mtx_unlock(&mutex);
 
 		return entryp;
 	}
 
-	wget_thread_mutex_unlock(mutex);
+	mtx_unlock(&mutex);
 
 	debug_printf("not requesting '%s'. (Already Seen)\n", iri->uri);
 

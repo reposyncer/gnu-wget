@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <threads.h>
 #ifndef _WIN32
 #	include <signal.h>
 #endif
@@ -43,7 +44,7 @@ typedef struct {
 
 #define MAXTHREADS 500
 
-static void *downloader_thread(void *p);
+static int downloader_thread(void *p);
 
 static void write_stats(const stats_t *stats)
 {
@@ -112,7 +113,7 @@ static char *_normalize_location(const char *base, const char *url)
 
 int main(int argc WGET_GCC_UNUSED, const char *const *argv WGET_GCC_UNUSED)
 {
-	static wget_thread downloaders[MAXTHREADS];
+	static thrd_t downloaders[MAXTHREADS];
 
 	// set up libwget global configuration
 	wget_global_init(
@@ -141,14 +142,14 @@ int main(int argc WGET_GCC_UNUSED, const char *const *argv WGET_GCC_UNUSED)
 
 	// start threads
 	for (int rc, it = 0; it < MAXTHREADS; it++) {
-		if ((rc = wget_thread_start(&downloaders[it], downloader_thread, NULL, 0)) != 0) {
-			wget_error_printf("Failed to start thread, error %d\n", rc);
+		if ((rc = thrd_create(&downloaders[it], downloader_thread, NULL)) != 0) {
+			wget_error_printf("Failed to create thread, error %d\n", rc);
 		}
 	}
 
 	// wait until threads are done
 	for (int rc, it = 0; it < MAXTHREADS; it++) {
-		if ((rc = wget_thread_join(&downloaders[it])) != 0)
+		if ((rc = thrd_join(downloaders[it], NULL)) != 0)
 			wget_error_printf("Failed to wait for downloader #%d (%d %d)\n", it, rc, errno);
 	}
 
@@ -158,7 +159,7 @@ int main(int argc WGET_GCC_UNUSED, const char *const *argv WGET_GCC_UNUSED)
 	return 0;
 }
 
-static void *downloader_thread(WGET_GCC_UNUSED void *p)
+static int downloader_thread(WGET_GCC_UNUSED void *p)
 {
 	stats_t stats;
 	wget_http_response *resp = NULL;
@@ -250,5 +251,5 @@ static void *downloader_thread(WGET_GCC_UNUSED void *p)
 
 	wget_xfree(url);
 
-	return NULL;
+	return 0;
 }

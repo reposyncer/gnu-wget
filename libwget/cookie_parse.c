@@ -464,21 +464,21 @@ static int cookie_normalize_cookie(const wget_iri *iri, wget_cookie *cookie)
 
 int wget_cookie_normalize(const wget_iri *iri, wget_cookie *cookie)
 {
-//	wget_thread_mutex_lock(&_cookies_mutex);
+//	mtx_lock(&_cookies_mutex);
 
 	int ret = cookie_normalize_cookie(iri, cookie);
 
-//	wget_thread_mutex_unlock(&_cookies_mutex);
+//	mtx_unlock(&_cookies_mutex);
 
 	return ret;
 }
 
 void wget_cookie_normalize_cookies(const wget_iri *iri, const wget_vector *cookies)
 {
-//	wget_thread_mutex_lock(&_cookies_mutex);
+//	mtx_lock(&_cookies_mutex);
 
 	for (int it = 0; it < wget_vector_size(cookies); it++)
 		cookie_normalize_cookie(iri, wget_vector_get(cookies, it));
 
-//	wget_thread_mutex_unlock(&_cookies_mutex);
+//	mtx_unlock(&_cookies_mutex);
 }

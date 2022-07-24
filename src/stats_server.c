@@ -23,6 +23,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <threads.h>
 
 #include <wget.h>
 #include "wget_main.h"
@@ -57,7 +58,7 @@ typedef struct {
 static wget_hashmap
 	*hosts;
 
-static wget_thread_mutex
+static mtx_t
 	mutex;
 
 static FILE
@@ -144,7 +145,7 @@ static void server_stats_add(wget_http_connection *conn, wget_http_response *res
 	hostp->ip = wget_strdup(wget_tcp_get_ip(conn->tcp));
 	hostp->scheme = conn->scheme;
 
-	wget_thread_mutex_lock(mutex);
+	mtx_lock(&mutex);
 
 	if (!wget_hashmap_contains(hosts, hostp)) {
 		server_stats_data stats;
@@ -162,12 +163,12 @@ static void server_stats_add(wget_http_connection *conn, wget_http_response *res
 	} else
 		free_host_entry(hostp);
 
-	wget_thread_mutex_unlock(mutex);
+	mtx_unlock(&mutex);
 }
 
 void server_stats_init(FILE *fpout)
 {
-	wget_thread_mutex_init(&mutex);
+	mtx_init(&mutex, mtx_plain);
 
 	hosts = wget_hashmap_create(16, (wget_hashmap_hash_fn *) host_hash, (wget_hashmap_compare_fn *) host_compare);
 	wget_hashmap_set_key_destructor(hosts, (wget_hashmap_key_destructor *) free_host_entry);
@@ -181,5 +182,5 @@ void server_stats_exit(void)
 {
 	// We don't need mutex locking here - this function is called on exit when all threads have ceased.
 	wget_hashmap_free(&hosts);
-	wget_thread_mutex_destroy(&mutex);
+	mtx_destroy(&mutex);
 }

@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
+#include <threads.h>
 #ifdef _WIN32
 #  include <process.h>  /* getpid() */
 #endif
@@ -50,22 +51,22 @@
 static int seeded;
 static char statebuf[64];
 static struct random_data state;
-static wget_thread_mutex mutex;
+static mtx_t mutex;
 static bool initialized;
 
 static void __attribute__ ((constructor)) random_init(void)
 {
 	if (!initialized) {
-		wget_thread_mutex_init(&mutex);
-		initialized = 1;
+		mtx_init(&mutex, mtx_plain);
+		initialized = true;
 	}
 }
 
 static void __attribute__ ((destructor)) random_exit(void)
 {
 	if (initialized) {
-		wget_thread_mutex_destroy(&mutex);
-		initialized = 0;
+		mtx_destroy(&mutex);
+		initialized = false;
 	}
 }
 
@@ -105,7 +106,7 @@ int wget_random(void)
 {
 	int32_t r;
 
-	wget_thread_mutex_lock(mutex);
+	mtx_lock(&mutex);
 
 	if (!seeded) {
 		// seed random generator, used e.g. by Digest Authentication and --random-wait
@@ -116,7 +117,7 @@ int wget_random(void)
 	if (random_r(&state, &r))
 		r = 0; // return 0 on failure
 
-	wget_thread_mutex_unlock(mutex);
+	mtx_unlock(&mutex);
 
 	return (int)r;
 }
@@ -128,12 +129,12 @@ int wget_random(void)
  */
 void wget_srandom(unsigned int seed)
 {
-	wget_thread_mutex_lock(mutex);
+	mtx_lock(&mutex);
 
 	initstate_r(seed, statebuf, sizeof(statebuf), &state);
 	seeded = 1;
 
-	wget_thread_mutex_unlock(mutex);
+	mtx_unlock(&mutex);
 }
 
 /**@}*/

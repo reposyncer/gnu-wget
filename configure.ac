@@ -54,8 +54,8 @@ test -n "$XTRA_CFLAGS" && CFLAGS="$CFLAGS $XTRA_CFLAGS"
 
 AC_USE_SYSTEM_EXTENSIONS
 AC_PROG_CC
-if test "$ac_cv_prog_cc_c99" = "no"; then
-  AC_MSG_ERROR(Compiler does not support C99. Aborting.)
+if test "$ac_cv_prog_cc_c11" = "no"; then
+  AC_MSG_ERROR(Compiler does not support C11. Aborting.)
 fi
 
 gl_EARLY

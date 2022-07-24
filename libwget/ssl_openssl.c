@@ -26,6 +26,7 @@
 
 #include <dirent.h>
 #include <limits.h> // INT_MAX
+#include <threads.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/ocsp.h>
@@ -116,7 +117,8 @@ static struct config
 	};
 
 static int init;
-static wget_thread_mutex mutex;
+static mtx_t mutex;
+static bool initialized;
 
 static SSL_CTX *_ctx;
 static int store_userdata_idx;
@@ -126,8 +128,10 @@ static int store_userdata_idx;
  */
 static void __attribute__ ((constructor)) tls_init(void)
 {
-	if (!mutex)
-		wget_thread_mutex_init(&mutex);
+	if (!initialized) {
+		mtx_init(&mutex, mtx_plain);
+		initialized = true;
+	}
 
 	store_userdata_idx = X509_STORE_CTX_get_ex_new_index(
 			0, NULL,	/* argl, argp */
@@ -138,8 +142,10 @@ static void __attribute__ ((constructor)) tls_init(void)
 
 static void __attribute__ ((destructor)) tls_exit(void)
 {
-	if (mutex)
-		wget_thread_mutex_destroy(&mutex);
+	if (initialized) {
+		mtx_destroy(&mutex);
+		initialized = false;
+	}
 }
 
 /*
@@ -1257,7 +1263,7 @@ static void openssl_deinit(SSL_CTX *ctx)
  */
 void wget_ssl_init(void)
 {
-	wget_thread_mutex_lock(mutex);
+	mtx_lock(&mutex);
 
 	if (!init) {
 		_ctx = SSL_CTX_new(TLS_client_method());
@@ -1273,7 +1279,7 @@ void wget_ssl_init(void)
 		}
 	}
 
-	wget_thread_mutex_unlock(mutex);
+	mtx_unlock(&mutex);
 }
 
 /**
@@ -1290,7 +1296,7 @@ void wget_ssl_init(void)
  */
 void wget_ssl_deinit(void)
 {
-	wget_thread_mutex_lock(mutex);
+	mtx_lock(&mutex);
 
 	if (init == 1)
 		openssl_deinit(_ctx);
@@ -1298,7 +1304,7 @@ void wget_ssl_deinit(void)
 	if (init > 0)
 		init--;
 
-	wget_thread_mutex_unlock(mutex);
+	mtx_unlock(&mutex);
 }
 
 static int ssl_resume_session(SSL *ssl, const char *hostname)

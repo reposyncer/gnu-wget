@@ -33,6 +33,7 @@
 #include <ctype.h>
 #include <time.h>
 #include <errno.h>
+#include <threads.h>
 
 #include <wget.h>
 #include "private.h"
@@ -53,7 +54,7 @@ struct wget_ocsp_db_st {
 		fingerprints;
 	wget_hashmap *
 		hosts;
-	wget_thread_mutex
+	mtx_t
 		mutex;
 };
 
@@ -232,12 +233,12 @@ void wget_ocsp_db_deinit(wget_ocsp_db *ocsp_db)
 
 	if (ocsp_db) {
 		xfree(ocsp_db->fname);
-		wget_thread_mutex_lock(ocsp_db->mutex);
+		mtx_lock(&ocsp_db->mutex);
 		wget_hashmap_free(&ocsp_db->fingerprints);
 		wget_hashmap_free(&ocsp_db->hosts);
-		wget_thread_mutex_unlock(ocsp_db->mutex);
+		mtx_unlock(&ocsp_db->mutex);
 
-		wget_thread_mutex_destroy(&ocsp_db->mutex);
+		mtx_destroy(&ocsp_db->mutex);
 	}
 }
 
@@ -277,7 +278,7 @@ static void ocsp_db_add_fingerprint_entry(wget_ocsp_db *ocsp_db, ocsp_entry *ocs
 		return;
 	}
 
-	wget_thread_mutex_lock(ocsp_db->mutex);
+	mtx_lock(&ocsp_db->mutex);
 
 	if (ocsp->maxage == 0) {
 		if (wget_hashmap_remove(ocsp_db->fingerprints, ocsp))
@@ -302,7 +303,7 @@ static void ocsp_db_add_fingerprint_entry(wget_ocsp_db *ocsp_db, ocsp_entry *ocs
 		}
 	}
 
-	wget_thread_mutex_unlock(ocsp_db->mutex);
+	mtx_unlock(&ocsp_db->mutex);
 }
 
 /**
@@ -342,7 +343,7 @@ static void ocsp_db_add_host_entry(wget_ocsp_db *ocsp_db, ocsp_entry *ocsp)
 		return;
 	}
 
-	wget_thread_mutex_lock(ocsp_db->mutex);
+	mtx_lock(&ocsp_db->mutex);
 
 	if (ocsp->maxage == 0) {
 		if (wget_hashmap_remove(ocsp_db->hosts, ocsp))
@@ -367,7 +368,7 @@ static void ocsp_db_add_host_entry(wget_ocsp_db *ocsp_db, ocsp_entry *ocsp)
 		}
 	}
 
-	wget_thread_mutex_unlock(ocsp_db->mutex);
+	mtx_unlock(&ocsp_db->mutex);
 }
 
 /**
@@ -664,7 +665,7 @@ no_mem:
 	wget_hashmap_set_value_destructor(hosts, (wget_hashmap_value_destructor *) free_ocsp);
 	ocsp_db->hosts = hosts;
 
-	wget_thread_mutex_init(&ocsp_db->mutex);
+	mtx_init(&ocsp_db->mutex, mtx_plain);
 
 	return (wget_ocsp_db *) ocsp_db;
 }

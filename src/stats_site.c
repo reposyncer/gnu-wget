@@ -23,6 +23,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <threads.h>
 
 #include <wget.h>
 #include "wget_main.h"
@@ -67,7 +68,7 @@ typedef struct {
 static wget_vector
 	*data;
 
-static wget_thread_mutex
+static mtx_t
 	mutex;
 
 static wget_hashmap
@@ -88,7 +89,7 @@ static void free_stats(void *stats)
 
 void site_stats_init(FILE *fpout)
 {
-	wget_thread_mutex_init(&mutex);
+	mtx_init(&mutex, mtx_plain);
 
 	data = wget_vector_create(8, NULL);
 	wget_vector_set_destructor(data, free_stats);
@@ -101,7 +102,7 @@ void site_stats_exit(void)
 	wget_stringmap_free(&docs);
 
 	wget_vector_free(&data);
-	wget_thread_mutex_destroy(&mutex);
+	mtx_destroy(&mutex);
 }
 
 void stats_site_add(wget_http_response *resp, wget_gpg_info_t *gpg_info)
@@ -110,7 +111,7 @@ void stats_site_add(wget_http_response *resp, wget_gpg_info_t *gpg_info)
 	const wget_iri *iri = job->iri;
 
 	if (gpg_info) {
-		wget_thread_mutex_lock(mutex);
+		mtx_lock(&mutex);
 
 		if (!docs) {
 			// lazy initialization, don't free keys or values when destructed.
@@ -146,11 +147,11 @@ void stats_site_add(wget_http_response *resp, wget_gpg_info_t *gpg_info)
 			else if (gpg_info->missing_sigs)
 				doc->signature_status = 4;
 
-			wget_thread_mutex_unlock(mutex);
+			mtx_unlock(&mutex);
 			return;
 		}
 
-		wget_thread_mutex_unlock(mutex);
+		mtx_unlock(&mutex);
 	}
 
 	site_stats_data *doc = wget_calloc(1, sizeof(site_stats_data));
@@ -182,11 +183,11 @@ void stats_site_add(wget_http_response *resp, wget_gpg_info_t *gpg_info)
 		doc->method = STATS_METHOD_POST;
 	}
 
-	wget_thread_mutex_lock(mutex);
+	mtx_lock(&mutex);
 	wget_vector_add(data, doc);
 	if (docs)
 		wget_stringmap_put(docs, doc->iri->uri, doc);
-	wget_thread_mutex_unlock(mutex);
+	mtx_unlock(&mutex);
 }
 
 static int print_human_entry(FILE *_fp, site_stats_data *doc)

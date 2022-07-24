@@ -36,6 +36,7 @@
 #include <ctype.h>
 #include <time.h>
 #include <errno.h>
+#include <threads.h>
 #ifdef WITH_LIBPSL
 #  include <libpsl.h>
 #endif
@@ -51,7 +52,7 @@ struct wget_cookie_db_st {
 	psl_ctx_t
 		*psl; // libpsl Publix Suffix List context
 #endif
-	wget_thread_mutex
+	mtx_t
 		mutex;
 	unsigned int
 		age;
@@ -124,7 +125,7 @@ static int compare_cookie2(const wget_cookie *c1, const wget_cookie *c2)
 
 int wget_cookie_check_psl(const wget_cookie_db *cookie_db, const wget_cookie *cookie)
 {
-//	wget_thread_mutex_lock(&_cookies_mutex);
+//	mtx_lock(&_cookies_mutex);
 
 #ifdef WITH_LIBPSL
 	int ret;
@@ -138,7 +139,7 @@ int wget_cookie_check_psl(const wget_cookie_db *cookie_db, const wget_cookie *co
 	int ret = 0;
 #endif
 
-//	wget_thread_mutex_unlock(&_cookies_mutex);
+//	mtx_unlock(&_cookies_mutex);
 
 	return ret;
 }
@@ -170,7 +171,7 @@ int wget_cookie_store_cookie(wget_cookie_db *cookie_db, wget_cookie *cookie)
 		return WGET_E_INVALID;
 	}
 
-	wget_thread_mutex_lock(cookie_db->mutex);
+	mtx_lock(&cookie_db->mutex);
 
 	old = wget_vector_get(cookie_db->cookies, pos = wget_vector_find(cookie_db->cookies, cookie));
 
@@ -185,7 +186,7 @@ int wget_cookie_store_cookie(wget_cookie_db *cookie_db, wget_cookie *cookie)
 		wget_vector_insert_sorted(cookie_db->cookies, cookie);
 	}
 
-	wget_thread_mutex_unlock(cookie_db->mutex);
+	mtx_unlock(&cookie_db->mutex);
 
 	return WGET_E_SUCCESS;
 }
@@ -217,7 +218,7 @@ char *wget_cookie_create_request_header(wget_cookie_db *cookie_db, const wget_ir
 
 	debug_printf("cookie_create_request_header for host=%s path=%s\n", iri->host, iri->path);
 
-	wget_thread_mutex_lock(cookie_db->mutex);
+	mtx_lock(&cookie_db->mutex);
 
 	for (it = 0; it < wget_vector_size(cookie_db->cookies); it++) {
 		wget_cookie *cookie = wget_vector_get(cookie_db->cookies, it);
@@ -278,7 +279,7 @@ char *wget_cookie_create_request_header(wget_cookie_db *cookie_db, const wget_ir
 	wget_vector_clear_nofree(cookies);
 	wget_vector_free(&cookies);
 
-	wget_thread_mutex_unlock(cookie_db->mutex);
+	mtx_unlock(&cookie_db->mutex);
 
 	return init ? buf.data : NULL;
 }
@@ -294,7 +295,7 @@ wget_cookie_db *wget_cookie_db_init(wget_cookie_db *cookie_db)
 
 	cookie_db->cookies = wget_vector_create(32, (wget_vector_compare_fn *) compare_cookie);
 	wget_vector_set_destructor(cookie_db->cookies, cookie_free);
-	wget_thread_mutex_init(&cookie_db->mutex);
+	mtx_init(&cookie_db->mutex, mtx_plain);
 #ifdef WITH_LIBPSL
 #if ((PSL_VERSION_MAJOR > 0) || (PSL_VERSION_MAJOR == 0 && PSL_VERSION_MINOR >= 16))
 	cookie_db->psl = psl_latest(NULL);
@@ -313,10 +314,10 @@ void wget_cookie_db_deinit(wget_cookie_db *cookie_db)
 		psl_free(cookie_db->psl);
 		cookie_db->psl = NULL;
 #endif
-		wget_thread_mutex_lock(cookie_db->mutex);
+		mtx_lock(&cookie_db->mutex);
 		wget_vector_free(&cookie_db->cookies);
-		wget_thread_mutex_unlock(cookie_db->mutex);
-		wget_thread_mutex_destroy(&cookie_db->mutex);
+		mtx_unlock(&cookie_db->mutex);
+		mtx_destroy(&cookie_db->mutex);
 	}
 }
 

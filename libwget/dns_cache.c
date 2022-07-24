@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <netdb.h>
+#include <threads.h>
 
 #include <wget.h>
 #include "private.h"
@@ -50,7 +51,7 @@ struct cache_entry {
 struct wget_dns_cache_st {
 	wget_hashmap
 		*cache;
-	wget_thread_mutex
+	mtx_t
 		mutex;
 };
 
@@ -98,7 +99,7 @@ int wget_dns_cache_init(wget_dns_cache **cache)
 	if (!_cache)
 		return WGET_E_MEMORY;
 
-	if (wget_thread_mutex_init(&_cache->mutex)) {
+	if (mtx_init(&_cache->mutex, mtx_plain)) {
 		xfree(_cache);
 		return WGET_E_INVALID;
 	}
@@ -124,11 +125,11 @@ int wget_dns_cache_init(wget_dns_cache **cache)
 void wget_dns_cache_free(wget_dns_cache **cache)
 {
 	if (cache && *cache) {
-		wget_thread_mutex_lock((*cache)->mutex);
+		mtx_lock(&(*cache)->mutex);
 		wget_hashmap_free(&(*cache)->cache);
-		wget_thread_mutex_unlock((*cache)->mutex);
+		mtx_unlock(&(*cache)->mutex);
 
-		wget_thread_mutex_destroy(&(*cache)->mutex);
+		mtx_destroy(&(*cache)->mutex);
 		xfree(*cache);
 	}
 }
@@ -144,10 +145,10 @@ struct addrinfo *wget_dns_cache_get(wget_dns_cache *cache, const char *host, uin
 	if (cache) {
 		struct cache_entry *entryp, entry = { .host = host, .port = port };
 
-		wget_thread_mutex_lock(cache->mutex);
+		mtx_lock(&cache->mutex);
 		if (!wget_hashmap_get(cache->cache, &entry, &entryp))
 			entryp = NULL;
-		wget_thread_mutex_unlock(cache->mutex);
+		mtx_unlock(&cache->mutex);
 
 		if (entryp) {
 			// DNS cache entry found
@@ -179,11 +180,11 @@ int wget_dns_cache_add(wget_dns_cache *cache, const char *host, uint16_t port, s
 	struct cache_entry entry = { .host = host, .port = port };
 	struct cache_entry *entryp;
 
-	wget_thread_mutex_lock(cache->mutex);
+	mtx_lock(&cache->mutex);
 
 	if (wget_hashmap_get(cache->cache, &entry, &entryp)) {
 		// host+port is already in cache
-		wget_thread_mutex_unlock(cache->mutex);
+		mtx_unlock(&cache->mutex);
 		if (*addrinfo != entryp->addrinfo)
 			freeaddrinfo(*addrinfo);
 		*addrinfo = entryp->addrinfo;
@@ -195,7 +196,7 @@ int wget_dns_cache_add(wget_dns_cache *cache, const char *host, uint16_t port, s
 	entryp = wget_malloc(sizeof(struct cache_entry) + hostlen);
 
 	if (!entryp) {
-		wget_thread_mutex_unlock(cache->mutex);
+		mtx_unlock(&cache->mutex);
 		return WGET_E_MEMORY;
 	}
 
@@ -207,7 +208,7 @@ int wget_dns_cache_add(wget_dns_cache *cache, const char *host, uint16_t port, s
 	// key and value are the same to make wget_hashmap_get() return old entry
 	wget_hashmap_put(cache->cache, entryp, entryp);
 
-	wget_thread_mutex_unlock(cache->mutex);
+	mtx_unlock(&cache->mutex);
 
 	return WGET_E_SUCCESS;
 }

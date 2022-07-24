@@ -32,6 +32,7 @@
 #include <ctype.h>
 #include <time.h>
 #include <errno.h>
+#include <threads.h>
 #include <sys/stat.h>
 #include <sys/file.h>
 
@@ -41,7 +42,7 @@
 struct wget_tls_session_db_st {
 	wget_hashmap *
 		entries;
-	wget_thread_mutex
+	mtx_t
 		mutex;
 	int64_t
 		load_time;
@@ -185,7 +186,7 @@ wget_tls_session_db *wget_tls_session_db_init(wget_tls_session_db *tls_session_d
 	wget_hashmap_set_value_destructor(entries, (wget_hashmap_value_destructor *) wget_tls_session_free);
 	tls_session_db->entries = entries;
 
-	wget_thread_mutex_init(&tls_session_db->mutex);
+	mtx_init(&tls_session_db->mutex, mtx_plain);
 
 	return tls_session_db;
 }
@@ -193,11 +194,11 @@ wget_tls_session_db *wget_tls_session_db_init(wget_tls_session_db *tls_session_d
 void wget_tls_session_db_deinit(wget_tls_session_db *tls_session_db)
 {
 	if (tls_session_db) {
-		wget_thread_mutex_lock(tls_session_db->mutex);
+		mtx_lock(&tls_session_db->mutex);
 		wget_hashmap_free(&tls_session_db->entries);
-		wget_thread_mutex_unlock(tls_session_db->mutex);
+		mtx_unlock(&tls_session_db->mutex);
 
-		wget_thread_mutex_destroy(&tls_session_db->mutex);
+		mtx_destroy(&tls_session_db->mutex);
 	}
 }
 
@@ -214,7 +215,7 @@ void wget_tls_session_db_add(wget_tls_session_db *tls_session_db, wget_tls_sessi
 	if (!tls_session_db || !tls_session)
 		return;
 
-	wget_thread_mutex_lock(tls_session_db->mutex);
+	mtx_lock(&tls_session_db->mutex);
 
 	if (tls_session->maxage == 0) {
 		if (wget_hashmap_remove(tls_session_db->entries, tls_session)) {
@@ -237,7 +238,7 @@ void wget_tls_session_db_add(wget_tls_session_db *tls_session_db, wget_tls_sessi
 		tls_session_db->changed = 1;
 	}
 
-	wget_thread_mutex_unlock(tls_session_db->mutex);
+	mtx_unlock(&tls_session_db->mutex);
 }
 
 static int tls_session_db_load(wget_tls_session_db *tls_session_db, FILE *fp)
