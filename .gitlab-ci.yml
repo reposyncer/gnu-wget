@@ -449,8 +449,12 @@ MinGW64:
     - export WINEPATH="$WINEPATH;/usr/$PREFIX/bin;/usr/$PREFIX/lib;$PWD/libwget/.libs;$GCCLIB"
     - echo "WINEPATH=$WINEPATH"
     - ./configure $CONFIGURE_BASE_FLAGS --build=x86_64-pc-linux-gnu --host=$PREFIX --enable-shared
-    - make -j$(nproc)
-    - make check -j$(nproc) LOG_COMPILER=wine
+    - time make -j$(nproc) -C lib
+    - time make -j$(nproc) -C libwget
+    - time make -j$(nproc) -C src
+    - time make check -C fuzz -j$(nproc) LOG_COMPILER=wine
+    - time make check -C unit-tests -j$(nproc) LOG_COMPILER=wine
+    - time make check -C tests -j$(nproc) LOG_COMPILER=wine
   tags:
     - shared
     - linux
@@ -477,7 +481,9 @@ MinGW64-static:
     - LDFLAGS="-Wl,-Bstatic,--whole-archive -lwinpthread -Wl,--no-whole-archive"
       CFLAGS="$CFLAGS_DEFAULT -DNGHTTP2_STATICLIB"
       ./configure $CONFIGURE_BASE_FLAGS --build=x86_64-pc-linux-gnu --host=$PREFIX --disable-shared --enable-static --without-gpgme
-    - make -j$(nproc)
+    - make -j$(nproc) -C lib
+    - make -j$(nproc) -C libwget
+    - make -j$(nproc) -C src
     - mv src/wget2.exe .
   tags:
     - shared
