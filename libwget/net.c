@@ -1061,4 +1061,270 @@ void wget_tcp_close(wget_tcp *tcp)
 		xfree(tcp->host);
 	}
 }
+
+
 /** @} */
+
+
+/*
+
+Structs present : 
+
+Struct similar to GBytes.
+A node of this struct is pushed to the GQueue which is present in the struct Stream
+This struct Stream is appended in the Glist present in the struct Connection. 
+
+Implementations : 
+1. Standard Implementation of Bytes, Generic Queue and Generic List.
+2. All the standard functions for accessing all these structures.
+
+*/
+
+//Bytes Implementation.
+typedef struct
+{
+	unsigned char* data;
+	size_t size;
+}stream_byte;
+
+stream_byte *stream_bytes_new(const unsigned char *data, size_t size)
+{
+	stream_byte *bytes = wget_malloc(sizeof(stream_byte));
+	if (bytes){
+		bytes->data = wget_malloc(size);
+		if (!bytes->data){
+			xfree(bytes->data);
+			return NULL;
+		}
+		memcpy((void *)bytes->data, data, size);
+		bytes->size = size;
+	}
+	return bytes;
+}
+
+size_t stream_bytes_get_size(const stream_byte *bytes)
+{
+	return bytes->size;
+}
+
+const unsigned char *stream_bytes_get_data(const stream_byte* bytes)
+{
+	return bytes->data;
+}
+
+void stream_bytes_free(stream_byte *bytes)
+{
+	xfree((void *)bytes->data);
+	xfree(bytes);
+}
+
+typedef struct
+{
+	void *data;
+	struct stream_queue_node *next;
+}stream_queue_node;
+
+//Queue Implementation.
+
+typedef struct
+{
+	stream_queue_node *head;
+	stream_queue_node *tail;
+}stream_queue;
+
+stream_queue *stream_queue_new()
+{
+	stream_queue *queue = wget_malloc(sizeof(stream_queue));
+	if (queue){
+		queue->head = NULL;
+		queue->tail = NULL;
+	}
+	return queue;
+}
+
+void stream_queue_free(stream_queue *queue)
+{
+	while (queue->head != NULL){
+		stream_queue_node *temp = queue->head;
+		queue->head = queue->head->next;
+		xfree(temp);
+	}
+	xfree(queue);
+}
+
+void stream_queue_enqueue(stream_queue *queue, void *data)
+{
+	stream_queue_node *new_node = wget_malloc(sizeof(stream_queue_node));
+	if (new_node){
+		new_node->data = data;
+		new_node->next = NULL;
+
+		if (queue->tail == NULL){
+			queue->head = new_node;
+			queue->tail = new_node;
+		}
+		else{
+			queue->tail->next = new_node;
+			queue->tail = new_node;
+		}
+	}
+}
+
+void *stream_queue_peek_head(stream_queue *queue)
+{
+	if (queue->head){
+		return queue->head->data;
+	}
+	return NULL;
+}
+
+bool stream_queue_is_empty(stream_queue *queue)
+{
+	if (queue->head)
+		return false;
+	else
+		return true;
+}
+
+void *stream_queue_dequeue(stream_queue *queue)
+{
+	if (queue->head == NULL){
+		return;
+	}
+
+	stream_queue_node node = queue->head;
+	void *data = node.data;
+	node.data = NULL;
+	queue->head = queue->head->next;
+	if (queue->head == NULL){
+		queue->tail = NULL;
+	}
+	xfree(node);
+	return data;
+}
+
+// List Implementation
+
+typedef struct
+{
+	void *data;
+	struct stream_list_node *next;
+	struct stream_list_node *prev;
+}stream_list_node;
+
+typedef struct {
+	stream_list_node *head;
+	stream_list_node *tail;
+	size_t length;
+}stream_list;
+
+stream_list *stream_list_new()
+{
+	stream_list *list = wget_malloc(sizeof(stream_list));
+	if (list){
+		list->head = NULL;
+		list->tail = NULL;
+		list->length = 0;
+	}
+	return list;
+}
+
+void stream_list_free(stream_list *list)
+{
+	stream_list_node *current = list->head;
+	stream_list_node *next = NULL;
+	while (current){
+		next = current->next;
+		xfree(current);
+		current = next;
+	}
+	xfree(list);
+}
+
+void stream_list_append(stream_list *list, void *data)
+{
+	stream_list_node *new_node = wget_malloc(sizeof(stream_list_node));
+	if (new_node){
+		new_node->data = data;
+		new_node->prev = list->tail;
+		new_node->next = NULL;
+
+		if (list->tail == NULL){
+			list->head = new_node;
+			list->tail = new_node;
+		}
+		else{
+			list->tail->next = new_node;
+			list->tail = new_node;
+		}
+		list->length++;
+	}
+}
+
+int stream_list_delete(stream_list *list, void *data)
+{
+	stream_list_node *current = list->head;
+	while (current != NULL){
+		if (current->data == data){
+			if (current->prev != NULL){
+				current->prev->next = current->next;
+			}
+			else{
+				list->head = current->next;
+			}
+
+			if (current->next != NULL){
+				current->next->prev = current.prev;
+			}
+			else{
+				list->tail = current->prev;
+			}
+			xfree(current);
+			list->length--;
+			return 1;
+		}
+		current = current->next;
+	}
+	return 0;
+}
+
+// Implementation of structs for wget_quic and quic_stream
+
+typedef struct{
+	struct sockaddr_storage addr;
+	size_t size;
+}info_addr;
+
+struct wget_quic_st{
+	void *
+		ssl_session;
+	ngtcp2_conn *
+		conn;
+	int
+		sockfd,
+		timerfd;
+	info_addr *
+		local,
+		remote;
+	stream_queue *
+		streams;
+	bool
+		is_closed;
+}
+
+struct quic_stream_st{
+	int64_t id;
+	stream_list *buffer;
+	size_t sent_offset;
+	size_t ack_offset;
+}
+
+/*
+QUIC protocol integration with wget2 library.
+Initial Implemenations :
+
+wget_quic_connect
+wget_quic_read
+wget_quic_write
+
+*/
