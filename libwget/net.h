@@ -30,6 +30,7 @@
 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <ngtcp2/ngtcp2>
 #include <netdb.h>
 
 struct wget_tcp_st {
