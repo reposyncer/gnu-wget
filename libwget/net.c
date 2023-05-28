@@ -39,8 +39,10 @@
 #include <time.h>
 #include <errno.h>
 #include <sys/socket.h>
+#include <sys/timerfd.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <ngtcp2/ngtcp2.h>
 
 #ifdef HAVE_NETINET_TCP_H
 #	include <netinet/tcp.h>
@@ -1065,9 +1067,121 @@ void wget_tcp_close(wget_tcp *tcp)
 	}
 }
 
-
 /** @} */
 
+/* wget_quic getter and setter functions */
+
+void
+wget_quic_add_stream (wget_quic *quic, wget_quic_stream *stream)
+{
+  wget_list_append (quic->streams, stream, sizeof(stream));
+}
+
+wget_quic_stream *
+wget_quic_find_stream (wget_quic *quic, int64_t stream_id)
+{
+  for (void *l = (void *)wget_quic_get_streams(quic) + 1; l; l = wget_list_getnext(l))
+    {
+      wget_quic_stream *stream = (wget_quic_stream *)l;
+	  //Stream_get_id is not very good name. Write getter and setter functions for Stream as well.
+      if (stream_get_id (stream) == stream_id)
+        return stream;
+    }
+  return NULL;
+}
+
+ngtcp2_conn *
+wget_quic_get_ngtcp2_conn (wget_quic *quic)
+{
+  return quic->conn;
+}
+
+wget_list* wget_quic_get_streams(wget_quic *quic)
+{
+	return quic->streams;
+}
+
+void
+wget_quic_set_ngtcp2_conn (wget_quic *quic, ngtcp2_conn *conn)
+{
+  quic->conn = conn;
+}
+
+int
+wget_quic_get_socket_fd (wget_quic *quic)
+{
+  return quic->sockfd;
+}
+
+void
+wget_quic_set_socket_fd (wget_quic *quic, int socketfd)
+{
+  quic->sockfd = socketfd;
+}
+
+int
+wget_quic_get_timer_fd (wget_quic *quic)
+{
+  return quic->timerfd;
+}
+
+struct sockaddr *
+wget_quic_get_local_addr (wget_quic *quic, size_t *local_addrlen)
+{
+  *local_addrlen = quic->local->size;
+  return quic->local->addr;
+}
+
+void
+wget_quic_set_local_addr (wget_quic *quic,
+                           struct sockaddr *local_addr,
+                           size_t local_addrlen)
+{
+  memcpy (quic->local->addr, local_addr, local_addrlen);
+  quic->local->size = local_addrlen;
+}
+
+void
+wget_quic_set_remote_addr (wget_quic *quic,
+                           struct sockaddr *remote_addr,
+                           size_t remote_addrlen)
+{
+  memcpy (quic->remote->addr, remote_addr, remote_addrlen);
+  quic->remote->size = remote_addrlen;
+}
+
+void *
+wget_quic_get_ssl_session(wget_quic *quic)
+{
+	return quic->ssl_session;
+}
+
+void
+wget_quic_set_ssl_session(wget_quic *quic, void *session)
+{	
+	quic->ssl_session = session;
+}
+
+/* wget_quic_stream getter and setter and utlitly functions [Only Required Implemented as of Now] */
+int64_t 
+wget_quic_stream_get_id(wget_quic_stream *stream)
+{
+	return stream->id;
+}
+
+void
+wget_quic_stream_mark_acked (wget_quic_stream *stream, size_t offset)
+{
+  while (!wget_queue_is_empty (stream->buffer))
+    {
+      stream_byte *head  = wget_queue_peek (stream->buffer);
+      if (stream->ack_offset + stream_byte_get_size (head) > offset)
+        break;
+
+      stream->ack_offset += stream_byte_get_size (head);
+      head = stream_queue_dequeue (stream->buffer);
+    }
+}
 
 /*
 
@@ -1084,13 +1198,15 @@ Implementations :
 */
 
 //Bytes Implementation.
+//Apperently as per my observation, there is a ref count in the stream_byte.
+//This should handle duplicate data. Not yet handled in the implementation.
 typedef struct
 {
 	unsigned char* data;
 	size_t size;
 }stream_byte;
 
-stream_byte *stream_bytes_new(const unsigned char *data, size_t size)
+stream_byte *stream_byte_new(const unsigned char *data, size_t size)
 {
 	stream_byte *bytes = wget_malloc(sizeof(stream_byte));
 	if (bytes){
@@ -1105,221 +1221,184 @@ stream_byte *stream_bytes_new(const unsigned char *data, size_t size)
 	return bytes;
 }
 
-size_t stream_bytes_get_size(const stream_byte *bytes)
+size_t stream_byte_get_size(const stream_byte *bytes)
 {
 	return bytes->size;
 }
 
-const unsigned char *stream_bytes_get_data(const stream_byte* bytes)
+const unsigned char *stream_byte_get_data(const stream_byte* bytes)
 {
 	return bytes->data;
 }
 
-void stream_bytes_free(stream_byte *bytes)
+void stream_byte_free(stream_byte *bytes)
 {
-	xfree((void *)bytes->data);
+	xfree(bytes->data);
 	xfree(bytes);
 }
 
-typedef struct
+/* Helper Function for Setting quic_connect */
+uint64_t
+timestamp (void)
 {
-	void *data;
-	struct stream_queue_node *next;
-}stream_queue_node;
+  struct timespec tp;
 
-//Queue Implementation.
+  if (clock_gettime (CLOCK_MONOTONIC, &tp) < 0)
+    return 0;
 
-typedef struct
-{
-	stream_queue_node *head;
-	stream_queue_node *tail;
-}stream_queue;
-
-stream_queue *stream_queue_new()
-{
-	stream_queue *queue = wget_malloc(sizeof(stream_queue));
-	if (queue){
-		queue->head = NULL;
-		queue->tail = NULL;
-	}
-	return queue;
+  return (uint64_t)tp.tv_sec * NGTCP2_SECONDS + (uint64_t)tp.tv_nsec;
 }
 
-void stream_queue_free(stream_queue *queue)
+/* Callback functions for ngtcp2 */
+static int
+recv_stream_data_cb (ngtcp2_conn *conn __attribute__((unused)),
+		     uint32_t flags __attribute__((unused)),
+		     int64_t stream_id,
+                     uint64_t offset __attribute__((unused)),
+		     const uint8_t *data, size_t datalen,
+                     void *user_data __attribute__((unused)),
+		     void *stream_user_data __attribute__((unused)))
 {
-	while (queue->head != NULL){
-		stream_queue_node *temp = queue->head;
-		queue->head = queue->head->next;
-		xfree(temp);
-	}
-	xfree(queue);
+  write (STDOUT_FILENO, data, datalen);
+  return 0;
 }
 
-void stream_queue_enqueue(stream_queue *queue, void *data)
+static int
+acked_stream_data_offset_cb (ngtcp2_conn *conn __attribute__((unused)),
+			     int64_t stream_id,
+                             uint64_t offset, uint64_t datalen,
+                             void *user_data,
+			     void *stream_user_data __attribute__((unused)))
 {
-	stream_queue_node *new_node = wget_malloc(sizeof(stream_queue_node));
-	if (new_node){
-		new_node->data = data;
-		new_node->next = NULL;
-
-		if (queue->tail == NULL){
-			queue->head = new_node;
-			queue->tail = new_node;
-		}
-		else{
-			queue->tail->next = new_node;
-			queue->tail = new_node;
-		}
-	}
+  wget_quic *connection = user_data;
+  wget_quic_stream *stream = wget_quic_find_stream (connection, stream_id);
+  if (stream)
+    wget_quic_stream_mark_acked (stream, offset + datalen);
+  return 0;
 }
 
-void *stream_queue_peek_head(stream_queue *queue)
+static const ngtcp2_callbacks callbacks = 
 {
-	if (queue->head){
-		return queue->head->data;
-	}
-	return NULL;
-}
+    /* Use the default implementation from ngtcp2_crypto */
+    .client_initial = ngtcp2_crypto_client_initial_cb,
+    .recv_crypto_data = ngtcp2_crypto_recv_crypto_data_cb,
+    .encrypt = ngtcp2_crypto_encrypt_cb,
+    .decrypt = ngtcp2_crypto_decrypt_cb,
+    .hp_mask = ngtcp2_crypto_hp_mask_cb,
+    .recv_retry = ngtcp2_crypto_recv_retry_cb,
+    .update_key = ngtcp2_crypto_update_key_cb,
+    .delete_crypto_aead_ctx = ngtcp2_crypto_delete_crypto_aead_ctx_cb,
+    .delete_crypto_cipher_ctx = ngtcp2_crypto_delete_crypto_cipher_ctx_cb,
+    .get_path_challenge_data = ngtcp2_crypto_get_path_challenge_data_cb,
 
-bool stream_queue_is_empty(stream_queue *queue)
+	/*These callback functions implemented in same file above*/
+    .acked_stream_data_offset = acked_stream_data_offset_cb,
+    .recv_stream_data = recv_stream_data_cb,
+	/*These both functions are present in the ssl_gnutls.c*/
+    .rand = rand_cb,
+    .get_new_connection_id = get_new_connection_id_cb,
+};
+
+/**
+ * \param[in] quic A `wget_quic` structure representing a QUIC connection.
+ * \param[in] host Hostname or IP to connect to.
+ * \param[in] port Port Number.
+ * 
+ * As of now, it is considered that the host is already resolved. 
+ * No DNS is used currently.
+*/
+
+int wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 {
-	if (queue->head)
-		return false;
-	else
-		return true;
-}
+	struct addrinfo ai_hints, *ai_res, *ai_rp;
+	int ret, fd;
 
-void *stream_queue_dequeue(stream_queue *queue)
-{
-	if (queue->head == NULL){
-		return;
-	}
+	memset(&ai_hints, 0 , sizeof(ai_hints));
+	ai_hints.ai_family = AF_UNSPEC;
+	ai_hints.ai_socktype = SOCK_DGRAM;
 
-	stream_queue_node node = queue->head;
-	void *data = node.data;
-	node.data = NULL;
-	queue->head = queue->head->next;
-	if (queue->head == NULL){
-		queue->tail = NULL;
-	}
-	xfree(node);
-	return data;
-}
+	/*
+		In the tcp_connect the getaddrinfo is actually done using a DNS.
+		Get Insights about how to configure DNS.
+	*/
+	ret = getaddrinfo(host, port, &ai_hints, &ai_res);
+	if (ret != 0)
+		return WGET_E_UNKNOWN;
+	
+	for (ai_rp = ai_res ; ai_rp != NULL ; ai_rp = ai_rp->ai_next){
+		fd = socket(ai_rp->ai_family, ai_rp->ai_socktype | SOCK_NONBLOCK, ai_rp->ai_protocol);
+		if (fd == -1)
+			continue;
+		/*
+			Some Options are set as a part of TCP in tcp_connect.
+			Is any more configuration required here? To be explored.
+		*/
+		if (connect(fd, ai_rp->ai_addr, ai_rp->ai_addrlen) == 0){
+			quic->remote->size= ai_rp->ai_addrlen;
+			memcpy(quic->remote->addr, ai_rp->ai_addr, ai_rp->ai_addrlen);
+			socklen_t len = (socklen_t)quic->local->size;
 
-// List Implementation
+			wget_quic_set_socket_fd(quic, fd);
 
-typedef struct
-{
-	void *data;
-	struct stream_list_node *next;
-	struct stream_list_node *prev;
-}stream_list_node;
-
-typedef struct {
-	stream_list_node *head;
-	stream_list_node *tail;
-	size_t length;
-}stream_list;
-
-stream_list *stream_list_new()
-{
-	stream_list *list = wget_malloc(sizeof(stream_list));
-	if (list){
-		list->head = NULL;
-		list->tail = NULL;
-		list->length = 0;
-	}
-	return list;
-}
-
-void stream_list_free(stream_list *list)
-{
-	stream_list_node *current = list->head;
-	stream_list_node *next = NULL;
-	while (current){
-		next = current->next;
-		xfree(current);
-		current = next;
-	}
-	xfree(list);
-}
-
-void stream_list_append(stream_list *list, void *data)
-{
-	stream_list_node *new_node = wget_malloc(sizeof(stream_list_node));
-	if (new_node){
-		new_node->data = data;
-		new_node->prev = list->tail;
-		new_node->next = NULL;
-
-		if (list->tail == NULL){
-			list->head = new_node;
-			list->tail = new_node;
-		}
-		else{
-			list->tail->next = new_node;
-			list->tail = new_node;
-		}
-		list->length++;
-	}
-}
-
-int stream_list_delete(stream_list *list, void *data)
-{
-	stream_list_node *current = list->head;
-	while (current != NULL){
-		if (current->data == data){
-			if (current->prev != NULL){
-				current->prev->next = current->next;
+			if(getsockname(fd, quic->local->addr, &len) == -1){
+				return WGET_E_UNKNOWN;
 			}
-			else{
-				list->head = current->next;
-			}
+			quic->local->size = len;
 
-			if (current->next != NULL){
-				current->next->prev = current.prev;
-			}
-			else{
-				list->tail = current->prev;
-			}
-			xfree(current);
-			list->length--;
-			return 1;
+			void* session = wget_ssl_quic_open(quic);
+
+			wget_quic_set_ssl_session(quic, session);
+
+			ngtcp2_path path =
+			{
+				.local = {
+					.addrlen = quic->local->size,
+					.addr = quic->local->addr
+				},
+				.remote = {
+					.addrlen = quic->remote->size,
+					.addr = quic->remote->addr
+				}
+			};
+
+			ngtcp2_settings settings;
+			ngtcp2_settings_default (&settings);
+			settings.initial_ts = timestamp ();
+			//Dont know what exacty to do with the log_printf.
+			settings.log_printf = log_printf;
+
+			ngtcp2_transport_params params;
+			ngtcp2_transport_params_default (&params);
+			//As of now kept them the same. Wanted to know what all changes should be done.
+			params.initial_max_streams_uni = 3;
+			params.initial_max_stream_data_bidi_local = 128 * 1024;
+			params.initial_max_data = 1024 * 1024;	
+
+			ngtcp2_cid scid, dcid;
+			if (get_random_cid (&scid) < 0 || get_random_cid (&dcid) < 0)
+				error_printf(_("get_random_cid failed\n"));
+
+			ngtcp2_conn *conn = NULL;
+
+			//MEM named parameter is passed NULL here. Why?
+			ngtcp2_conn_client_new(&conn, &dcid, &scid, &path,
+										NGTCP2_PROTO_VER_V1,
+										&callbacks, &settings, &params, NULL,
+										quic);
+			
+			wget_quic_set_ngtcp2_conn(quic, conn);
+			wget_ssl_quic_setup(session, conn);
+
+			quic->timerfd = timerfd_create (CLOCK_MONOTONIC, TFD_NONBLOCK);
+
+			break;
 		}
-		current = current->next;
+		close(fd);
 	}
+	freeaddrinfo(ai_res);
+	if (ai_rp == NULL)
+		return WGET_E_UNKNOWN;
 	return 0;
-}
-
-// Implementation of structs for wget_quic and quic_stream
-
-typedef struct{
-	struct sockaddr_storage addr;
-	size_t size;
-}info_addr;
-
-struct wget_quic_st{
-	void *
-		ssl_session;
-	ngtcp2_conn *
-		conn;
-	int
-		sockfd,
-		timerfd;
-	info_addr *
-		local,
-		remote;
-	stream_queue *
-		streams;
-	bool
-		is_closed;
-}
-
-struct quic_stream_st{
-	int64_t id;
-	stream_list *buffer;
-	size_t sent_offset;
-	size_t ack_offset;
 }
 
 /*
