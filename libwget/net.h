@@ -30,7 +30,8 @@
 
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <ngtcp2/ngtcp2>
+#include <ngtcp2/ngtcp2.h>
+#include <ngtcp2/ngtcp2_crypto.h>
 #include <netdb.h>
 
 struct wget_tcp_st {
@@ -69,5 +70,37 @@ struct wget_tcp_st {
 		tcp_fastopen : 1, // do we use TCP_FASTOPEN or not
 		first_send : 1; // TCP_FASTOPEN's first packet is sent different
 };
+
+typedef struct{
+	struct sockaddr *addr;
+	size_t size;
+}info_addr;
+
+typedef struct{
+	int64_t id;
+	wget_queue *buffer;
+	size_t sent_offset;
+	size_t ack_offset;
+}wget_quic_stream_st;
+
+struct wget_quic_st{
+	void *
+		ssl_session;
+	ngtcp2_conn *
+		conn;
+	int
+		sockfd,
+		timerfd;
+	info_addr *
+		local,
+		* remote;
+	wget_list *
+		streams;
+	bool
+		is_closed;
+};
+
+typedef struct wget_quic_st wget_quic;
+typedef wget_quic_stream_st wget_quic_stream;
 
 #endif /* LIBWGET_NET_H */
