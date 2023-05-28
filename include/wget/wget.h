@@ -402,6 +402,20 @@ WGETAPI ssize_t
  * Type for double linked lists and list entries.
  */
 typedef struct wget_list_st wget_list;
+
+/**
+ * \ingroup libwget-queue
+ *
+ * Type for queue using linked list.
+ */
+struct wget_queue_node {
+	struct wget_queue_node
+		*next,
+		*prev;
+}wget_queue_node;
+
+typedef struct wget_queue_st wget_queue;
+
 typedef int wget_list_browse_fn(void *context, void *elem);
 
 WGETAPI void * NULLABLE
