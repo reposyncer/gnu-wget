@@ -1883,7 +1883,7 @@ WGETAPI void
 WGETAPI wget_dns_cache * NULLABLE
 	wget_dns_get_cache(wget_dns *dns) WGET_GCC_PURE;
 WGETAPI struct addrinfo * NULLABLE
-	wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port, int family, int preferred_family);
+	wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port, int family, int preferred_family, int connection_type);
 WGETAPI void
 	wget_dns_freeaddrinfo(wget_dns *dns, struct addrinfo **addrinfo);
 WGETAPI int
@@ -1899,6 +1899,13 @@ WGETAPI int
 
 #define WGET_PROTOCOL_HTTP_1_1  0
 #define WGET_PROTOCOL_HTTP_2_0  1
+
+/**
+ * wget2 Connection Types 
+*/
+
+#define WGET_TCP_CONNECTION  0
+#define WGET_QUIC_CONNECTION 1
 
 typedef struct wget_tcp_st wget_tcp;
 

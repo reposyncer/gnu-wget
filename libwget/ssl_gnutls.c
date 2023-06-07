@@ -1349,6 +1349,10 @@ void wget_ssl_init(void)
 		if (config.ca_directory && *config.ca_directory && config.check_certificate) {
 #if GNUTLS_VERSION_NUMBER >= 0x03000d
 			if (!strcmp(config.ca_directory, "system")) {
+				//Looks for places on the system where the certificates are stored.
+				//Different for different systems.
+				//Gets the file from paths already specified in the lib.
+				//Depending on the option specified on the user.
 				ncerts = gnutls_certificate_set_x509_system_trust(credentials);
 				if (ncerts < 0)
 					debug_printf("GnuTLS system certificate store error %d\n", ncerts);
@@ -2339,6 +2343,14 @@ wget_ssl_quic_setup(void *session_gnutls, ngtcp2_conn *conn)
 
 	gnutls_server_name_set (session, GNUTLS_NAME_DNS, "localhost",
 							sizeof("localhost")-1);
+	
+	/*
+		if (hostname) {
+			gnutls_server_name_set(session, GNUTLS_NAME_DNS, hostname, strlen(hostname));
+			debug_printf("SNI %s\n", hostname);
+		}
+		Check if this is valid.
+	*/
 
 	ngtcp2_conn_set_tls_native_handle (conn, session);
 	gnutls_session_set_ptr(session, conn);
@@ -2364,11 +2376,15 @@ wget_ssl_quic_open(wget_quic *quic)
 	
 	sockfd= quic->sockfd;
 
-	//Flags directly from Quic-Echo. More Flags can be explored depending on version of GNUTLS maybe. 
+	//Flags directly from Quic-Echo. More Flags can be explored depending on version of GNUTLS maybe.
+	//It would be okay to search. Not top priority. 
 	gnutls_init(&session, GNUTLS_CLIENT | GNUTLS_ENABLE_EARLY_DATA | GNUTLS_NO_END_OF_EARLY_DATA);
 	//As of now PRIO set directly.
+	//Does quic imposes any limits on Ciphers which we pass? To be explored.
 	gnutls_priority_set_direct(session, PRIO, NULL);
 	//This string of ca.pem will be replaced.
+	//Check the mail to have all the certificated present on the system. 
+	//This can help me adding certificated to the function dynamically using config.
 	gnutls_credentials_set(session, GNUTLS_CRD_CERTIFICATE, './ca.pem');
 	return &session;
 }

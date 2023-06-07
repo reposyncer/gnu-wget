@@ -238,9 +238,9 @@ static int getaddrinfo_merging(const char *host, const char *s_port, struct addr
 }
 
 // we can't provide a portable way of respecting a DNS timeout
-static int resolve(int family, int flags, const char *host, uint16_t port, struct addrinfo **out_addr)
+static int resolve(int family, int flags, const char *host, uint16_t port, struct addrinfo **out_addr, int connection_type)
 {
-	struct addrinfo hints = {
+	struct addrinfo hints[] = {
 		.ai_family = family,
 		.ai_socktype = 0,
 		.ai_flags = AI_ADDRCONFIG | flags
@@ -264,7 +264,6 @@ static int resolve(int family, int flags, const char *host, uint16_t port, struc
 			debug_printf("resolving :%s...\n", s_port);
 	} else {
 		debug_printf("resolving %s...\n", host);
-	}
 
 	/*
 	 * .ai_socktype = 0, which would give us all the available socket types,
@@ -335,6 +334,7 @@ int wget_dns_cache_ip(wget_dns *dns, const char *ip, const char *name, uint16_t 
  * \param[in] port TCP destination port
  * \param[in] family Protocol family AF_INET or AF_INET6
  * \param[in] preferred_family Preferred protocol family AF_INET or AF_INET6
+ * \param[in] connection_type Type of connection (TCP/QUIC) that is currently being used by wget
  * \return A `struct addrinfo` structure (defined in libc's `<netdb.h>`). Must be freed by the caller with `wget_dns_freeaddrinfo()`.
  *
  * Resolve a host name into its IPv4/IPv6 address.
@@ -349,7 +349,7 @@ int wget_dns_cache_ip(wget_dns *dns, const char *ip, const char *name, uint16_t 
  *
  *  The returned `addrinfo` structure must be freed with `wget_dns_freeaddrinfo()`.
  */
-struct addrinfo *wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port, int family, int preferred_family)
+struct addrinfo *wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port, int family, int preferred_family, int connection_type)
 {
 	struct addrinfo *addrinfo = NULL;
 	int rc = 0;
@@ -381,7 +381,7 @@ struct addrinfo *wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port
 
 		addrinfo = NULL;
 
-		rc = resolve(family, 0, host, port, &addrinfo);
+		rc = resolve(family, 0, host, port, &addrinfo, connection_type);
 		if (rc == 0 || rc != EAI_AGAIN)
 			break;
 
