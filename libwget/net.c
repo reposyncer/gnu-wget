@@ -421,6 +421,8 @@ int wget_tcp_get_timeout(wget_tcp *tcp)
  * The hostname can explicitly set the port after a colon (':').
  *
  * This is mainly relevant to wget_tcp_connect().
+ * 
+ * Can be generelised for TCP and QUIC. Pending.
  */
 void wget_tcp_set_bind_address(wget_tcp *tcp, const char *bind_address)
 {
@@ -456,9 +458,9 @@ void wget_tcp_set_bind_address(wget_tcp *tcp, const char *bind_address)
 			wget_strscpy(port, s + 1, sizeof(port));
 
 			if (c_isdigit(*port))
-				tcp->bind_addrinfo = wget_dns_resolve(tcp->dns, host, (uint16_t) atoi(port), tcp->family, tcp->preferred_family);
+				tcp->bind_addrinfo = wget_dns_resolve(tcp->dns, host, (uint16_t) atoi(port), tcp->family, tcp->preferred_family, WGET_TCP_CONNECTION);
 		} else {
-			tcp->bind_addrinfo = wget_dns_resolve(tcp->dns, host, 0, tcp->family, tcp->preferred_family);
+			tcp->bind_addrinfo = wget_dns_resolve(tcp->dns, host, 0, tcp->family, tcp->preferred_family, WGET_TCP_CONNECTION);
 		}
 	}
 }
@@ -750,7 +752,7 @@ int wget_tcp_connect(wget_tcp *tcp, const char *host, uint16_t port)
 	wget_dns_freeaddrinfo(tcp->dns, &tcp->addrinfo);
 	xfree(tcp->host);
 
-	tcp->addrinfo = wget_dns_resolve(tcp->dns, host, port, tcp->family, tcp->preferred_family);
+	tcp->addrinfo = wget_dns_resolve(tcp->dns, host, port, tcp->family, tcp->preferred_family, WGET_TCP_CONNECTION);
 	tcp->remote_port = port;
 
 	for (ai = tcp->addrinfo; ai; ai = ai->ai_next) {
@@ -1301,28 +1303,23 @@ static const ngtcp2_callbacks callbacks =
  * \param[in] host Hostname or IP to connect to.
  * \param[in] port Port Number.
  * 
- * As of now, it is considered that the host is already resolved. 
- * No DNS is used currently.
+ * Dubug is not used as of now as used in the wget_tcp_connect
 */
 
 int wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 {
-	struct addrinfo ai_hints, *ai_res, *ai_rp;
+	struct addrinfo *ai_rp;
 	int ret, fd;
 
-	memset(&ai_hints, 0 , sizeof(ai_hints));
-	ai_hints.ai_family = AF_UNSPEC;
-	ai_hints.ai_socktype = SOCK_DGRAM;
+	if (unlikely(!quic))
+		return WGET_E_INVALID;
 
-	/*
-		In the tcp_connect the getaddrinfo is actually done using a DNS.
-		Get Insights about how to configure DNS.
-	*/
-	ret = getaddrinfo(host, port, &ai_hints, &ai_res);
-	if (ret != 0)
-		return WGET_E_UNKNOWN;
+	wget_dns_freeaddrinfo(quic->dns, &quic->addrinfo);
+	xfree(quic->host);
+
+	quic->addrinfo = wget_dns_resolve(quic->dns, host, port, quic->family, quic->preferred_family, WGET_QUIC_CONNECTION);
 	
-	for (ai_rp = ai_res ; ai_rp != NULL ; ai_rp = ai_rp->ai_next){
+	for (ai_rp = quic->addrinfo ; ai_rp != NULL ; ai_rp = ai_rp->ai_next){
 		fd = socket(ai_rp->ai_family, ai_rp->ai_socktype | SOCK_NONBLOCK, ai_rp->ai_protocol);
 		if (fd == -1)
 			continue;
@@ -1367,6 +1364,7 @@ int wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 			ngtcp2_transport_params params;
 			ngtcp2_transport_params_default (&params);
 			//As of now kept them the same. Wanted to know what all changes should be done.
+			//Keep it as they are as of now. Can be changed.
 			params.initial_max_streams_uni = 3;
 			params.initial_max_stream_data_bidi_local = 128 * 1024;
 			params.initial_max_data = 1024 * 1024;	
@@ -1392,7 +1390,6 @@ int wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 		}
 		close(fd);
 	}
-	freeaddrinfo(ai_res);
 	if (ai_rp == NULL)
 		return WGET_E_UNKNOWN;
 	return 0;
