@@ -223,25 +223,25 @@ static struct addrinfo *sort_preferred(struct addrinfo *addrinfo, int preferred_
 }
 
 // we can't provide a portable way of respecting a DNS timeout
-static int resolve(int family, int flags, const char *host, uint16_t port, struct addrinfo **out_addr)
+static int resolve(int family, int flags, const char *host, uint16_t port, struct addrinfo **out_addr, int connection_type)
 {
-	struct addrinfo hints = {
+	struct addrinfo hints[] = {{
 		.ai_family = family,
 		.ai_socktype = 0,
 		.ai_flags = AI_ADDRCONFIG | flags
-	};
+	}};
 
 	if (port) {
 		char s_port[NI_MAXSERV];
 
-		hints.ai_flags |= AI_NUMERICSERV;
+		hints[connection_type].ai_flags |= AI_NUMERICSERV;
 
 		wget_snprintf(s_port, sizeof(s_port), "%hu", port);
 		debug_printf("resolving %s:%s...\n", host ? host : "", s_port);
-		return getaddrinfo(host, s_port, &hints, out_addr);
+		return getaddrinfo(host, s_port, &hints[connection_type], out_addr);
 	} else {
 		debug_printf("resolving %s...\n", host);
-		return getaddrinfo(host, NULL, &hints, out_addr);
+		return getaddrinfo(host, NULL, &hints[connection_type], out_addr);
 	}
 }
 
@@ -270,7 +270,7 @@ int wget_dns_cache_ip(wget_dns *dns, const char *ip, const char *name, uint16_t 
 	} else
 		return WGET_E_INVALID;
 
-	if ((rc = resolve(family, AI_NUMERICHOST, ip, port, &ai)) != 0) {
+	if ((rc = resolve(family, AI_NUMERICHOST, ip, port, &ai, WGET_TCP_CONNECTION)) != 0) {
 		error_printf(_("Failed to resolve '%s:%d': %s\n"), ip, port, gai_strerror(rc));
 		return WGET_E_UNKNOWN;
 	}
@@ -289,6 +289,7 @@ int wget_dns_cache_ip(wget_dns *dns, const char *ip, const char *name, uint16_t 
  * \param[in] port TCP destination port
  * \param[in] family Protocol family AF_INET or AF_INET6
  * \param[in] preferred_family Preferred protocol family AF_INET or AF_INET6
+ * \param[in] connection_type Type of connection (TCP/QUIC) that is currently being used by wget
  * \return A `struct addrinfo` structure (defined in libc's `<netdb.h>`). Must be freed by the caller with `wget_dns_freeaddrinfo()`.
  *
  * Resolve a host name into its IPv4/IPv6 address.
@@ -303,7 +304,7 @@ int wget_dns_cache_ip(wget_dns *dns, const char *ip, const char *name, uint16_t 
  *
  *  The returned `addrinfo` structure must be freed with `wget_dns_freeaddrinfo()`.
  */
-struct addrinfo *wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port, int family, int preferred_family)
+struct addrinfo *wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port, int family, int preferred_family, int connection_type)
 {
 	struct addrinfo *addrinfo = NULL;
 	int rc = 0;
@@ -335,7 +336,7 @@ struct addrinfo *wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port
 
 		addrinfo = NULL;
 
-		rc = resolve(family, 0, host, port, &addrinfo);
+		rc = resolve(family, 0, host, port, &addrinfo, connection_type);
 		if (rc == 0 || rc != EAI_AGAIN)
 			break;
 
