@@ -84,18 +84,31 @@ typedef struct{
 }wget_quic_stream_st;
 
 struct wget_quic_st{
-	void *
-		ssl_session;
-	ngtcp2_conn *
-		conn;
+	void
+		*ssl_session;
+	ngtcp2_conn
+		*conn;
 	int
 		sockfd,
-		timerfd;
-	info_addr *
-		local,
-		* remote;
-	wget_list *
-		streams;
+		timerfd,
+		family,
+		preferred_family,
+		protocol;
+	info_addr 
+		*local,
+		*remote;
+	/* 
+		Added this so as to accomodate with existing DNS function.
+		Planning to go with this. Will replace the info_addr struct as and when the further code is edited.
+	*/
+	const char
+		*host;
+	struct addrinfo *
+		addrinfo;
+	wget_list
+		*streams;
+	wget_dns
+		*dns;
 	bool
 		is_closed;
 };
