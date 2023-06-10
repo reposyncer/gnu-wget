@@ -128,12 +128,13 @@ static struct config {
 #ifdef WITH_LIBNGHTTP2
 	.alpn = "h2,http/1.1",
 #endif
+/*
+	As of now a sample alpn for http3 defined for usage
+*/
+#ifdef WITH_LIBNGHTTP3
+	.alpn = "h3"
+#endif
 };
-
-#define PRIO "NORMAL:-VERS-ALL:+VERS-TLS1.3:" \
-  "-CIPHER-ALL:+AES-128-GCM:+AES-256-GCM:+CHACHA20-POLY1305:+AES-128-CCM:" \
-  "-GROUP-ALL:+GROUP-SECP256R1:+GROUP-X25519:+GROUP-SECP384R1:+GROUP-SECP521R1:" \
-  "%DISABLE_TLS13_COMPAT_MODE"
 
 struct session_context {
 	const char *
@@ -1332,7 +1333,7 @@ static void set_credentials(gnutls_certificate_credentials_t creds)
  * This function may be called several times. Only the first call really
  * takes action.
  */
-void wget_ssl_init(void)
+void wget_ssl_init(int connection_protocol)
 {
 	tls_init();
 
@@ -1360,7 +1361,12 @@ void wget_ssl_init(void)
 					debug_printf("GnuTLS system certificate store is empty\n");
 			}
 #endif
-
+			/*
+				While initialising the application, we can also give a certificate
+				and so this code should be same for both quic as well as tcp.
+				Also if the certificate used for quic is present in the system files 
+				then it is great. To verify this.
+			*/
 			if (ncerts < 0) {
 				DIR *dir;
 
@@ -1403,6 +1409,12 @@ void wget_ssl_init(void)
 			}
 		}
 
+		/*
+			Basically to list all the certificates that have been issued.
+			This isnt seen in any of the repo in usage.
+			But this will also be common with for quic as well as tcp.
+		*/
+
 		if (config.crl_file) {
 			if ((rc = gnutls_certificate_set_x509_crl_file(credentials, config.crl_file, GNUTLS_X509_FMT_PEM)) <= 0)
 				error_printf(_("Failed to load CRL '%s': (%d)\n"), config.crl_file, rc);
@@ -1412,82 +1424,89 @@ void wget_ssl_init(void)
 
 		debug_printf("Certificates loaded: %d\n", ncerts);
 
-		if (config.secure_protocol) {
-			const char *priorities = NULL;
+		/*
+			The values here seem to be a bit different from those
+			used in the PRIO macro. Here depending on connection type
+			given as a macro the assignment of const char* priorities
+			will be seperated. 
+			As of now for the quic, no checking is done and of the
+			connection protocol is quic than the "NORMAL:-VERS-ALL" TLS13_PRIO is used. 
+		*/
 
-			if (!wget_strcasecmp_ascii(config.secure_protocol, "PFS")) {
-				priorities = "PFS:-VERS-SSL3.0";
-				// -RSA to force DHE/ECDHE key exchanges to have Perfect Forward Secrecy (PFS))
-				if ((rc = gnutls_priority_init(&priority_cache, priorities, NULL)) != GNUTLS_E_SUCCESS) {
-					priorities = "NORMAL:-RSA:-VERS-SSL3.0";
-					rc = gnutls_priority_init(&priority_cache, priorities, NULL);
-				}
-			} else {
+		if (connection_protocol == WGET_TCP_CONNECTION){
+			if (config.secure_protocol) {
+				const char *priorities = NULL;
+
+				if (!wget_strcasecmp_ascii(config.secure_protocol, "PFS")) {
+					priorities = "PFS:-VERS-SSL3.0";
+					// -RSA to force DHE/ECDHE key exchanges to have Perfect Forward Secrecy (PFS))
+					if ((rc = gnutls_priority_init(&priority_cache, priorities, NULL)) != GNUTLS_E_SUCCESS) {
+						priorities = "NORMAL:-RSA:-VERS-SSL3.0";
+						rc = gnutls_priority_init(&priority_cache, priorities, NULL);
+					}
+				} else {
 #if GNUTLS_VERSION_NUMBER >= 0x030603
 #define TLS13_PRIO ":+VERS-TLS1.3"
 #else
 #define TLS13_PRIO ""
 #endif
-				if (!wget_strncasecmp_ascii(config.secure_protocol, "SSL", 3))
-					priorities = "NORMAL:-VERS-TLS-ALL:+VERS-SSL3.0";
-				else if (!wget_strcasecmp_ascii(config.secure_protocol, "TLSv1"))
-					priorities = "NORMAL:-VERS-SSL3.0" TLS13_PRIO;
-				else if (!wget_strcasecmp_ascii(config.secure_protocol, "TLSv1_1"))
-					priorities = "NORMAL:-VERS-SSL3.0:-VERS-TLS1.0" TLS13_PRIO;
-				else if (!wget_strcasecmp_ascii(config.secure_protocol, "TLSv1_2"))
-					priorities = "NORMAL:-VERS-SSL3.0:-VERS-TLS1.0:-VERS-TLS1.1" TLS13_PRIO;
-				else if (!wget_strcasecmp_ascii(config.secure_protocol, "TLSv1_3"))
-					priorities = "NORMAL:-VERS-SSL3.0:-VERS-TLS1.0:-VERS-TLS1.1:-VERS-TLS1.2" TLS13_PRIO;
-				else if (!wget_strcasecmp_ascii(config.secure_protocol, "auto")) {
-					/* use system default, priorities = NULL */
-				} else if (*config.secure_protocol)
-					priorities = config.secure_protocol;
+					if (!wget_strncasecmp_ascii(config.secure_protocol, "SSL", 3))
+						priorities = "NORMAL:-VERS-TLS-ALL:+VERS-SSL3.0";
+					else if (!wget_strcasecmp_ascii(config.secure_protocol, "TLSv1"))
+						priorities = "NORMAL:-VERS-SSL3.0" TLS13_PRIO;
+					else if (!wget_strcasecmp_ascii(config.secure_protocol, "TLSv1_1"))
+						priorities = "NORMAL:-VERS-SSL3.0:-VERS-TLS1.0" TLS13_PRIO;
+					else if (!wget_strcasecmp_ascii(config.secure_protocol, "TLSv1_2"))
+						priorities = "NORMAL:-VERS-SSL3.0:-VERS-TLS1.0:-VERS-TLS1.1" TLS13_PRIO;
+					else if (!wget_strcasecmp_ascii(config.secure_protocol, "TLSv1_3"))
+						priorities = "NORMAL:-VERS-SSL3.0:-VERS-TLS1.0:-VERS-TLS1.1:-VERS-TLS1.2" TLS13_PRIO;
+					else if (!wget_strcasecmp_ascii(config.secure_protocol, "auto")) {
+						/* use system default, priorities = NULL */
+					} else if (*config.secure_protocol)
+						priorities = config.secure_protocol;
 
-				rc = gnutls_priority_init(&priority_cache, priorities, NULL);
+					rc = gnutls_priority_init(&priority_cache, priorities, NULL);
+				}
+
+				if (rc != GNUTLS_E_SUCCESS)
+					error_printf(_("GnuTLS: Unsupported priority string '%s': %s\n"), priorities ? priorities : "(null)", gnutls_strerror(rc));
+			} else {
+				// use GnuTLS defaults, which might hold insecure ciphers
+				if ((rc = gnutls_priority_init(&priority_cache, NULL, NULL)))
+					error_printf(_("GnuTLS: Unsupported default priority 'NULL': %s\n"), gnutls_strerror(rc));
 			}
+		}
+		else if (connection_protocol == WGET_QUIC_CONNECTION){
+			if (config.secure_protocol){
+				const char *priorities = NULL;
+#if GNUTLS_VERSION_NUMBER >= 0x030603
+#define TLS13_PRIO ":+VERS-TLS1.3:" \
+  "-CIPHER-ALL:+AES-128-GCM:+AES-256-GCM:+CHACHA20-POLY1305:+AES-128-CCM:" \
+  "-GROUP-ALL:+GROUP-SECP256R1:+GROUP-X25519:+GROUP-SECP384R1:+GROUP-SECP521R1:" \
+  "%DISABLE_TLS13_COMPAT_MODE"
 
-			if (rc != GNUTLS_E_SUCCESS)
-				error_printf(_("GnuTLS: Unsupported priority string '%s': %s\n"), priorities ? priorities : "(null)", gnutls_strerror(rc));
-		} else {
-			// use GnuTLS defaults, which might hold insecure ciphers
-			if ((rc = gnutls_priority_init(&priority_cache, NULL, NULL)))
-				error_printf(_("GnuTLS: Unsupported default priority 'NULL': %s\n"), gnutls_strerror(rc));
+#else
+#define TLS13_PRIO ""
+#endif
+				/*
+					Should all the ciphers be defined here itself?
+					To be clarified.
+				*/
+				priorities = "NORMAL:-VERS-ALL" TLS13_PRIO;	
+				rc = gnutls_priority_init(&priority_cache, priorities, NULL);
+				if (rc != GNUTLS_E_SUCCESS)
+					error_printf(_("GnuTLS: Unsupported priority string '%s': %s\n"), priorities ? priorities : "(null)", gnutls_strerror(rc));
+
+			}else {
+				// use GnuTLS defaults, which might hold insecure ciphers
+				if ((rc = gnutls_priority_init(&priority_cache, NULL, NULL)))
+					error_printf(_("GnuTLS: Unsupported default priority 'NULL': %s\n"), gnutls_strerror(rc));
+			}
 		}
 
 		init++;
 
 		debug_printf("GnuTLS init done\n");
-	}
-
-	wget_thread_mutex_unlock(mutex);
-}
-
-//No error checking deployed as of now. Not exactly clear where to redirect the system if a functions fails.
-//This is a very basic skeleton of SSL initialisation for QUIC.
-void wget_ssl_quic_init()
-{
-	tls_init();
-
-	wget_thread_mutex_lock(mutex);
-
-	if (!quic_init){
-
-		debug_printf("GnuTLS init\n");
-		gnutls_global_init();
-		int ret = gnutls_certificate_allocate_credentials(&quic_credentials);
-		//Skipped setting the credential_set_verify_function. Will add when verify_certificate_callback for quic is ready.
-		//As of now added the certificate and key manually till config is not configured. Also figure out a way to provide the keys dynamically.
-		//As of now, saved in the same folder and read from there directly.
-		//The previous tls init reads all the certificates present in the system and iterates over them and after some checks passes the file to this function. 
-		//The path to certificate file is not exact. It will be passed via config in pthe following commits. 
-		gnutls_certificate_set_x509_trust_file(quic_credentials, './ca.pem', GNUTLS_X509_FMT_PEM);
-		//Also a CRL certificate is set here. To know if it can be required here.
-		//If there is a case created if the key and the certificate can be used simultaneously then the "set_credentials" function is utilised.
-		//Priority Set Up is not done here.
-		quic_init++;
-
-		debug_printf("GnuTLS quic init done\n");
-
 	}
 
 	wget_thread_mutex_unlock(mutex);
@@ -1703,7 +1722,7 @@ int wget_ssl_open(wget_tcp *tcp)
 		return WGET_E_INVALID;
 
 	if (!init)
-		wget_ssl_init();
+		wget_ssl_init(WGET_TCP_CONNECTION);
 
 	hostname = tcp->ssl_hostname;
 	sockfd= tcp->sockfd;
@@ -2311,15 +2330,172 @@ get_new_connection_id_cb (ngtcp2_conn *conn __attribute__((unused)),
   return 0;
 }
 
-
-/*
-	No changes made here.
-	Still not clear on how we do a handshake here.
-*/
-int
+void
 wget_ssl_quic_setup(void *session_gnutls, ngtcp2_conn *conn)
 {
 	gnutls_session session = *(gnutls_session *)session_gnutls;
+	ngtcp2_conn_set_tls_native_handle (conn, session);
+	gnutls_session_set_ptr(session, conn);
+}
+
+/*
+	SSL open function for QUIC protocol.
+	As of now OCSP is not configured.
+	Also exact usage of tls_stats_data not clear.
+	As of now excluded that.
+*/
+void *
+wget_ssl_quic_open(wget_quic *quic)
+{
+    gnutls_session_t session;
+	wget_tls_stats_data stats = {
+			.alpn_protocol = NULL,
+			.version = -1,
+			.false_start = -1,
+			.tfo = -1,
+			.resumed = 0,
+			.http_protocol = WGET_PROTOCOL_HTTP_3_0,
+			.cert_chain_size = 0
+	};
+
+    int ret = WGET_E_UNKNOWN;
+	int rc, sockfd, connect_timeout;
+	const char *hostname;
+	long long before_millisecs = 0;
+
+    if (!quic)
+		return WGET_E_INVALID;
+    
+    if (!quic_init)
+		wget_ssl_init(WGET_QUIC_CONNECTION);
+	
+	/*
+	 	This is to be decided whether to keep this or not.
+		If this is there then a local host GNUTLS_NAME_DNS 
+		will be declared in the global quic struct.
+	*/
+	hostname = quic->ssl_hostname;
+	sockfd= quic->sockfd;
+	connect_timeout = quic->connect_timeout;
+	
+	/*
+		As of now used same flags as used by Daiki in his repo.
+		But Still to confirm are these flags available in all the
+		versions of GNUTLS. 
+		Also to confirm how should I integrate the already available
+		flag setting login in this.
+	*/
+	unsigned int flags = GNUTLS_CLIENT | GNUTLS_ENABLE_EARLY_DATA | GNUTLS_NO_END_OF_EARLY_DATA;
+	gnutls_init(&session, flags);
+
+	if ((rc = gnutls_priority_set(session, priority_cache)) != GNUTLS_E_SUCCESS)
+		error_printf(_("GnuTLS: Failed to set priorities: %s\n"), gnutls_strerror(rc));
+	if (hostname) {
+		gnutls_server_name_set(session, GNUTLS_NAME_DNS, hostname, strlen(hostname));
+		debug_printf("SNI %s\n", hostname);
+	}
+	gnutls_credentials_set(session, GNUTLS_CRD_CERTIFICATE, credentials);
+
+	struct session_context *ctx = wget_calloc(1, sizeof(struct session_context));
+	ctx->hostname = wget_strdup(hostname);
+	ctx->port = quic->remote_port;
+
+	/*
+		OCSP is not configured as of now.
+		Not sure whether to confirm it or not.
+	*/
+
+#if GNUTLS_VERSION_NUMBER >= 0x030200
+	if (config.alpn) {
+		unsigned nprot;
+		const char *e, *s;
+
+		for (nprot = 0, s = e = config.alpn; *e; s = e + 1)
+			if ((e = strchrnul(s, ',')) != s)
+				nprot++;
+
+		if (nprot) {
+			gnutls_datum_t data[16];
+
+			for (nprot = 0, s = e = config.alpn; *e && nprot < countof(data); s = e + 1) {
+				if ((e = strchrnul(s, ',')) != s) {
+					data[nprot].data = (unsigned char *) s;
+					data[nprot].size = (unsigned) (e - s);
+					debug_printf("ALPN offering %.*s\n", (int) data[nprot].size, data[nprot].data);
+					nprot++;
+				}
+			}
+
+			if ((rc = gnutls_alpn_set_protocols(session, data, nprot, 0)))
+				debug_printf("GnuTLS: Set ALPN: %s\n", gnutls_strerror(rc));
+		}
+	}
+#endif
+
+	quic->ssl_session = session;
+
+#ifdef _WIN32
+	gnutls_transport_set_push_function(session, (gnutls_push_func) win32_send);
+	gnutls_transport_set_pull_function(session, (gnutls_pull_func) win32_recv);
+#endif
+
+#ifdef HAVE_GNUTLS_TRANSPORT_GET_INT
+	// since GnuTLS 3.1.9, avoid warnings about illegal pointer conversion
+	gnutls_transport_set_int(session, sockfd);
+#else
+	gnutls_transport_set_ptr(session, (gnutls_transport_ptr_t)(ptrdiff_t)sockfd);
+#endif
+
+	void *data;
+	size_t size;
+
+	if (wget_tls_session_get(config.tls_session_cache, ctx->hostname, &data, &size) == 0) {
+		debug_printf("found cached session data for %s\n", ctx->hostname);
+		if ((rc = gnutls_session_set_data(session, data, size)) != GNUTLS_E_SUCCESS)
+			error_printf(_("GnuTLS: Failed to set session data: %s\n"), gnutls_strerror(rc));
+		xfree(data);
+	}
+
+	ret = do_handshake(session, sockfd, connect_timeout);
+
+#if GNUTLS_VERSION_NUMBER >= 0x030200
+
+	/*
+		This whole configuration is going for a QUIC connection and if
+		the GnuTLS handshake points otherwise about the unavailability 
+		of the HTTP/3 then here should be a way present to either switch
+		between both or make the wget_ssl_open function call initially
+		irrespective of the porotocol used and then decide on the protocol.
+	*/
+	if (config.alpn) {
+		gnutls_datum_t protocol;
+		if ((rc = gnutls_alpn_get_selected_protocol(session, &protocol))) {
+			debug_printf("GnuTLS: Get ALPN: %s\n", gnutls_strerror(rc));
+			if (!strstr(config.alpn,"h3"))
+				ret = WGET_E_CONNECT;
+		}
+	}
+#endif
+
+	if (config.print_info)
+		print_info(session);
+	
+	if (ret == WGET_E_SUCCESS) {
+		int resumed = gnutls_session_is_resumed(session);
+		debug_printf("Handshake completed%s\n", resumed ? " (resumed session)" : "");
+
+		if (!resumed && config.tls_session_cache) {
+			gnutls_datum_t session_data;
+			if ((rc = gnutls_session_get_data2(session, &session_data)) == GNUTLS_E_SUCCESS) {
+				wget_tls_session_db_add(config.tls_session_cache,
+					wget_tls_session_new(ctx->hostname, 18 * 3600, session_data.data, session_data.size)); // 18h valid
+				xfree(session_data.data);
+			} else
+				debug_printf("Failed to get session data: %s", gnutls_strerror(rc));
+		}
+
+	}
+
 	gnutls_handshake_set_secret_function (session, handshake_secret_func);
 	gnutls_handshake_set_read_function (session, handshake_read_func);
 	gnutls_alert_set_read_function (session, alert_read_func);
@@ -2332,56 +2508,15 @@ wget_ssl_quic_setup(void *session_gnutls, ngtcp2_conn *conn)
                                      GNUTLS_EXT_FLAG_TLS |
                                      GNUTLS_EXT_FLAG_CLIENT_HELLO |
                                      GNUTLS_EXT_FLAG_EE);
-	if (ret < 0)
-		return ret;
 
-	gnutls_datum_t alpn = { (unsigned char *)"h3", sizeof("h3")-1};
-	gnutls_alpn_set_protocols(session, &alpn, 1, 0);
+	if (ret != WGET_E_SUCCESS) {
+		if (ret == WGET_E_TIMEOUT)
+			debug_printf("Handshake timed out\n");
+		xfree(ctx->hostname);
+		xfree(ctx);
+		gnutls_deinit(session);
+		quic->ssl_session = NULL;
+	}
 
-	gnutls_server_name_set (session, GNUTLS_NAME_DNS, "localhost",
-							sizeof("localhost")-1);
-	
-	/*
-		if (hostname) {
-			gnutls_server_name_set(session, GNUTLS_NAME_DNS, hostname, strlen(hostname));
-			debug_printf("SNI %s\n", hostname);
-		}
-		Check if this is valid.
-	*/
-
-	ngtcp2_conn_set_tls_native_handle (conn, session);
-	gnutls_session_set_ptr(session, conn);
-	return 0;
-}
-
-//This is a very basic skeleton of quic_open for creating a session for QUIC.
-//No Hostname used.
-void *
-wget_ssl_quic_open(wget_quic *quic)
-{
-    gnutls_session_t session = NULL;
-
-    int ret = WGET_E_UNKNOWN;
-	int rc, sockfd, connect_timeout;
-	long long before_millisecs = 0;
-
-    if (!quic)
-		return NULL;
-    
-    if (!quic_init)
-		wget_ssl_quic_init()
-	
-	sockfd= quic->sockfd;
-
-	//Flags directly from Quic-Echo. More Flags can be explored depending on version of GNUTLS maybe.
-	//It would be okay to search. Not top priority. 
-	gnutls_init(&session, GNUTLS_CLIENT | GNUTLS_ENABLE_EARLY_DATA | GNUTLS_NO_END_OF_EARLY_DATA);
-	//As of now PRIO set directly.
-	//Does quic imposes any limits on Ciphers which we pass? To be explored.
-	gnutls_priority_set_direct(session, PRIO, NULL);
-	//This string of ca.pem will be replaced.
-	//Check the mail to have all the certificated present on the system. 
-	//This can help me adding certificated to the function dynamically using config.
-	gnutls_credentials_set(session, GNUTLS_CRD_CERTIFICATE, './ca.pem');
-	return &session;
+	return ret;
 }
