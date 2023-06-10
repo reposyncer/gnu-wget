@@ -1312,7 +1312,7 @@ static const ngtcp2_callbacks callbacks =
 int wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 {
 	struct addrinfo *ai_rp;
-	int ret, fd;
+	int ret ,rc;
 
 	if (unlikely(!quic))
 		return WGET_E_INVALID;
@@ -1323,79 +1323,92 @@ int wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 	quic->addrinfo = wget_dns_resolve(quic->dns, host, port, quic->family, quic->preferred_family, WGET_QUIC_CONNECTION);
 	
 	for (ai_rp = quic->addrinfo ; ai_rp != NULL ; ai_rp = ai_rp->ai_next){
-		fd = socket(ai_rp->ai_family, ai_rp->ai_socktype | SOCK_NONBLOCK, ai_rp->ai_protocol);
-		if (fd == -1)
-			continue;
-		/*
-			Some Options are set as a part of TCP in tcp_connect.
-			Is any more configuration required here? To be explored.
-		*/
-		if (connect(fd, ai_rp->ai_addr, ai_rp->ai_addrlen) == 0){
-			quic->remote->size= ai_rp->ai_addrlen;
-			memcpy(quic->remote->addr, ai_rp->ai_addr, ai_rp->ai_addrlen);
-			socklen_t len = (socklen_t)quic->local->size;
-
-			wget_quic_set_socket_fd(quic, fd);
-
-			if(getsockname(fd, quic->local->addr, &len) == -1){
-				return WGET_E_UNKNOWN;
-			}
-			quic->local->size = len;
-
-			void* session = wget_ssl_quic_open(quic);
-
-			wget_quic_set_ssl_session(quic, session);
-
-			ngtcp2_path path =
-			{
-				.local = {
-					.addrlen = quic->local->size,
-					.addr = quic->local->addr
-				},
-				.remote = {
-					.addrlen = quic->remote->size,
-					.addr = quic->remote->addr
+		int sockfd;
+		if ((sockfd = socket(ai_rp->ai_family, ai_rp->ai_socktype | SOCK_NONBLOCK, ai_rp->ai_protocol) != -1)){
+			_set_async(sockfd);
+			if (quic->bind_addrinfo) {
+				if(bind(sockfd, quic->bind_addrinfo->ai_addr, quic->bind_addrinfo->ai_addrlen) != 0) {
+					print_error_host(_("Failed to bind"), host);
+					close(sockfd);
+					return WGET_E_UNKNOWN;
 				}
-			};
+			}
+			rc = connect(sockfd, ai_rp->ai_addr, ai_rp->ai_addrlen);
+			if (rc < 0 && errno != EAGAIN && errno != EINPROGRESS) {
+				print_error_host(_("Failed to connect"), host);
+				ret = WGET_E_CONNECT;
+				close(sockfd);
+			} else {
+				wget_quic_set_socket_fd(quic, sockfd);
+				ret = wget_ssl_quic_open(quic);
+				if (ret == WGET_E_CERTIFICATE){
+					/*
+						Write a function similar to 
+						wget_tcp_close which basically
+						deinitialises the function.
+					*/
+					break;
+				}
+				getsockname(sockfd, quic->local->addr, (socklen_t *)&quic->local->size);
 
-			ngtcp2_settings settings;
-			ngtcp2_settings_default (&settings);
-			settings.initial_ts = timestamp ();
-			//Dont know what exacty to do with the log_printf.
-			settings.log_printf = log_printf;
+				ngtcp2_path path =
+				{
+					.local = {
+						.addrlen = quic->local->size,
+						.addr = quic->local->addr,
+					},
+					.remote = {
+						.addrlen = ai_rp->ai_addrlen,
+						.addr = ai_rp->ai_addr,
+					}
+				};
 
-			ngtcp2_transport_params params;
-			ngtcp2_transport_params_default (&params);
-			//As of now kept them the same. Wanted to know what all changes should be done.
-			//Keep it as they are as of now. Can be changed.
-			params.initial_max_streams_uni = 3;
-			params.initial_max_stream_data_bidi_local = 128 * 1024;
-			params.initial_max_data = 1024 * 1024;	
+				ngtcp2_settings settings;
+				ngtcp2_settings_default (&settings);
+				settings.initial_ts = timestamp ();
+				/*
+					Not sure what to do with this log_printf function.
+				*/
+				settings.log_printf = log_printf;
 
-			ngtcp2_cid scid, dcid;
-			if (get_random_cid (&scid) < 0 || get_random_cid (&dcid) < 0)
-				error_printf(_("get_random_cid failed\n"));
+				ngtcp2_transport_params params;
+				ngtcp2_transport_params_default (&params);
+				params.initial_max_streams_uni = 3;
+				params.initial_max_stream_data_bidi_local = 128 * 1024;
+				params.initial_max_data = 1024 * 1024;
 
-			ngtcp2_conn *conn = NULL;
+				ngtcp2_cid scid, dcid;
+				if (get_random_cid (&scid) < 0 || get_random_cid (&dcid) < 0)
+					error (EXIT_FAILURE, EINVAL, "get_random_cid failed\n");
 
-			//MEM named parameter is passed NULL here. Why?
-			ngtcp2_conn_client_new(&conn, &dcid, &scid, &path,
-										NGTCP2_PROTO_VER_V1,
-										&callbacks, &settings, &params, NULL,
-										quic);
-			
-			wget_quic_set_ngtcp2_conn(quic, conn);
-			wget_ssl_quic_setup(session, conn);
-
-			quic->timerfd = timerfd_create (CLOCK_MONOTONIC, TFD_NONBLOCK);
-
-			break;
+				ngtcp2_conn *conn = NULL;
+				ret = ngtcp2_conn_client_new (&conn, &dcid, &scid, &path,
+							NGTCP2_PROTO_VER_V1,
+							&callbacks, &settings, &params, NULL,
+							quic);
+				if (ret < 0){
+					print_error_host(_("Failed to create a QUIC client"), host);
+					ret = WGET_E_CONNECT;
+					close(sockfd);
+				}
+				
+				wget_quic_set_ngtcp2_conn(quic, conn);					
+				wget_quic_set_remote_addr(quic, ai_rp->ai_addr, ai_rp->ai_addrlen);
+				wget_ssl_quic_setup(quic->ssl_session, quic->conn);
+				quic->timerfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+				if (quic->timerfd < 0){
+					print_error_host(_("Timerfd Failed"), host);
+					ret = WGET_E_UNKNOWN;
+					close(sockfd);
+				}
+				return WGET_E_SUCCESS;
+			}
+		} else {
+			print_error_host(_("Failed to create socket"), host);
+			ret = WGET_E_UNKNOWN;
 		}
-		close(fd);
 	}
-	if (ai_rp == NULL)
-		return WGET_E_UNKNOWN;
-	return 0;
+	return ret;
 }
 
 /*
