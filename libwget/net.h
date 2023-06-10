@@ -93,7 +93,8 @@ struct wget_quic_st{
 		timerfd,
 		family,
 		preferred_family,
-		protocol;
+		protocol,
+		connect_timeout;
 	info_addr 
 		*local,
 		*remote;
@@ -101,16 +102,25 @@ struct wget_quic_st{
 		Added this so as to accomodate with existing DNS function.
 		Planning to go with this. Will replace the info_addr struct as and when the further code is edited.
 	*/
-	const char
-		*host;
-	struct addrinfo *
-		addrinfo;
+	struct addrinfo
+		*addrinfo,
+		/*
+			Explore options from where this is set.
+			wget_tcp_set_bind_address func in net.c
+			have that function generalised for connection type.
+		*/
+		*bind_addrinfo;
 	wget_list
 		*streams;
 	wget_dns
 		*dns;
+	const char
+		*host,
+		*ssl_hostname;
 	bool
 		is_closed;
+	uint16_t
+		remote_port;
 };
 
 typedef struct wget_quic_st wget_quic;
