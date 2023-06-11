@@ -1305,16 +1305,186 @@ static const ngtcp2_callbacks callbacks =
     .get_new_connection_id = get_new_connection_id_cb,
 };
 
+#define BUF_SIZE 1280
+
+ssize_t send_packet(int fd, const uint8_t *data, size_t data_size,
+		    struct sockaddr *remote_addr, size_t remote_addrlen)
+{
+	struct iovec iov;
+	iov.iov_base = (void *)data;
+	iov.iov_len = data_size;
+
+	struct msghdr msg;
+	memset (&msg, 0, sizeof(msg));
+	msg.msg_name = remote_addr;
+	msg.msg_namelen = remote_addrlen;
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+
+	ssize_t ret;
+
+	do
+		ret = sendmsg (fd, &msg, MSG_DONTWAIT);
+	while (ret < 0 && errno == EINTR);
+
+	return ret;
+}
+
+ssize_t recv_packet(int fd, uint8_t *data, size_t data_size,
+		    struct sockaddr *remote_addr, size_t *remote_addrlen)
+{
+	struct iovec iov;
+	iov.iov_base = data;
+	iov.iov_len = data_size;
+
+	struct msghdr msg;
+	memset (&msg, 0, sizeof(msg));
+
+	msg.msg_name = remote_addr;
+	msg.msg_namelen = *remote_addrlen;
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+
+	ssize_t ret;
+
+	do
+		ret = recvmsg(fd, &msg, MSG_DONTWAIT);
+	while (ret < 0 && errno == EINTR);
+
+	*remote_addrlen = msg.msg_namelen;
+
+	return ret;
+}
+
+static int handshake_write(wget_quic *quic)
+{
+	int ret;
+	uint8_t buf[BUF_SIZE];
+	ngtcp2_ssize n_read, n_written;
+	ngtcp2_path_storage ps;
+	ngtcp2_pkt_info pi;
+	ngtcp2_vec datav;
+	ngtcp2_conn *conn = wget_quic_get_ngtcp2_conn(quic);
+	int64_t stream_id = -1;
+	uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_MORE;
+	uint64_t ts = timestamp();
+
+	ngtcp2_path_storage_zero(&ps);
+
+	datav.base = NULL;
+	datav.len = 0;
+
+	n_written = ngtcp2_conn_writev_stream(conn, &ps.path, &pi,
+					      buf, sizeof(buf),
+					      &n_read,
+					      flags,
+					      stream_id,
+					      &datav, 1,
+					      ts);
+	if (n_written < 0) {
+		error_printf("ERROR: ngtcp2_conn_writev_stream: %s\n",
+			ngtcp2_strerror((int) n_written));
+		return WGET_E_INVALID;
+	}
+
+	if (n_written == 0)
+		return WGET_E_SUCCESS;
+
+	ret = send_packet(wget_quic_get_socket_fd(quic), buf, n_written,
+			  NULL, 0);
+	if (ret < 0) {
+		error_printf("ERROR: send_packet: %s\n", strerror(errno));
+		return WGET_E_INVALID;
+	}
+
+	return WGET_E_SUCCESS;
+}
+
+static int handshake_read(wget_quic *quic)
+{
+	uint8_t buf[BUF_SIZE];
+	ngtcp2_ssize ret;
+	ngtcp2_path path;
+	ngtcp2_pkt_info pi;
+	struct sockaddr_storage remote_addr;
+	size_t remote_addrlen = sizeof(remote_addr);
+	int socket_fd = wget_quic_get_socket_fd(quic);
+	ngtcp2_conn *conn = wget_quic_get_ngtcp2_conn(quic);
+
+	for (;;) {
+		remote_addrlen = sizeof(remote_addr);
+
+		ret = recv_packet(socket_fd, buf, sizeof(buf),
+				  (struct sockaddr *) &remote_addr, &remote_addrlen);
+		if (ret < 0) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK)
+				break;
+			error_printf("ERROR: recv_packet: %s\n", strerror(errno));
+			return WGET_E_UNKNOWN;
+		}
+
+		memcpy(&path, ngtcp2_conn_get_path(conn), sizeof(path));
+		path.remote.addrlen = remote_addrlen;
+		path.remote.addr = (struct sockaddr *) &remote_addr;
+
+		ret = ngtcp2_conn_read_pkt(conn,
+					   &path, &pi, buf, ret, timestamp());
+		if (ret < 0) {
+			error_printf("ERROR: ngtcp2_conn_read_pkt: %s\n",
+				ngtcp2_strerror(ret));
+			return WGET_E_UNKNOWN;
+		}
+	}
+}
+
+int quic_handshake(wget_quic_client* cli){
+	int ret,
+	timer_fd = wget_quic_get_timer_fd(cli->quic);
+	ngtcp2_conn *conn = wget_quic_get_ngtcp2_conn(cli->quic);
+	ngtcp2_tstamp expiry, now;
+	struct itimerspec it;
+
+	while (!ngtcp2_conn_get_handshake_completed(conn)){
+		if ((ret = handshake_write(cli->quic)) < 0){
+			return ret;
+		}
+
+		expiry = ngtcp2_conn_get_expiry(conn);
+		now = timestamp();
+		ret = timerfd_settime(timer_fd, 0, &it, NULL);
+		if (ret < 0) {
+			fprintf(stderr, "ERROR: timerfd_settime: %s", strerror(errno));
+			return WGET_E_TIMEOUT;
+		}
+		if (expiry < now) {
+			it.it_value.tv_sec = 0;
+			it.it_value.tv_nsec = 1;
+		} else {
+			it.it_value.tv_sec = (expiry - now) / NGTCP2_SECONDS;
+			it.it_value.tv_nsec = ((expiry - now) % NGTCP2_SECONDS) / NGTCP2_NANOSECONDS;
+		}
+
+		ret = timerfd_settime(timer_fd, 0, &it, NULL);
+		if (ret < 0) {
+			fprintf(stderr, "ERROR: timerfd_settime: %s", strerror(errno));
+			return WGET_E_TIMEOUT;
+		}
+		handshake_read(cli->quic);
+	}
+	return 0;
+}
+
 /**
- * \param[in] quic A `wget_quic` structure representing a QUIC connection.
+ * \param[in] cli A `wget_quic_client` structure representing a QUIC client.
  * \param[in] host Hostname or IP to connect to.
  * \param[in] port Port Number.
  * 
  * Dubug is not used as of now as used in the wget_tcp_connect
 */
 
-int wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
+int wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port)
 {
+	wget_quic* quic = cli->quic;
 	struct addrinfo *ai_rp;
 	int ret ,rc;
 
@@ -1404,6 +1574,9 @@ int wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 					print_error_host(_("Timerfd Failed"), host);
 					ret = WGET_E_UNKNOWN;
 					close(sockfd);
+				}
+				if ((ret = quic_handshake(cli)) < 0){
+					return ret;
 				}
 				return WGET_E_SUCCESS;
 			}

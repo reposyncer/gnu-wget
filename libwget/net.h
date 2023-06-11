@@ -34,6 +34,8 @@
 #include <ngtcp2/ngtcp2_crypto.h>
 #include <netdb.h>
 
+#define MAX_STREAMS 10
+
 struct wget_tcp_st {
 	void *
 		ssl_session;
@@ -126,4 +128,14 @@ struct wget_quic_st{
 typedef struct wget_quic_st wget_quic;
 typedef wget_quic_stream_st wget_quic_stream;
 
+struct wget_quic_client_st{
+	wget_quic *quic;
+	wget_quic_stream *streams[MAX_STREAMS];
+	size_t n_streams; /* Number of Open Streams */
+	size_t stream_index; /* Current Stream Index */
+	size_t n_coalescing; /* Number of lines coalesced into single packet */
+	size_t coalesce_count; /* Number of lines currently coalesced */
+};
+
+typedef struct wget_quic_client_st wget_quic_client;
 #endif /* LIBWGET_NET_H */
