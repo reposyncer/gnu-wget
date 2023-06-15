@@ -1883,7 +1883,9 @@ WGETAPI void
 WGETAPI wget_dns_cache * NULLABLE
 	wget_dns_get_cache(wget_dns *dns) WGET_GCC_PURE;
 WGETAPI struct addrinfo * NULLABLE
-	wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port, int family, int preferred_family, int connection_protocol);
+	wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port, int family, int preferred_family);
+WGETAPI struct addrinfo * NULLABLE
+	wget_dns_resolve_quic(wget_dns *dns, const char *host, uint16_t port, int family, int preferred_family);
 WGETAPI void
 	wget_dns_freeaddrinfo(wget_dns *dns, struct addrinfo **addrinfo);
 WGETAPI int
@@ -1990,6 +1992,10 @@ WGETAPI int
 WGETAPI bool
 	wget_ip_is_family(const char *host, int family) WGET_GCC_PURE;
 
+
+WGETAPI int
+	wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port);
+
 /*
  * SSL routines
  */
@@ -2025,7 +2031,9 @@ WGETAPI bool
 	Updating this parameter in other ssl's is pending.
 */
 WGETAPI void
-	wget_ssl_init(int connection_protocol);
+	wget_ssl_init();
+WGETAPI void
+	wget_ssl_init_quic();
 WGETAPI void
 	wget_ssl_deinit(void);
 WGETAPI void
@@ -2036,6 +2044,8 @@ WGETAPI void
 	wget_ssl_set_config_int(int key, int value);
 WGETAPI int
 	wget_ssl_open(wget_tcp *tcp);
+WGETAPI int
+	wget_ssl_open(wget_quic *quic);
 WGETAPI void
 	wget_ssl_close(void **session);
 WGETAPI void
