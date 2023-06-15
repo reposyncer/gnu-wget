@@ -129,7 +129,8 @@ static struct config {
 	.alpn = "h2,http/1.1",
 #endif
 /*
-	As of now a sample alpn for http3 defined for usage
+	As of now a sample alpn for http3 defined for usage.
+	TBDL
 */
 #ifdef WITH_LIBNGHTTP3
 	.alpn = "h3"
@@ -1333,7 +1334,7 @@ static void set_credentials(gnutls_certificate_credentials_t creds)
  * This function may be called several times. Only the first call really
  * takes action.
  */
-void wget_ssl_init(int connection_protocol)
+void wget_ssl_init()
 {
 	tls_init();
 
@@ -1432,78 +1433,174 @@ void wget_ssl_init(int connection_protocol)
 			As of now for the quic, no checking is done and of the
 			connection protocol is quic than the "NORMAL:-VERS-ALL" TLS13_PRIO is used. 
 		*/
+		if (config.secure_protocol) {
+			const char *priorities = NULL;
 
-		if (connection_protocol == WGET_TCP_CONNECTION){
-			if (config.secure_protocol) {
-				const char *priorities = NULL;
-
-				if (!wget_strcasecmp_ascii(config.secure_protocol, "PFS")) {
-					priorities = "PFS:-VERS-SSL3.0";
-					// -RSA to force DHE/ECDHE key exchanges to have Perfect Forward Secrecy (PFS))
-					if ((rc = gnutls_priority_init(&priority_cache, priorities, NULL)) != GNUTLS_E_SUCCESS) {
-						priorities = "NORMAL:-RSA:-VERS-SSL3.0";
-						rc = gnutls_priority_init(&priority_cache, priorities, NULL);
-					}
-				} else {
+			if (!wget_strcasecmp_ascii(config.secure_protocol, "PFS")) {
+				priorities = "PFS:-VERS-SSL3.0";
+				// -RSA to force DHE/ECDHE key exchanges to have Perfect Forward Secrecy (PFS))
+				if ((rc = gnutls_priority_init(&priority_cache, priorities, NULL)) != GNUTLS_E_SUCCESS) {
+					priorities = "NORMAL:-RSA:-VERS-SSL3.0";
+					rc = gnutls_priority_init(&priority_cache, priorities, NULL);
+				}
+			} else {
 #if GNUTLS_VERSION_NUMBER >= 0x030603
 #define TLS13_PRIO ":+VERS-TLS1.3"
 #else
 #define TLS13_PRIO ""
 #endif
-					if (!wget_strncasecmp_ascii(config.secure_protocol, "SSL", 3))
-						priorities = "NORMAL:-VERS-TLS-ALL:+VERS-SSL3.0";
-					else if (!wget_strcasecmp_ascii(config.secure_protocol, "TLSv1"))
-						priorities = "NORMAL:-VERS-SSL3.0" TLS13_PRIO;
-					else if (!wget_strcasecmp_ascii(config.secure_protocol, "TLSv1_1"))
-						priorities = "NORMAL:-VERS-SSL3.0:-VERS-TLS1.0" TLS13_PRIO;
-					else if (!wget_strcasecmp_ascii(config.secure_protocol, "TLSv1_2"))
-						priorities = "NORMAL:-VERS-SSL3.0:-VERS-TLS1.0:-VERS-TLS1.1" TLS13_PRIO;
-					else if (!wget_strcasecmp_ascii(config.secure_protocol, "TLSv1_3"))
-						priorities = "NORMAL:-VERS-SSL3.0:-VERS-TLS1.0:-VERS-TLS1.1:-VERS-TLS1.2" TLS13_PRIO;
-					else if (!wget_strcasecmp_ascii(config.secure_protocol, "auto")) {
-						/* use system default, priorities = NULL */
-					} else if (*config.secure_protocol)
-						priorities = config.secure_protocol;
+				if (!wget_strncasecmp_ascii(config.secure_protocol, "SSL", 3))
+					priorities = "NORMAL:-VERS-TLS-ALL:+VERS-SSL3.0";
+				else if (!wget_strcasecmp_ascii(config.secure_protocol, "TLSv1"))
+					priorities = "NORMAL:-VERS-SSL3.0" TLS13_PRIO;
+				else if (!wget_strcasecmp_ascii(config.secure_protocol, "TLSv1_1"))
+					priorities = "NORMAL:-VERS-SSL3.0:-VERS-TLS1.0" TLS13_PRIO;
+				else if (!wget_strcasecmp_ascii(config.secure_protocol, "TLSv1_2"))
+					priorities = "NORMAL:-VERS-SSL3.0:-VERS-TLS1.0:-VERS-TLS1.1" TLS13_PRIO;
+				else if (!wget_strcasecmp_ascii(config.secure_protocol, "TLSv1_3"))
+					priorities = "NORMAL:-VERS-SSL3.0:-VERS-TLS1.0:-VERS-TLS1.1:-VERS-TLS1.2" TLS13_PRIO;
+				else if (!wget_strcasecmp_ascii(config.secure_protocol, "auto")) {
+					/* use system default, priorities = NULL */
+				} else if (*config.secure_protocol)
+					priorities = config.secure_protocol;
 
-					rc = gnutls_priority_init(&priority_cache, priorities, NULL);
+				rc = gnutls_priority_init(&priority_cache, priorities, NULL);
+			}
+
+			if (rc != GNUTLS_E_SUCCESS)
+				error_printf(_("GnuTLS: Unsupported priority string '%s': %s\n"), priorities ? priorities : "(null)", gnutls_strerror(rc));
+		} else {
+			// use GnuTLS defaults, which might hold insecure ciphers
+			if ((rc = gnutls_priority_init(&priority_cache, NULL, NULL)))
+				error_printf(_("GnuTLS: Unsupported default priority 'NULL': %s\n"), gnutls_strerror(rc));
+		}
+		init++;
+
+		debug_printf("GnuTLS init done\n");
+	}
+
+	wget_thread_mutex_unlock(mutex);
+}
+
+void wget_ssl_init_quic()
+{
+	tls_init();
+
+	wget_thread_mutex_lock(mutex);
+
+	if (!init) {
+		int rc, ncerts = -1;
+
+		debug_printf("GnuTLS init\n");
+		gnutls_global_init();
+		gnutls_certificate_allocate_credentials(&credentials);
+		gnutls_certificate_set_verify_function(credentials, verify_certificate_callback);
+
+		if (config.ca_directory && *config.ca_directory && config.check_certificate) {
+#if GNUTLS_VERSION_NUMBER >= 0x03000d
+			if (!strcmp(config.ca_directory, "system")) {
+				//Looks for places on the system where the certificates are stored.
+				//Different for different systems.
+				//Gets the file from paths already specified in the lib.
+				//Depending on the option specified on the user.
+				ncerts = gnutls_certificate_set_x509_system_trust(credentials);
+				if (ncerts < 0)
+					debug_printf("GnuTLS system certificate store error %d\n", ncerts);
+				else
+					debug_printf("GnuTLS system certificate store is empty\n");
+			}
+#endif
+			/*
+				While initialising the application, we can also give a certificate
+				and so this code should be same for both quic as well as tcp.
+				Also if the certificate used for quic is present in the system files 
+				then it is great. To verify this.
+			*/
+			if (ncerts < 0) {
+				DIR *dir;
+
+				ncerts = 0;
+
+				if (!strcmp(config.ca_directory, "system"))
+					config.ca_directory = "/etc/ssl/certs";
+
+				if ((dir = opendir(config.ca_directory))) {
+					struct dirent *dp;
+					size_t dirlen = strlen(config.ca_directory);
+
+					while ((dp = readdir(dir))) {
+						size_t len = strlen(dp->d_name);
+
+						if (len >= 4 && !wget_strncasecmp_ascii(dp->d_name + len - 4, ".pem", 4)) {
+							struct stat st;
+							char fname[dirlen + 1 + len + 1];
+
+							wget_snprintf(fname, sizeof(fname), "%s/%s", config.ca_directory, dp->d_name);
+							if (stat(fname, &st) == 0 && S_ISREG(st.st_mode)) {
+								debug_printf("GnuTLS loading %s\n", fname);
+								if ((rc = gnutls_certificate_set_x509_trust_file(credentials, fname, GNUTLS_X509_FMT_PEM)) <= 0)
+									debug_printf("Failed to load cert '%s': (%d)\n", fname, rc);
+								else
+									ncerts += rc;
+							}
+						}
+					}
+
+					closedir(dir);
+				} else {
+					error_printf(_("Failed to opendir %s\n"), config.ca_directory);
 				}
-
-				if (rc != GNUTLS_E_SUCCESS)
-					error_printf(_("GnuTLS: Unsupported priority string '%s': %s\n"), priorities ? priorities : "(null)", gnutls_strerror(rc));
-			} else {
-				// use GnuTLS defaults, which might hold insecure ciphers
-				if ((rc = gnutls_priority_init(&priority_cache, NULL, NULL)))
-					error_printf(_("GnuTLS: Unsupported default priority 'NULL': %s\n"), gnutls_strerror(rc));
 			}
 		}
-		else if (connection_protocol == WGET_QUIC_CONNECTION){
-			if (config.secure_protocol){
-				const char *priorities = NULL;
+
+		/*
+			Basically to list all the certificates that have been issued.
+			This isnt seen in any of the repo in usage.
+			But this will also be common with for quic as well as tcp.
+		*/
+
+		if (config.crl_file) {
+			if ((rc = gnutls_certificate_set_x509_crl_file(credentials, config.crl_file, GNUTLS_X509_FMT_PEM)) <= 0)
+				error_printf(_("Failed to load CRL '%s': (%d)\n"), config.crl_file, rc);
+		}
+
+		set_credentials(credentials);
+
+		debug_printf("Certificates loaded: %d\n", ncerts);
+
+		/*
+			The values here seem to be a bit different from those
+			used in the PRIO macro. Here depending on connection type
+			given as a macro the assignment of const char* priorities
+			will be seperated. 
+			As of now for the quic, no checking is done and of the
+			connection protocol is quic than the "NORMAL:-VERS-ALL" TLS13_PRIO is used. 
+		*/
+		if (config.secure_protocol){
+			const char *priorities = NULL;
 #if GNUTLS_VERSION_NUMBER >= 0x030603
 #define TLS13_PRIO ":+VERS-TLS1.3:" \
-  "-CIPHER-ALL:+AES-128-GCM:+AES-256-GCM:+CHACHA20-POLY1305:+AES-128-CCM:" \
-  "-GROUP-ALL:+GROUP-SECP256R1:+GROUP-X25519:+GROUP-SECP384R1:+GROUP-SECP521R1:" \
-  "%DISABLE_TLS13_COMPAT_MODE"
+"-CIPHER-ALL:+AES-128-GCM:+AES-256-GCM:+CHACHA20-POLY1305:+AES-128-CCM:" \
+"-GROUP-ALL:+GROUP-SECP256R1:+GROUP-X25519:+GROUP-SECP384R1:+GROUP-SECP521R1:" \
+"%DISABLE_TLS13_COMPAT_MODE"
 
 #else
 #define TLS13_PRIO ""
 #endif
-				/*
-					Should all the ciphers be defined here itself?
-					To be clarified.
-				*/
-				priorities = "NORMAL:-VERS-ALL" TLS13_PRIO;	
-				rc = gnutls_priority_init(&priority_cache, priorities, NULL);
-				if (rc != GNUTLS_E_SUCCESS)
-					error_printf(_("GnuTLS: Unsupported priority string '%s': %s\n"), priorities ? priorities : "(null)", gnutls_strerror(rc));
+			/*
+				Should all the ciphers be defined here itself?
+				To be clarified.
+			*/
+			priorities = "NORMAL:-VERS-ALL" TLS13_PRIO;	
+			rc = gnutls_priority_init(&priority_cache, priorities, NULL);
+			if (rc != GNUTLS_E_SUCCESS)
+				error_printf(_("GnuTLS: Unsupported priority string '%s': %s\n"), priorities ? priorities : "(null)", gnutls_strerror(rc));
 
-			}else {
-				// use GnuTLS defaults, which might hold insecure ciphers
-				if ((rc = gnutls_priority_init(&priority_cache, NULL, NULL)))
-					error_printf(_("GnuTLS: Unsupported default priority 'NULL': %s\n"), gnutls_strerror(rc));
-			}
+		}else {
+			// use GnuTLS defaults, which might hold insecure ciphers
+			if ((rc = gnutls_priority_init(&priority_cache, NULL, NULL)))
+				error_printf(_("GnuTLS: Unsupported default priority 'NULL': %s\n"), gnutls_strerror(rc));
 		}
-
 		init++;
 
 		debug_printf("GnuTLS init done\n");
@@ -2348,7 +2445,7 @@ wget_ssl_quic_setup(void *session_gnutls, ngtcp2_conn *conn)
 	As of now excluded that.
 */
 void *
-wget_ssl_quic_open(wget_quic *quic)
+wget_ssl_open_quic(wget_quic *quic)
 {
     gnutls_session_t session;
 	wget_tls_stats_data stats = {
@@ -2370,7 +2467,7 @@ wget_ssl_quic_open(wget_quic *quic)
 		return WGET_E_INVALID;
     
     if (!quic_init)
-		wget_ssl_init(WGET_QUIC_CONNECTION);
+		wget_ssl_init_quic(WGET_QUIC_CONNECTION);
 	
 	/*
 	 	This is to be decided whether to keep this or not.
