@@ -34,14 +34,15 @@ struct wget_queue_st{
     struct wget_queue_node *tail;
 };
 
-void wget_queue_init(wget_queue **queue) 
+wget_queue 
+*wget_queue_init() 
 {
-    (*queue) = wget_malloc(sizeof(wget_queue));
-    if (!(*queue)){
-        (*queue)->head = NULL;
-        (*queue)->tail = NULL;
+    wget_queue *queue = wget_malloc(sizeof(wget_queue));
+    if (queue){
+        queue->head = NULL;
+        queue->tail = NULL;
     }
-    return;
+    return queue;
 }
 
 int wget_queue_is_empty(wget_queue *queue) 
@@ -55,7 +56,7 @@ void* wget_queue_enqueue(wget_queue *queue, const void *data, size_t size)
     if (!node)
 		return NULL;
     memcpy(node + 1, data, size);
-
+    node->size = size;
     node->next = NULL;
     if (wget_queue_is_empty(queue)) {
         node->prev = NULL;
@@ -88,12 +89,13 @@ void* wget_queue_dequeue(wget_queue *queue)
     return data;
 }
 
-void * wget_queue_peek(wget_queue *queue) 
+struct wget_queue_node* 
+wget_queue_peek(wget_queue *queue) 
 {
     if (wget_queue_is_empty(queue)) {
         return NULL;
     }
-    return queue->head + 1;
+    return queue->head;
 }
 
 void wget_queue_free(wget_queue *queue) {
