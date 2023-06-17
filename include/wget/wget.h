@@ -412,6 +412,7 @@ struct wget_queue_node {
 	struct wget_queue_node
 		*next,
 		*prev;
+	size_t size;
 }wget_queue_node;
 
 typedef struct wget_queue_st wget_queue;
@@ -2044,8 +2045,8 @@ WGETAPI void
 	wget_ssl_set_config_int(int key, int value);
 WGETAPI int
 	wget_ssl_open(wget_tcp *tcp);
-WGETAPI int
-	wget_ssl_open(wget_quic *quic);
+WGETAPI void *
+	wget_ssl_open_quic(wget_quic *quic);
 WGETAPI void
 	wget_ssl_close(void **session);
 WGETAPI void

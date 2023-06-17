@@ -61,6 +61,9 @@
 #include <wget.h>
 #include "private.h"
 #include "net.h"
+#include <ngtcp2/ngtcp2.h>
+#include <ngtcp2/ngtcp2_crypto.h>
+#include <ngtcp2/ngtcp2_crypto_gnutls.h>
 
 /**
  * \file
@@ -2256,16 +2259,16 @@ void wget_ssl_set_stats_callback_ocsp(wget_ocsp_stats_callback *fn, void *ctx)
 int
 get_random_cid (ngtcp2_cid *cid)
 {
-  uint8_t buf[NGTCP2_MAX_CIDLEN];
-  int ret;
+	uint8_t buf[NGTCP2_MAX_CIDLEN];
+	int ret;
 
-  ret = gnutls_rnd (GNUTLS_RND_RANDOM, buf, sizeof(buf));
-  if (ret < 0)
-    {
-      return -1;
-    }
-  ngtcp2_cid_init (cid, buf, sizeof(buf));
-  return 0;
+	ret = gnutls_rnd (GNUTLS_RND_RANDOM, buf, sizeof(buf));
+	if (ret < 0)
+	{
+		return -1;
+	}
+	ngtcp2_cid_init (cid, buf, sizeof(buf));
+	return 0;
 }
 
 /* Helper functions for ssl_setup_quic */
@@ -2275,24 +2278,24 @@ handshake_secret_func (gnutls_session_t session,
                        const void *secret_read, const void *secret_write,
                        size_t secret_size)
 {
-  ngtcp2_conn *conn = gnutls_session_get_ptr (session);
-  ngtcp2_crypto_level level =
-    ngtcp2_crypto_gnutls_from_gnutls_record_encryption_level (glevel);
-  uint8_t key[64], iv[64], hp_key[64];
+	ngtcp2_conn *conn = gnutls_session_get_ptr (session);
+	ngtcp2_crypto_level level =
+	ngtcp2_crypto_gnutls_from_gnutls_record_encryption_level (glevel);
+	uint8_t key[64], iv[64], hp_key[64];
 
-  if (secret_read &&
-      ngtcp2_crypto_derive_and_install_rx_key (conn,
-                                               key, iv, hp_key, level,
-                                               secret_read, secret_size) < 0)
-    return -1;
+	if (secret_read &&
+		ngtcp2_crypto_derive_and_install_rx_key (conn,
+												key, iv, hp_key, level,
+												secret_read, secret_size) < 0)
+	return -1;
 
-  if (secret_write &&
-      ngtcp2_crypto_derive_and_install_tx_key (conn,
-                                               key, iv, hp_key, level,
-                                               secret_write, secret_size) < 0)
-    return -1;
+	if (secret_write &&
+		ngtcp2_crypto_derive_and_install_tx_key (conn,
+												key, iv, hp_key, level,
+												secret_write, secret_size) < 0)
+	return -1;
 
-  return 0;
+	return 0;
 }
 
 static int
@@ -2301,24 +2304,24 @@ handshake_read_func (gnutls_session_t session,
                      gnutls_handshake_description_t htype,
                      const void *data, size_t data_size)
 {
-  if (htype == GNUTLS_HANDSHAKE_CHANGE_CIPHER_SPEC)
-    return 0;
+	if (htype == GNUTLS_HANDSHAKE_CHANGE_CIPHER_SPEC)
+	return 0;
 
-  ngtcp2_conn *conn = gnutls_session_get_ptr (session);
-  ngtcp2_crypto_level level =
-    ngtcp2_crypto_gnutls_from_gnutls_record_encryption_level (glevel);
+	ngtcp2_conn *conn = gnutls_session_get_ptr (session);
+	ngtcp2_crypto_level level =
+	ngtcp2_crypto_gnutls_from_gnutls_record_encryption_level (glevel);
 
-  int ret;
+	int ret;
 
-  ret = ngtcp2_conn_submit_crypto_data (conn, level, data, data_size);
-  if (ret < 0)
-    {
-      g_debug ("ngtcp2_conn_submit_crypto_data: %s",
-               ngtcp2_strerror (ret));
-      return -1;
-    }
+	ret = ngtcp2_conn_submit_crypto_data (conn, level, data, data_size);
+	if (ret < 0)
+	{
+		wget_debug_printf("ngtcp2_conn_submit_crypto_data: %s",
+				ngtcp2_strerror (ret));
+		return -1;
+	}
 
-  return 0;
+	return 0;
 }
 
 static int
@@ -2327,7 +2330,7 @@ alert_read_func (gnutls_session_t session __attribute__((unused)),
                  gnutls_alert_level_t alert_level __attribute__((unused)),
                  gnutls_alert_description_t alert_desc __attribute__((unused)))
 {
-  return 0;
+	return 0;
 }
 
 
@@ -2339,103 +2342,59 @@ alert_read_func (gnutls_session_t session __attribute__((unused)),
 static int
 tp_recv_func (gnutls_session_t session, const uint8_t *data, size_t data_size)
 {
-  ngtcp2_conn *conn = gnutls_session_get_ptr (session);
-  ngtcp2_transport_params params;
-  int ret;
+	ngtcp2_conn *conn = gnutls_session_get_ptr (session);
+	ngtcp2_transport_params params;
+	int ret;
 
-  ret = ngtcp2_decode_transport_params (&params,
-                                        ngtcp2_conn_is_server (conn) ?
-                                        NGTCP2_TRANSPORT_PARAMS_TYPE_CLIENT_HELLO :
-                                        NGTCP2_TRANSPORT_PARAMS_TYPE_ENCRYPTED_EXTENSIONS,
-                                        data, data_size);
-  if (ret < 0)
-    {
-      g_message ("ngtcp2_decode_transport_params: %s\n", ngtcp2_strerror (ret));
-      return -1;
-    }
+	ret = ngtcp2_decode_transport_params (&params,
+										ngtcp2_conn_is_server (conn) ?
+										NGTCP2_TRANSPORT_PARAMS_TYPE_CLIENT_HELLO :
+										NGTCP2_TRANSPORT_PARAMS_TYPE_ENCRYPTED_EXTENSIONS,
+										data, data_size);
+	if (ret < 0)
+	{
+		wget_info_printf ("ngtcp2_decode_transport_params: %s\n", ngtcp2_strerror (ret));
+		return -1;
+	}
 
-  ret = ngtcp2_conn_set_remote_transport_params (conn, &params);
-  if (ret < 0)
-    {
-      g_message ("ngtcp2_conn_set_remote_transport_params: %s\n", ngtcp2_strerror (ret));
-      return -1;
-    }
+	ret = ngtcp2_conn_set_remote_transport_params (conn, &params);
+	if (ret < 0)
+	{
+		wget_info_printf ("ngtcp2_conn_set_remote_transport_params: %s\n", ngtcp2_strerror (ret));
+		return -1;
+	}
 
-  return 0;
+	return 0;
 }
 
 static int
 tp_send_func (gnutls_session_t session, gnutls_buffer_t extdata)
 {
-  ngtcp2_conn *conn = gnutls_session_get_ptr (session);
+	ngtcp2_conn *conn = gnutls_session_get_ptr (session);
 
-  ngtcp2_transport_params params;
-  ngtcp2_conn_get_local_transport_params (conn, &params);
+	ngtcp2_transport_params *params = ngtcp2_conn_get_local_transport_params (conn);
 
-  uint8_t buf[MAX_TP_SIZE];
-  ngtcp2_ssize n_encoded =
-    ngtcp2_encode_transport_params (buf, sizeof(buf),
-                                    ngtcp2_conn_is_server (conn) ?
-                                    NGTCP2_TRANSPORT_PARAMS_TYPE_ENCRYPTED_EXTENSIONS :
-                                    NGTCP2_TRANSPORT_PARAMS_TYPE_CLIENT_HELLO,
-                                    &params);
-  if (n_encoded < 0)
-    {
-      g_debug ("ngtcp2_encode_transport_params: %s", ngtcp2_strerror (n_encoded));
-      return -1;
-    }
+	uint8_t buf[MAX_TP_SIZE];
+	ngtcp2_ssize n_encoded =
+	ngtcp2_encode_transport_params (buf, sizeof(buf),
+									ngtcp2_conn_is_server (conn) ?
+									NGTCP2_TRANSPORT_PARAMS_TYPE_ENCRYPTED_EXTENSIONS :
+									NGTCP2_TRANSPORT_PARAMS_TYPE_CLIENT_HELLO,
+									&params);
+	if (n_encoded < 0)
+	{
+		wget_debug_printf ("ngtcp2_encode_transport_params: %s", ngtcp2_strerror (n_encoded));
+		return -1;
+	}
 
-  int ret = gnutls_buffer_append_data (extdata, buf, n_encoded);
-  if (ret < 0)
-    {
-      g_debug ("gnutls_buffer_append_data failed: %s", gnutls_strerror (ret));
-      return -1;
-    }
+	int ret = gnutls_buffer_append_data (extdata, buf, n_encoded);
+	if (ret < 0)
+	{
+		wget_debug_printf ("gnutls_buffer_append_data failed: %s", gnutls_strerror (ret));
+		return -1;
+	}
 
-  return n_encoded;
-}
-
-
-/* Callback functions for ngtcp2 */
-
-static void
-rand_cb (uint8_t *dest, size_t destlen,
-	 const ngtcp2_rand_ctx *rand_ctx __attribute__((unused)))
-{
-  int ret;
-
-  ret = gnutls_rnd (GNUTLS_RND_RANDOM, dest, destlen);
-  //Error checking left here.
-}
-
-
-static int
-get_new_connection_id_cb (ngtcp2_conn *conn __attribute__((unused)),
-			  ngtcp2_cid *cid, uint8_t *token,
-                          size_t cidlen,
-			  void *user_data __attribute__((unused)))
-{
-  int ret;
-
-  ret = gnutls_rnd (GNUTLS_RND_RANDOM, cid->data, cidlen);
-  if (ret < 0)
-    return NGTCP2_ERR_CALLBACK_FAILURE;
-
-  cid->datalen = cidlen;
-
-  ret = gnutls_rnd (GNUTLS_RND_RANDOM, token, NGTCP2_STATELESS_RESET_TOKENLEN);
-  if (ret < 0)
-    return NGTCP2_ERR_CALLBACK_FAILURE;
-
-  return 0;
-}
-
-void
-wget_ssl_quic_setup(void *session_gnutls, ngtcp2_conn *conn)
-{
-	gnutls_session session = *(gnutls_session *)session_gnutls;
-	ngtcp2_conn_set_tls_native_handle (conn, session);
-	gnutls_session_set_ptr(session, conn);
+	return n_encoded;
 }
 
 /*
