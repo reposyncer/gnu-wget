@@ -403,20 +403,6 @@ WGETAPI ssize_t
  */
 typedef struct wget_list_st wget_list;
 
-/**
- * \ingroup libwget-queue
- *
- * Type for queue using linked list.
- */
-struct wget_queue_node {
-	struct wget_queue_node
-		*next,
-		*prev;
-	size_t size;
-}wget_queue_node;
-
-typedef struct wget_queue_st wget_queue;
-
 typedef int wget_list_browse_fn(void *context, void *elem);
 
 WGETAPI void * NULLABLE
@@ -435,6 +421,49 @@ WGETAPI void
 	wget_list_free(wget_list **list) WGET_GCC_NONNULL_ALL;
 WGETAPI int
 	wget_list_browse(const wget_list *list, wget_list_browse_fn *browse, void *context) WGET_GCC_NONNULL((2));
+
+/**
+ * \ingroup libwget-queue
+ *
+ * Type for queue using linked list.
+ */
+typedef struct wget_queue_node {
+	struct wget_queue_node
+		*next,
+		*prev;
+}wget_queue_node;
+
+typedef struct wget_queue_st wget_queue;
+
+WGETAPI wget_queue* 
+	wget_queue_init(void);
+WGETAPI int 
+	wget_queue_is_empty(wget_queue *queue);
+WGETAPI void* 
+	wget_queue_enqueue(wget_queue *queue, const void *data, size_t size);
+WGETAPI void* 
+	wget_queue_dequeue(wget_queue *queue);
+WGETAPI struct wget_queue_node* 
+	wget_queue_peek(wget_queue *queue); 
+WGETAPI void 
+wget_queue_free(wget_queue *queue);
+
+/**
+ * \ingroup libwget-wget_byte
+ *
+ * Type for stream-byte
+ */
+
+typedef struct wget_byte_st wget_byte;
+
+WGETAPI wget_byte *
+	wget_byte_new(const unsigned char *data, size_t size);
+WGETAPI size_t 
+	wget_byte_get_size(const wget_byte *bytes);
+WGETAPI const unsigned char *
+	wget_byte_get_data(const wget_byte* bytes);
+WGETAPI void 
+	wget_byte_free(wget_byte *bytes);
 
 /**
  * \ingroup libwget-xalloc
@@ -1994,8 +2023,64 @@ WGETAPI bool
 	wget_ip_is_family(const char *host, int family) WGET_GCC_PURE;
 
 
+typedef struct wget_quic_client_st wget_quic_client;
+typedef struct wget_quic_st wget_quic;
+typedef struct wget_quic_stream_st wget_quic_stream;
+
+WGETAPI wget_quic_stream *
+	wget_quic_stream_new(void *conn);
+
+WGETAPI int 
+	wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen);
+
+WGETAPI wget_quic_stream *
+	wget_quic_stream_find (wget_quic *quic, int64_t stream_id);
+
+WGETAPI int64_t 
+	wget_quic_stream_get_id(wget_quic_stream *stream);
+
+WGETAPI void *
+	wget_quic_get_ngtcp2_conn (wget_quic *quic);
+
+WGETAPI wget_list* 
+	wget_quic_get_streams(wget_quic *quic);
+
+WGETAPI void
+	wget_quic_set_ngtcp2_conn (wget_quic *quic, void *conn);
+
+WGETAPI int
+	wget_quic_get_socket_fd (wget_quic *quic);
+
+WGETAPI void
+	wget_quic_set_socket_fd (wget_quic *quic, int socketfd);
+
+WGETAPI int
+	wget_quic_get_timer_fd (wget_quic *quic);
+
+WGETAPI struct sockaddr *
+	wget_quic_get_local_addr (wget_quic *quic, size_t *local_addrlen);
+
+WGETAPI void
+	wget_quic_set_local_addr (wget_quic *quic,
+                           struct sockaddr *local_addr,
+                           size_t local_addrlen);
+
+WGETAPI void
+	wget_quic_set_remote_addr (wget_quic *quic,
+                           struct sockaddr *remote_addr,
+                           size_t remote_addrlen);
+						
+WGETAPI void *
+	wget_quic_get_ssl_session(wget_quic *quic);
+
+WGETAPI void
+	wget_quic_set_ssl_session(wget_quic *quic, void *session);
+
 WGETAPI int
 	wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port);
+
+WGETAPI ssize_t
+	wget_quic_write(wget_quic_client *cli, wget_quic_stream *stream);
 
 /*
  * SSL routines
@@ -2032,9 +2117,9 @@ WGETAPI int
 	Updating this parameter in other ssl's is pending.
 */
 WGETAPI void
-	wget_ssl_init();
+	wget_ssl_init(void);
 WGETAPI void
-	wget_ssl_init_quic();
+	wget_ssl_init_quic(void);
 WGETAPI void
 	wget_ssl_deinit(void);
 WGETAPI void
@@ -2045,7 +2130,7 @@ WGETAPI void
 	wget_ssl_set_config_int(int key, int value);
 WGETAPI int
 	wget_ssl_open(wget_tcp *tcp);
-WGETAPI void *
+WGETAPI int
 	wget_ssl_open_quic(wget_quic *quic);
 WGETAPI void
 	wget_ssl_close(void **session);
@@ -2059,6 +2144,8 @@ WGETAPI const char *
 	wget_ssl_default_cert_dir(void);
 WGETAPI const char *
 	wget_ssl_default_ca_bundle_path(void);
+WGETAPI int 
+	wget_ssl_gnutls_quic_integration(void *session);
 
 /*
  * HTTP routines

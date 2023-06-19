@@ -78,12 +78,12 @@ typedef struct{
 	size_t size;
 }info_addr;
 
-typedef struct{
+struct wget_quic_stream_st{
 	int64_t id;
 	wget_queue *buffer;
 	size_t sent_offset;
 	size_t ack_offset;
-}wget_quic_stream_st;
+};
 
 struct wget_quic_st{
 	void
@@ -125,9 +125,6 @@ struct wget_quic_st{
 		remote_port;
 };
 
-typedef struct wget_quic_st wget_quic;
-typedef wget_quic_stream_st wget_quic_stream;
-
 struct wget_quic_client_st{
 	wget_quic *quic;
 	wget_quic_stream *streams[MAX_STREAMS];
@@ -137,5 +134,4 @@ struct wget_quic_client_st{
 	size_t coalesce_count; /* Number of lines currently coalesced */
 };
 
-typedef struct wget_quic_client_st wget_quic_client;
 #endif /* LIBWGET_NET_H */
