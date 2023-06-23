@@ -36,7 +36,7 @@ typedef struct wget_byte_st {
 }wget_byte_st;
 
 wget_byte *
-wget_byte_new(const unsigned char *data, size_t size)
+wget_byte_new(const char *data, size_t size)
 {
 	wget_byte *bytes = wget_malloc(sizeof(wget_byte));
 	if (bytes){
@@ -57,7 +57,7 @@ wget_byte_get_size(const wget_byte *bytes)
 	return bytes->size;
 }
 
-const unsigned char *
+unsigned char *
 wget_byte_get_data(const wget_byte* bytes)
 {
 	return bytes->data;

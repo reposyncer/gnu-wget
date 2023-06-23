@@ -645,6 +645,34 @@ AS_IF([(test "$with_gnutls" != "yes" || test "$with_gnutls_hash" != "yes") && te
   ])
 ])
 
+AC_ARG_WITH(quic, AS_HELP_STRING([--with-quic], [Use QUIC with specified library. Options: 'libngtcp2']), with_ngtcp2=$withval, with_libngtcp2="no")
+AS_IF([test "$with_libngtcp2" != "no" && (test "$with_ssl" = "gnutls" || test "$with_ssl" = "yes")],[
+  PKG_CHECK_MODULES([LIBNGTCP2], libngtcp2, [
+    with_libngtcp2="yes"
+    LIBS="$LIBNGTCP2_LIBS $LIBS"
+    CFLAGS="$LIBNGTCP2_CFLAGS $CFLAGS"
+    AC_DEFINE([WITH_LIBNGTCP2], [1], [QUIC support enabled via libngtcp2])
+  ],[
+    OLD_LIBS="$LIBS"
+    LIBS=
+    AC_SEARCH_LIBS(ngtcp2_conn_write_pkt, ngtcp2,
+      [with_libngtcp2=yes; AC_DEFINE([WITH_LIBNGTCP2], [1], [QUIC support enabled via libngtcp2])],
+      [with_libngtcp2=no;  AC_MSG_WARN(*** libngtcp2 was not found. QUIC support disabled.)])
+    LIBNGTCP2_LIBS="$LIBS"
+    LIBS="$LIBS $OLD_LIBS"
+  ])
+])
+
+
+
+AS_IF([test "$with_libngtcp2" != "no" && (test "$with_ssl" = "gnutls" || test "$with_ssl" = "yes")],[
+  PKG_CHECK_MODULES([LIBNGTCP2_CRYPTO_GNUTLS], [libngtcp2_crypto_gnutls], [
+      LIBS="$LIBNGTCP2_CRYPTO_GNUTLS_LIBS $LIBS"
+      CFLAGS="$LIBNGTCP2_CRYPTO_GNUTLS_CFLAGS $CFLAGS"
+      AC_DEFINE([WITH_QUIC_CRYPTO_GNUTLS], [1], [Enable QUIC with GnuTLS support])
+  ])
+])
+
 AM_CONDITIONAL([WITH_LIBNETTLE], [test "$with_libnettle" = "yes"])
 AM_CONDITIONAL([WITH_CRYPT], [test "$with_gcrypt" = "yes"])
 
@@ -1106,6 +1134,7 @@ AC_MSG_NOTICE([Summary of build options:
   PSL support:        $with_libpsl
   HSTS support:       $with_libhsts
   HTTP/2.0 support:   $with_libnghttp2
+  QUIC support:       $with_libngtcp2
   Documentation:      $DOCS_INFO
   Wget2 docs:         $WGET2_DOCS_INFO
   Libwget docs:       $LIBWGET_DOCS_INFO
