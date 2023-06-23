@@ -32,6 +32,41 @@
 #define BUF_SIZE 1280
 #define MAX_EVENTS 64
 
+uint64_t timestamp (void);
+void quic_stream_mark_acked (wget_quic_stream *stream, size_t offset);
+ssize_t send_packet(int fd, const uint8_t *data, size_t data_size,
+		    struct sockaddr *remote_addr, size_t remote_addrlen);
+int get_random_cid (ngtcp2_cid *cid);
+ssize_t recv_packet(int fd, uint8_t *data, size_t data_size,
+		    struct sockaddr *remote_addr, size_t *remote_addrlen);
+int quic_handshake(wget_quic_client* cli);
+static void _set_async(int fd);
+void quic_stream_mark_sent(wget_quic_stream *stream, ngtcp2_ssize offset);
+int  quic_stream_peek_data(wget_quic_stream *stream, ngtcp2_vec *datav);
+void log_printf(void *user_data, const char *fmt, ...);
+int connection_read(wget_quic *quic);
+int connection_write(wget_quic *quic);
+
+static inline void print_error_host(const char *msg, const char *host)
+{
+	error_printf("%s (hostname='%s', errno=%d)\n",
+		msg, host, errno);
+}
+
+void log_printf(void *user_data, const char *fmt, ...)
+{
+	va_list ap;
+	(void) user_data;
+
+	va_start(ap, fmt);
+	/* g_logv("ngtcp2", G_LOG_LEVEL_DEBUG, fmt, ap); */
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+	fprintf(stderr, "\n");
+}
+
+
+
 void *
 wget_quic_get_ngtcp2_conn (wget_quic *quic)
 {
@@ -174,14 +209,14 @@ get_new_connection_id_cb (ngtcp2_conn *conn __attribute__((unused)),
 static int
 recv_stream_data_cb (ngtcp2_conn *conn __attribute__((unused)),
 		     uint32_t flags __attribute__((unused)),
-		     int64_t stream_id,
+		     int64_t stream_id __attribute__((unused)),
                      uint64_t offset __attribute__((unused)),
 		     const uint8_t *data, size_t datalen,
                      void *user_data __attribute__((unused)),
 		     void *stream_user_data __attribute__((unused)))
 {
-  write (STDOUT_FILENO, data, datalen);
-  return 0;
+  int ret = write (STDOUT_FILENO, data, datalen);
+  return ret;
 }
 
 static int
@@ -221,30 +256,6 @@ ngtcp2_callbacks callbacks =
     .get_new_connection_id = get_new_connection_id_cb,
 };
 
-ssize_t 
-send_packet(int fd, const uint8_t *data, size_t data_size,
-		    struct sockaddr *remote_addr, size_t remote_addrlen)
-{
-	struct iovec iov;
-	iov.iov_base = (void *)data;
-	iov.iov_len = data_size;
-
-	struct msghdr msg;
-	memset (&msg, 0, sizeof(msg));
-	msg.msg_name = remote_addr;
-	msg.msg_namelen = remote_addrlen;
-	msg.msg_iov = &iov;
-	msg.msg_iovlen = 1;
-
-	ssize_t ret;
-
-	do
-		ret = sendmsg (fd, &msg, MSG_DONTWAIT);
-	while (ret < 0 && errno == EINTR);
-
-	return ret;
-}
-
 int
 get_random_cid (ngtcp2_cid *cid)
 {
@@ -258,34 +269,6 @@ get_random_cid (ngtcp2_cid *cid)
 	}
 	ngtcp2_cid_init (cid, buf, sizeof(buf));
 	return 0;
-}
-
-
-ssize_t 
-recv_packet(int fd, uint8_t *data, size_t data_size,
-		    struct sockaddr *remote_addr, size_t *remote_addrlen)
-{
-	struct iovec iov;
-	iov.iov_base = data;
-	iov.iov_len = data_size;
-
-	struct msghdr msg;
-	memset (&msg, 0, sizeof(msg));
-
-	msg.msg_name = remote_addr;
-	msg.msg_namelen = *remote_addrlen;
-	msg.msg_iov = &iov;
-	msg.msg_iovlen = 1;
-
-	ssize_t ret;
-
-	do
-		ret = recvmsg(fd, &msg, MSG_DONTWAIT);
-	while (ret < 0 && errno == EINTR);
-
-	*remote_addrlen = msg.msg_namelen;
-
-	return ret;
 }
 
 static int 
@@ -351,7 +334,7 @@ handshake_read(wget_quic *quic)
 		ret = recv_packet(socket_fd, buf, sizeof(buf),
 				  (struct sockaddr *) &remote_addr, &remote_addrlen);
 		if (ret < 0) {
-			if (errno == EAGAIN || errno == EWOULDBLOCK)
+			if (errno == EAGAIN)
 				break;
 			error_printf("ERROR: recv_packet: %s\n", strerror(errno));
 			return WGET_E_UNKNOWN;
@@ -369,6 +352,8 @@ handshake_read(wget_quic *quic)
 			return WGET_E_UNKNOWN;
 		}
 	}
+
+	return WGET_E_SUCCESS;
 }
 
 int 
@@ -409,6 +394,24 @@ quic_handshake(wget_quic_client* cli){
 	return 0;
 }
 
+static void _set_async(int fd)
+{
+#if ((defined _WIN32 || defined __WIN32__) && !defined __CYGWIN__)
+	unsigned long blocking = 0;
+
+	if (ioctl(fd, FIONBIO, &blocking))
+		wget_error_printf_exit("Failed to set socket to non-blocking\n");
+#else
+	int flags;
+
+	if ((flags = fcntl(fd, F_GETFL)) < 0)
+		wget_error_printf_exit("Failed to get socket flags\n");
+
+	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
+		wget_error_printf_exit("Failed to set socket to non-blocking\n");
+#endif
+}
+
 /**
  * \param[in] cli A `wget_quic_client` structure representing a QUIC client.
  * \param[in] host Hostname or IP to connect to.
@@ -422,7 +425,7 @@ wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port)
 {
 	wget_quic* quic = cli->quic;
 	struct addrinfo *ai_rp;
-	int ret ,rc;
+	int ret = WGET_E_UNKNOWN ,rc;
 
 	if (unlikely(!quic))
 		return WGET_E_INVALID;
@@ -479,7 +482,7 @@ wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port)
 				/*
 					Not sure what to do with this log_printf function.
 				*/
-				settings.log_printf = wget_info_printf;
+				settings.log_printf = log_printf;
 
 				ngtcp2_transport_params params;
 				ngtcp2_transport_params_default (&params);
@@ -489,7 +492,7 @@ wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port)
 
 				ngtcp2_cid scid, dcid;
 				if (get_random_cid (&scid) < 0 || get_random_cid (&dcid) < 0)
-					error (EXIT_FAILURE, EINVAL, "get_random_cid failed\n");
+					wget_error_printf_exit("get_random_cid failed\n");
 
 				ngtcp2_conn *conn = NULL;
 				ret = ngtcp2_conn_client_new (&conn, &dcid, &scid, &path,
@@ -551,7 +554,7 @@ wget_quic_stream_new(void *quic_conn)
 	}
 
 	if((retval = ngtcp2_conn_open_bidi_stream(conn, &stream_id, NULL)) < 0){
-		wget_error_printf("Error: Cannot create a new bidirection stream : &d", retval);
+		wget_error_printf("Error: Cannot create a new bidirection stream");
 		return NULL;
 	}
 	return _stream_new(stream_id);
@@ -587,10 +590,13 @@ wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen
 wget_quic_stream *
 wget_quic_stream_find (wget_quic *quic, int64_t stream_id)
 {
-  for (void *l = (void *)wget_quic_get_streams(quic) + 1; l; l = wget_list_getnext(l))
+  for (void *l = (void *)wget_quic_get_streams(quic); l; l = wget_list_getnext(l))
     {
       wget_quic_stream *stream = (wget_quic_stream *)l;
-	  //Stream_get_id is not very good name. Write getter and setter functions for Stream as well.
+	  /*
+	  	Stream_get_id is not very good name. Write getter and setter 
+	  	functions for Stream as well.
+	 */
       if (wget_quic_stream_get_id (stream) == stream_id)
         return stream;
     }
@@ -612,7 +618,7 @@ quic_stream_mark_sent(wget_quic_stream *stream, ngtcp2_ssize offset)
 int 
 quic_stream_peek_data(wget_quic_stream *stream, ngtcp2_vec *datav)
 {
-	wget_byte *byte = wget_queue_peek(stream->buffer);
+	wget_byte *byte = (wget_byte *)wget_queue_peek(stream->buffer);
 	if (!byte){
 		return WGET_E_MEMORY;
 	}
@@ -626,12 +632,12 @@ quic_stream_mark_acked (wget_quic_stream *stream, size_t offset)
 {
   while (!wget_queue_is_empty (stream->buffer))
     {
-      wget_byte *head  = wget_queue_peek (stream->buffer);
+      wget_byte *head  = (wget_byte *)wget_queue_peek (stream->buffer);
       if (stream->ack_offset + wget_byte_get_size (head) > offset)
         break;
 
       stream->ack_offset += wget_byte_get_size (head);
-      head = stream_queue_dequeue (stream->buffer);
+      head = wget_queue_dequeue (stream->buffer);
     }
 }
 
@@ -706,7 +712,7 @@ int connection_read(wget_quic *quic)
 				  buf, sizeof(buf),
 				  (struct sockaddr *) &remote_addr, &remote_addrlen);
 		if (ret < 0) {
-			if (errno == EAGAIN || errno == EWOULDBLOCK)
+			if (errno == EAGAIN)
 				break;
 			fprintf(stderr, "ERROR: recv_packet: %s\n", strerror(errno));
 			return -1;
@@ -830,7 +836,7 @@ static int handle_socket(wget_quic *quic, const struct epoll_event *event)
 	return 0;
 }
 
-static int handle_timer(wget_quic *quic, const struct epoll_event *event)
+static int handle_timer(wget_quic *quic)
 {
 	int ret;
 	ngtcp2_conn *conn = (ngtcp2_conn *)wget_quic_get_ngtcp2_conn(quic);
@@ -910,6 +916,17 @@ write_stream(wget_quic *quic, wget_quic_stream *stream)
 	return 0;
 }
 
+/*
+	As of now the function signature kept is such that,
+	the user has to initially push the data into a stream.
+	using functions related to stream and then call this
+	function to write the data in the stream using the 
+	active QUIC connection.
+	As the logic of which stream to be selected from the 
+	available MAX_STREAMS is discussed, this function will
+	be updated.
+*/
+
 
 ssize_t
 wget_quic_write(wget_quic_client *cli, wget_quic_stream *stream)
@@ -973,13 +990,13 @@ wget_quic_write(wget_quic_client *cli, wget_quic_stream *stream)
 			return -1;
 		}
 
-		for (unsigned i = 0; i < nfds; i++) {
+		for (int i = 0; i < nfds; i++) {
 			if (events[i].data.fd == wget_quic_get_socket_fd(cli->quic)) {
 				if (handle_socket(cli->quic, &events[i]) < 0)
 					return -1;
 			}
 			if (events[i].data.fd == wget_quic_get_timer_fd(cli->quic)) {
-				if (handle_timer(cli->quic, &events[i]) < 0)
+				if (handle_timer(cli->quic) < 0)
 					return -1;
 			}
 		}
@@ -989,4 +1006,49 @@ wget_quic_write(wget_quic_client *cli, wget_quic_stream *stream)
 
 	return 0;
 
+}
+
+/*
+	Very basic implementation of the wget_quic_read.
+	Will upadte the implemenatation after the current 
+	implementation is tested.
+*/
+
+int 
+wget_quic_read(wget_quic_client *cli, const char *buf, size_t count)
+{
+	ngtcp2_ssize ret;
+	struct sockaddr_storage remote_addr;
+	size_t remote_addrlen = sizeof(remote_addr);
+	ngtcp2_path path;
+	ngtcp2_pkt_info pi;
+
+	while(1) {
+		remote_addrlen = sizeof(remote_addr);
+
+		ret = recv_packet(cli->quic->sockfd,
+				  (uint8_t *)buf, count,
+				  (struct sockaddr *) &remote_addr, &remote_addrlen);
+		if (ret < 0) {
+			if (errno == EAGAIN)
+				break;
+			fprintf(stderr, "ERROR: recv_packet: %s\n", strerror(errno));
+			return -1;
+		}
+
+		memcpy(&path, ngtcp2_conn_get_path(cli->quic->conn), sizeof(path));
+		path.remote.addrlen = remote_addrlen;
+		path.remote.addr = (struct sockaddr *) &remote_addr;
+
+		memset(&pi, 0, sizeof(pi));
+
+		ret = ngtcp2_conn_read_pkt(cli->quic->conn, &path, &pi, (const uint8_t *)buf, ret, timestamp());
+		if (ret < 0) {
+			fprintf(stderr, "ERROR: ngtcp2_conn_read_pkt: %s\n",
+				ngtcp2_strerror(ret));
+			return -1;
+		}
+	}
+
+	return 0;
 }
