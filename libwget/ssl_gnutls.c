@@ -2422,7 +2422,7 @@ handshake_secret_func (gnutls_session_t session,
                        size_t secret_size)
 {
 	ngtcp2_conn *conn = gnutls_session_get_ptr (session);
-	ngtcp2_crypto_level level =
+	ngtcp2_encryption_level level =
 	ngtcp2_crypto_gnutls_from_gnutls_record_encryption_level (glevel);
 	uint8_t key[64], iv[64], hp_key[64];
 
@@ -2451,7 +2451,7 @@ handshake_read_func (gnutls_session_t session,
 	return 0;
 
 	ngtcp2_conn *conn = gnutls_session_get_ptr (session);
-	ngtcp2_crypto_level level =
+	ngtcp2_encryption_level level =
 	ngtcp2_crypto_gnutls_from_gnutls_record_encryption_level (glevel);
 
 	int ret;
@@ -2481,20 +2481,12 @@ static int
 tp_recv_func (gnutls_session_t session, const uint8_t *data, size_t data_size)
 {
 	ngtcp2_conn *conn = gnutls_session_get_ptr (session);
-	ngtcp2_transport_params params;
 	int ret;
 
-	ret = ngtcp2_transport_params_decode (&params, data, data_size);
+	ret = ngtcp2_conn_decode_and_set_remote_transport_params (conn, data, data_size);
 	if (ret < 0)
 	{
 		wget_info_printf ("ngtcp2_decode_transport_params: %s\n", ngtcp2_strerror (ret));
-		return -1;
-	}
-
-	ret = ngtcp2_conn_set_remote_transport_params (conn, &params);
-	if (ret < 0)
-	{
-		wget_info_printf ("ngtcp2_conn_set_remote_transport_params: %s\n", ngtcp2_strerror (ret));
 		return -1;
 	}
 
@@ -2506,11 +2498,11 @@ tp_send_func (gnutls_session_t session, gnutls_buffer_t extdata)
 {
 	ngtcp2_conn *conn = gnutls_session_get_ptr (session);
 
-	ngtcp2_transport_params *params = ngtcp2_conn_get_local_transport_params (conn);
+	const ngtcp2_transport_params *params = ngtcp2_conn_get_local_transport_params (conn);
 
 	uint8_t buf[MAX_TP_SIZE];
 	ngtcp2_ssize n_encoded =
-	ngtcp2_transport_params_encode (buf, sizeof(buf),&params);
+	ngtcp2_transport_params_encode (buf, sizeof(buf), params);
 	if (n_encoded < 0)
 	{
 		wget_debug_printf ("ngtcp2_encode_transport_params: %s", ngtcp2_strerror (n_encoded));

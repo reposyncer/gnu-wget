@@ -457,10 +457,10 @@ wget_queue_free(wget_queue *queue);
 typedef struct wget_byte_st wget_byte;
 
 WGETAPI wget_byte *
-	wget_byte_new(const unsigned char *data, size_t size);
+	wget_byte_new(const char *data, size_t size);
 WGETAPI size_t 
 	wget_byte_get_size(const wget_byte *bytes);
-WGETAPI const unsigned char *
+WGETAPI unsigned char *
 	wget_byte_get_data(const wget_byte* bytes);
 WGETAPI void 
 	wget_byte_free(wget_byte *bytes);
@@ -2081,6 +2081,9 @@ WGETAPI int
 
 WGETAPI ssize_t
 	wget_quic_write(wget_quic_client *cli, wget_quic_stream *stream);
+
+WGETAPI int 
+	wget_quic_read(wget_quic_client *cli, const char *buf, size_t count);
 
 /*
  * SSL routines
