@@ -2023,8 +2023,18 @@ WGETAPI bool
 	wget_ip_is_family(const char *host, int family) WGET_GCC_PURE;
 
 
-typedef struct wget_quic_client_st wget_quic_client;
 typedef struct wget_quic_st wget_quic;
+typedef struct wget_quic_client_st wget_quic_client;
+
+WGETAPI wget_quic_client * NULLABLE
+	wget_quic_client_init(void);
+
+WGETAPI void 
+	wget_quic_client_set_quic(wget_quic_client *cli, wget_quic *quic);
+
+WGETAPI wget_quic * 
+	wget_quic_init(void);
+
 typedef struct wget_quic_stream_st wget_quic_stream;
 
 WGETAPI wget_quic_stream *
@@ -2057,6 +2067,9 @@ WGETAPI void
 WGETAPI int
 	wget_quic_get_timer_fd (wget_quic *quic);
 
+WGETAPI void
+	wget_quic_set_timer_fd (wget_quic *quic, int timerfd);
+
 WGETAPI struct sockaddr *
 	wget_quic_get_local_addr (wget_quic *quic, size_t *local_addrlen);
 
@@ -2069,12 +2082,18 @@ WGETAPI void
 	wget_quic_set_remote_addr (wget_quic *quic,
                            struct sockaddr *remote_addr,
                            size_t remote_addrlen);
-						
+
+WGETAPI void
+	wget_quic_set_ssl_hostname(wget_quic *quic, const char *hostname);
+				
 WGETAPI void *
 	wget_quic_get_ssl_session(wget_quic *quic);
 
 WGETAPI void
 	wget_quic_set_ssl_session(wget_quic *quic, void *session);
+
+WGETAPI void 
+	wget_quic_set_connect_timeout(wget_quic *quic, int timeout);
 
 WGETAPI int
 	wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port);
