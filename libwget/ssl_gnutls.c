@@ -1582,20 +1582,14 @@ void wget_ssl_init_quic()
 		*/
 		if (config.secure_protocol){
 			const char *priorities = NULL;
-#if GNUTLS_VERSION_NUMBER >= 0x030603
-#define TLS13_PRIO_QUIC ":+VERS-TLS1.3:" \
-"-CIPHER-ALL:+AES-128-GCM:+AES-256-GCM:+CHACHA20-POLY1305:+AES-128-CCM:" \
-"-GROUP-ALL:+GROUP-SECP256R1:+GROUP-X25519:+GROUP-SECP384R1:+GROUP-SECP521R1:" \
-"%DISABLE_TLS13_COMPAT_MODE"
-
-#else
-#define TLS13_PRIO ""
-#endif
 			/*
 				Should all the ciphers be defined here itself?
 				To be clarified.
 			*/
-			priorities = "NORMAL:-VERS-ALL" TLS13_PRIO_QUIC;	
+			priorities = "NORMAL:-VERS-ALL:+VERS-TLS1.3:" \
+  "-CIPHER-ALL:+AES-128-GCM:+AES-256-GCM:+CHACHA20-POLY1305:+AES-128-CCM:" \
+  "-GROUP-ALL:+GROUP-SECP256R1:+GROUP-X25519:+GROUP-SECP384R1:+GROUP-SECP521R1:" \
+  "%DISABLE_TLS13_COMPAT_MODE";	
 			rc = gnutls_priority_init(&priority_cache, priorities, NULL);
 			if (rc != GNUTLS_E_SUCCESS)
 				error_printf(_("GnuTLS: Unsupported priority string '%s': %s\n"), priorities ? priorities : "(null)", gnutls_strerror(rc));
