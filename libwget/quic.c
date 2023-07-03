@@ -32,6 +32,13 @@
 #define BUF_SIZE 1280
 #define MAX_EVENTS 64
 
+static struct wget_quic_st global_quic = {
+	.sockfd = -1,
+	.connect_timeout = -1,
+	.family = AF_UNSPEC,
+	.preferred_family = AF_UNSPEC,
+};
+
 uint64_t timestamp (void);
 void quic_stream_mark_acked (wget_quic_stream *stream, size_t offset);
 ssize_t send_packet(int fd, const uint8_t *data, size_t data_size,
@@ -66,6 +73,14 @@ void log_printf(void *user_data, const char *fmt, ...)
 }
 
 
+wget_quic *wget_quic_init(void)
+{
+	wget_quic *quic = wget_malloc(sizeof(wget_quic));
+	if (quic){
+		*quic = global_quic;
+	}
+	return quic;
+}
 
 void *
 wget_quic_get_ngtcp2_conn (wget_quic *quic)
@@ -103,6 +118,12 @@ wget_quic_get_timer_fd (wget_quic *quic)
   return quic->timerfd;
 }
 
+void
+wget_quic_set_timer_fd (wget_quic *quic, int timerfd)
+{
+   quic->timerfd = timerfd;
+}
+
 struct sockaddr *
 wget_quic_get_local_addr (wget_quic *quic, size_t *local_addrlen)
 {
@@ -138,6 +159,43 @@ void
 wget_quic_set_ssl_session(wget_quic *quic, void *session)
 {	
 	quic->ssl_session = session;
+}
+
+void 
+wget_quic_set_connect_timeout(wget_quic *quic, int timeout)
+{
+	(quic ? quic : &global_quic)->connect_timeout = timeout;
+}
+
+void 
+wget_quic_set_ssl_hostname(wget_quic *quic, const char *hostname)
+{
+	if (!quic)
+		quic = &global_quic;
+
+	xfree(quic->ssl_hostname);
+	quic->ssl_hostname = wget_strdup(hostname);
+}
+
+wget_quic_client *
+wget_quic_client_init(void)
+{
+	wget_quic_client *client = wget_malloc(sizeof(wget_quic_client));
+	if (client){
+		client->coalesce_count = 0;
+		client->n_coalescing = 0;
+		client->n_streams = 0;
+		client->quic = NULL;
+		client->stream_index = -1;
+	}
+	return client;
+}
+
+void 
+wget_quic_client_set_quic(wget_quic_client *cli, wget_quic *quic)
+{
+	cli->quic = quic;
+	return;
 }
 
 /*
@@ -233,6 +291,18 @@ acked_stream_data_offset_cb (ngtcp2_conn *conn __attribute__((unused)),
   return 0;
 }
 
+static int handshake_completed_cb(ngtcp2_conn *conn, void *user_data)
+{
+	wget_debug_printf("Handshake completed!\n");
+	return 0;
+}
+
+static int handshake_confirmed_cb(ngtcp2_conn *conn, void *user_data)
+{
+	wget_debug_printf("Handshake confirmed!\n");
+	return 0;
+}
+
 static const 
 ngtcp2_callbacks callbacks = 
 {
@@ -254,6 +324,8 @@ ngtcp2_callbacks callbacks =
 	/*These both functions are present in the ssl_gnutls.c*/
     .rand = rand_cb,
     .get_new_connection_id = get_new_connection_id_cb,
+	.handshake_completed = handshake_completed_cb,
+	.handshake_confirmed = handshake_confirmed_cb
 };
 
 int
@@ -368,6 +440,7 @@ quic_handshake(wget_quic_client* cli){
 		if ((ret = handshake_write(cli->quic)) < 0){
 			return ret;
 		}
+		memset(&it, 0 , sizeof(it));
 
 		expiry = ngtcp2_conn_get_expiry(conn);
 		now = timestamp();
@@ -434,10 +507,12 @@ wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port)
 	xfree(quic->host);
 
 	quic->addrinfo = wget_dns_resolve_quic(quic->dns, host, port, quic->family, quic->preferred_family);
-	
+	if (!quic->addrinfo){
+		return WGET_E_INVALID;
+	}
 	for (ai_rp = quic->addrinfo ; ai_rp != NULL ; ai_rp = ai_rp->ai_next){
 		int sockfd;
-		if ((sockfd = socket(ai_rp->ai_family, ai_rp->ai_socktype | SOCK_NONBLOCK, ai_rp->ai_protocol) != -1)){
+		if ((sockfd = socket(ai_rp->ai_family, ai_rp->ai_socktype | SOCK_NONBLOCK, ai_rp->ai_protocol)) != -1){
 			_set_async(sockfd);
 			if (quic->bind_addrinfo) {
 				if(bind(sockfd, quic->bind_addrinfo->ai_addr, quic->bind_addrinfo->ai_addrlen) != 0) {
@@ -454,7 +529,7 @@ wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port)
 			} else {
 				wget_quic_set_socket_fd(quic, sockfd);
 				ret = wget_ssl_open_quic(quic);
-				if (ret == WGET_E_CERTIFICATE){
+				if (ret < 0){
 					/*
 						Write a function similar to 
 						wget_tcp_close which basically
@@ -462,7 +537,15 @@ wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port)
 					*/
 					break;
 				}
-				getsockname(sockfd, quic->local->addr, (socklen_t *)&quic->local->size);
+				quic->local = wget_malloc(sizeof(info_addr));
+
+				socklen_t len;
+				quic->local->addr = wget_malloc(sizeof(struct sockaddr));
+				quic->local->size = sizeof(quic->local->addr);
+				len = (socklen_t) quic->local->size;
+
+				getsockname(sockfd, quic->local->addr, &len);
+				quic->local->size = len;				
 
 				ngtcp2_path path =
 				{
@@ -505,15 +588,18 @@ wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port)
 					close(sockfd);
 				}
 				
-				wget_quic_set_ngtcp2_conn(quic, (void *)conn);					
+				wget_quic_set_ngtcp2_conn(quic, (void *)conn);	
+				quic->remote = wget_malloc(sizeof(info_addr));			
 				wget_quic_set_remote_addr(quic, ai_rp->ai_addr, ai_rp->ai_addrlen);
 				ngtcp2_conn_set_tls_native_handle (quic->conn, quic->ssl_session);
-				quic->timerfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
-				if (quic->timerfd < 0){
+				int timerfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+				if (timerfd < 0){
 					print_error_host(_("Timerfd Failed"), host);
 					ret = WGET_E_UNKNOWN;
 					close(sockfd);
 				}
+
+				wget_quic_set_timer_fd(quic, timerfd);	
 				if ((ret = quic_handshake(cli)) < 0){
 					return ret;
 				}
