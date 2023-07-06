@@ -78,7 +78,26 @@ wget_quic *wget_quic_init(void)
 	wget_quic *quic = wget_malloc(sizeof(wget_quic));
 	if (quic){
 		*quic = global_quic;
+	} else {
+		return NULL;
 	}
+
+	quic->local = wget_malloc(sizeof(info_addr));
+	if (!quic->local){
+		xfree(quic);
+		return NULL;
+	}else {
+		quic->local->addr = wget_malloc(sizeof(struct sockaddr));
+	}
+
+	quic->remote = wget_malloc(sizeof(info_addr));
+	if (!quic->remote){
+		xfree(quic);
+		return NULL;
+	}else {
+		quic->remote->addr = wget_malloc(sizeof(struct sockaddr));
+	}
+
 	return quic;
 }
 
@@ -149,6 +168,18 @@ wget_quic_set_remote_addr (wget_quic *quic,
   quic->remote->size = remote_addrlen;
 }
 
+void
+wget_quic_set_remote_port(wget_quic *quic, uint16_t port)
+{
+	quic->remote_port = port;
+}
+
+uint16_t 
+wget_quic_get_remote_port(wget_quic *quic)
+{
+	return quic->remote_port;
+}
+
 void *
 wget_quic_get_ssl_session(wget_quic *quic)
 {
@@ -175,6 +206,11 @@ wget_quic_set_ssl_hostname(wget_quic *quic, const char *hostname)
 
 	xfree(quic->ssl_hostname);
 	quic->ssl_hostname = wget_strdup(hostname);
+}
+
+const char* wget_quic_get_ssl_hostname(wget_quic* quic)
+{
+	return quic->ssl_hostname;
 }
 
 wget_quic_client *
@@ -291,18 +327,6 @@ acked_stream_data_offset_cb (ngtcp2_conn *conn __attribute__((unused)),
   return 0;
 }
 
-static int handshake_completed_cb(ngtcp2_conn *conn, void *user_data)
-{
-	wget_debug_printf("Handshake completed!\n");
-	return 0;
-}
-
-static int handshake_confirmed_cb(ngtcp2_conn *conn, void *user_data)
-{
-	wget_debug_printf("Handshake confirmed!\n");
-	return 0;
-}
-
 static const 
 ngtcp2_callbacks callbacks = 
 {
@@ -324,8 +348,6 @@ ngtcp2_callbacks callbacks =
 	/*These both functions are present in the ssl_gnutls.c*/
     .rand = rand_cb,
     .get_new_connection_id = get_new_connection_id_cb,
-	.handshake_completed = handshake_completed_cb,
-	.handshake_confirmed = handshake_confirmed_cb
 };
 
 int
@@ -510,17 +532,11 @@ wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port)
 	if (!quic->addrinfo){
 		return WGET_E_INVALID;
 	}
+
+	int sockfd;
 	for (ai_rp = quic->addrinfo ; ai_rp != NULL ; ai_rp = ai_rp->ai_next){
-		int sockfd;
 		if ((sockfd = socket(ai_rp->ai_family, ai_rp->ai_socktype | SOCK_NONBLOCK, ai_rp->ai_protocol)) != -1){
 			_set_async(sockfd);
-			if (quic->bind_addrinfo) {
-				if(bind(sockfd, quic->bind_addrinfo->ai_addr, quic->bind_addrinfo->ai_addrlen) != 0) {
-					print_error_host(_("Failed to bind"), host);
-					close(sockfd);
-					return WGET_E_UNKNOWN;
-				}
-			}
 			rc = connect(sockfd, ai_rp->ai_addr, ai_rp->ai_addrlen);
 			if (rc < 0 && errno != EAGAIN && errno != EINPROGRESS) {
 				print_error_host(_("Failed to connect"), host);
@@ -537,73 +553,16 @@ wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port)
 					*/
 					break;
 				}
-				quic->local = wget_malloc(sizeof(info_addr));
-
 				socklen_t len;
-				quic->local->addr = wget_malloc(sizeof(struct sockaddr));
 				quic->local->size = sizeof(quic->local->addr);
 				len = (socklen_t) quic->local->size;
-
 				getsockname(sockfd, quic->local->addr, &len);
-				quic->local->size = len;				
+				quic->local->size = len;	
 
-				ngtcp2_path path =
-				{
-					.local = {
-						.addrlen = quic->local->size,
-						.addr = quic->local->addr,
-					},
-					.remote = {
-						.addrlen = ai_rp->ai_addrlen,
-						.addr = ai_rp->ai_addr,
-					}
-				};
-
-				ngtcp2_settings settings;
-				ngtcp2_settings_default (&settings);
-				settings.initial_ts = timestamp ();
-				/*
-					Not sure what to do with this log_printf function.
-				*/
-				settings.log_printf = log_printf;
-
-				ngtcp2_transport_params params;
-				ngtcp2_transport_params_default (&params);
-				params.initial_max_streams_uni = 3;
-				params.initial_max_stream_data_bidi_local = 128 * 1024;
-				params.initial_max_data = 1024 * 1024;
-
-				ngtcp2_cid scid, dcid;
-				if (get_random_cid (&scid) < 0 || get_random_cid (&dcid) < 0)
-					wget_error_printf_exit("get_random_cid failed\n");
-
-				ngtcp2_conn *conn = NULL;
-				ret = ngtcp2_conn_client_new (&conn, &dcid, &scid, &path,
-							NGTCP2_PROTO_VER_V1,
-							&callbacks, &settings, &params, NULL,
-							quic);
-				if (ret < 0){
-					print_error_host(_("Failed to create a QUIC client"), host);
-					ret = WGET_E_CONNECT;
-					close(sockfd);
-				}
-				
-				wget_quic_set_ngtcp2_conn(quic, (void *)conn);	
-				quic->remote = wget_malloc(sizeof(info_addr));			
-				wget_quic_set_remote_addr(quic, ai_rp->ai_addr, ai_rp->ai_addrlen);
-				ngtcp2_conn_set_tls_native_handle (quic->conn, quic->ssl_session);
-				int timerfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
-				if (timerfd < 0){
-					print_error_host(_("Timerfd Failed"), host);
-					ret = WGET_E_UNKNOWN;
-					close(sockfd);
-				}
-
-				wget_quic_set_timer_fd(quic, timerfd);	
-				if ((ret = quic_handshake(cli)) < 0){
-					return ret;
-				}
-				return WGET_E_SUCCESS;
+				quic->remote->addr = ai_rp->ai_addr;
+				quic->remote->size = ai_rp->ai_addrlen;
+				ret = WGET_E_SUCCESS;
+				break;
 			}
 		} else {
 			print_error_host(_("Failed to create socket"), host);
@@ -611,6 +570,74 @@ wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port)
 		}
 	}
 	return ret;
+}
+
+int 
+wget_quic_handshake(wget_quic_client *cli)
+{
+	int ret = WGET_E_INVALID;
+	wget_quic* quic = cli->quic;
+	if (unlikely(!quic))
+		return WGET_E_INVALID;
+
+	int sockfd = wget_quic_get_socket_fd(quic);			
+
+	ngtcp2_path path =
+	{
+		.local = {
+			.addrlen = quic->local->size,
+			.addr = quic->local->addr,
+		},
+		.remote = {
+			.addrlen = quic->remote->size,
+			.addr = quic->remote->addr,
+		}
+	};
+
+	ngtcp2_settings settings;
+	ngtcp2_settings_default (&settings);
+	settings.initial_ts = timestamp ();
+	/*
+		Not sure what to do with this log_printf function.
+	*/
+	settings.log_printf = log_printf;
+
+	ngtcp2_transport_params params;
+	ngtcp2_transport_params_default (&params);
+	params.initial_max_streams_uni = 3;
+	params.initial_max_stream_data_bidi_local = 128 * 1024;
+	params.initial_max_data = 1024 * 1024;
+
+	ngtcp2_cid scid, dcid;
+	if (get_random_cid (&scid) < 0 || get_random_cid (&dcid) < 0)
+		wget_error_printf_exit("get_random_cid failed\n");
+
+	ngtcp2_conn *conn = NULL;
+	ret = ngtcp2_conn_client_new (&conn, &dcid, &scid, &path,
+				NGTCP2_PROTO_VER_V1,
+				&callbacks, &settings, &params, NULL,
+				quic);
+	if (ret < 0){
+		print_error_host(_("Failed to create a QUIC client"), wget_quic_get_ssl_hostname(quic));
+		ret = WGET_E_CONNECT;
+		close(sockfd);
+	}
+	
+	wget_quic_set_ngtcp2_conn(quic, (void *)conn);	
+	ngtcp2_conn_set_tls_native_handle (quic->conn, quic->ssl_session);
+	gnutls_session_set_ptr(quic->ssl_session, (void *)conn);
+	int timerfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+	if (timerfd < 0){
+		print_error_host(_("Timerfd Failed"),wget_quic_get_ssl_hostname(quic));
+		ret = WGET_E_UNKNOWN;
+		close(sockfd);
+	}
+
+	wget_quic_set_timer_fd(quic, timerfd);	
+	if ((ret = quic_handshake(cli)) < 0){
+		return ret;
+	}
+	return WGET_E_SUCCESS;
 }
 
 /* Stream Struct Getter and Setter functions present [As Required] */
