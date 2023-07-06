@@ -65,6 +65,8 @@
 #include <ngtcp2/ngtcp2_crypto.h>
 #include <ngtcp2/ngtcp2_crypto_gnutls.h>
 
+#define MAX_TP_SIZE 128
+
 
 /**
  * \file
@@ -1255,7 +1257,7 @@ out:
 	return config.check_certificate ? ret : 0;
 }
 
-static int init, quic_init;
+static int init;
 static wget_thread_mutex mutex;
 
 static void tls_exit(void)
@@ -1498,7 +1500,6 @@ void wget_ssl_init_quic()
 		debug_printf("GnuTLS init\n");
 		gnutls_global_init();
 		gnutls_certificate_allocate_credentials(&credentials);
-		gnutls_certificate_set_verify_function(credentials, verify_certificate_callback);
 
 		if (config.ca_directory && *config.ca_directory && config.check_certificate) {
 #if GNUTLS_VERSION_NUMBER >= 0x03000d
@@ -1520,41 +1521,6 @@ void wget_ssl_init_quic()
 				Also if the certificate used for quic is present in the system files 
 				then it is great. To verify this.
 			*/
-			if (ncerts < 0) {
-				DIR *dir;
-
-				ncerts = 0;
-
-				if (!strcmp(config.ca_directory, "system"))
-					config.ca_directory = "/etc/ssl/certs";
-
-				if ((dir = opendir(config.ca_directory))) {
-					struct dirent *dp;
-					size_t dirlen = strlen(config.ca_directory);
-
-					while ((dp = readdir(dir))) {
-						size_t len = strlen(dp->d_name);
-
-						if (len >= 4 && !wget_strncasecmp_ascii(dp->d_name + len - 4, ".pem", 4)) {
-							struct stat st;
-							char fname[dirlen + 1 + len + 1];
-
-							wget_snprintf(fname, sizeof(fname), "%s/%s", config.ca_directory, dp->d_name);
-							if (stat(fname, &st) == 0 && S_ISREG(st.st_mode)) {
-								debug_printf("GnuTLS loading %s\n", fname);
-								if ((rc = gnutls_certificate_set_x509_trust_file(credentials, fname, GNUTLS_X509_FMT_PEM)) <= 0)
-									debug_printf("Failed to load cert '%s': (%d)\n", fname, rc);
-								else
-									ncerts += rc;
-							}
-						}
-					}
-
-					closedir(dir);
-				} else {
-					error_printf(_("Failed to opendir %s\n"), config.ca_directory);
-				}
-			}
 		}
 
 		/*
@@ -1563,12 +1529,7 @@ void wget_ssl_init_quic()
 			But this will also be common with for quic as well as tcp.
 		*/
 
-		if (config.crl_file) {
-			if ((rc = gnutls_certificate_set_x509_crl_file(credentials, config.crl_file, GNUTLS_X509_FMT_PEM)) <= 0)
-				error_printf(_("Failed to load CRL '%s': (%d)\n"), config.crl_file, rc);
-		}
 
-		set_credentials(credentials);
 
 		debug_printf("Certificates loaded: %d\n", ncerts);
 
@@ -2245,168 +2206,51 @@ void wget_ssl_set_stats_callback_ocsp(wget_ocsp_stats_callback *fn, void *ctx)
 
 /** @} */
 
-/*
-	SSL open function for QUIC protocol.
-	As of now OCSP is not configured.
-	Also exact usage of tls_stats_data not clear.
-	As of now excluded that.
-*/
-int
-wget_ssl_open_quic(wget_quic *quic)
+
+static int
+tp_recv_func (gnutls_session_t session, const uint8_t *data, size_t data_size)
 {
-    gnutls_session_t session;
+	ngtcp2_conn *conn = gnutls_session_get_ptr (session);
+	int ret;
 
-    int ret = WGET_E_UNKNOWN;
-	int rc, sockfd, connect_timeout;
-	const char *hostname;
-    if (!quic)
-		return WGET_E_INVALID;
-    
-    if (!quic_init)
-		wget_ssl_init_quic();
-	
-	/*
-	 	This is to be decided whether to keep this or not.
-		If this is there then a local host GNUTLS_NAME_DNS 
-		will be declared in the global quic struct.
-	*/
-	hostname = quic->ssl_hostname;
-	sockfd= quic->sockfd;
-	connect_timeout = quic->connect_timeout;
-	
-	/*
-		As of now used same flags as used by Daiki in his repo.
-		But Still to confirm are these flags available in all the
-		versions of GNUTLS. 
-		Also to confirm how should I integrate the already available
-		flag setting login in this.
-	*/
-	unsigned int flags = GNUTLS_CLIENT | GNUTLS_ENABLE_EARLY_DATA | GNUTLS_NO_END_OF_EARLY_DATA;
-	gnutls_init(&session, flags);
-
-	if ((rc = gnutls_priority_set(session, priority_cache)) != GNUTLS_E_SUCCESS)
-		error_printf(_("GnuTLS: Failed to set priorities: %s\n"), gnutls_strerror(rc));
-	if (hostname) {
-		gnutls_server_name_set(session, GNUTLS_NAME_DNS, hostname, strlen(hostname));
-		debug_printf("SNI %s\n", hostname);
-	}
-	gnutls_credentials_set(session, GNUTLS_CRD_CERTIFICATE, credentials);
-
-	struct session_context *ctx = wget_calloc(1, sizeof(struct session_context));
-	ctx->hostname = wget_strdup(hostname);
-	ctx->port = quic->remote_port;
-
-	/*
-		OCSP is not configured as of now.
-		Not sure whether to confirm it or not.
-	*/
-
-#if GNUTLS_VERSION_NUMBER >= 0x030200
-	if (config.alpn) {
-		unsigned nprot;
-		const char *e, *s;
-
-		for (nprot = 0, s = e = config.alpn; *e; s = e + 1)
-			if ((e = strchrnul(s, ',')) != s)
-				nprot++;
-
-		if (nprot) {
-			gnutls_datum_t data[16];
-
-			for (nprot = 0, s = e = config.alpn; *e && nprot < countof(data); s = e + 1) {
-				if ((e = strchrnul(s, ',')) != s) {
-					data[nprot].data = (unsigned char *) s;
-					data[nprot].size = (unsigned) (e - s);
-					debug_printf("ALPN offering %.*s\n", (int) data[nprot].size, data[nprot].data);
-					nprot++;
-				}
-			}
-
-			if ((rc = gnutls_alpn_set_protocols(session, data, nprot, 0)))
-				debug_printf("GnuTLS: Set ALPN: %s\n", gnutls_strerror(rc));
-		}
-	}
-#endif
-
-	quic->ssl_session = session;
-
-#ifdef _WIN32
-	gnutls_transport_set_push_function(session, (gnutls_push_func) win32_send);
-	gnutls_transport_set_pull_function(session, (gnutls_pull_func) win32_recv);
-#endif
-
-#ifdef HAVE_GNUTLS_TRANSPORT_GET_INT
-	// since GnuTLS 3.1.9, avoid warnings about illegal pointer conversion
-	gnutls_transport_set_int(session, sockfd);
-#else
-	gnutls_transport_set_ptr(session, (gnutls_transport_ptr_t)(ptrdiff_t)sockfd);
-#endif
-
-	void *data;
-	size_t size;
-
-	if (wget_tls_session_get(config.tls_session_cache, ctx->hostname, &data, &size) == 0) {
-		debug_printf("found cached session data for %s\n", ctx->hostname);
-		if ((rc = gnutls_session_set_data(session, data, size)) != GNUTLS_E_SUCCESS)
-			error_printf(_("GnuTLS: Failed to set session data: %s\n"), gnutls_strerror(rc));
-		xfree(data);
+	ret = ngtcp2_conn_decode_and_set_remote_transport_params (conn, data, data_size);
+	if (ret < 0)
+	{
+		wget_info_printf ("ngtcp2_decode_transport_params: %s\n", ngtcp2_strerror (ret));
+		return -1;
 	}
 
-	ret = do_handshake(session, sockfd, connect_timeout);
-
-#if GNUTLS_VERSION_NUMBER >= 0x030200
-
-	/*
-		This whole configuration is going for a QUIC connection and if
-		the GnuTLS handshake points otherwise about the unavailability 
-		of the HTTP/3 then here should be a way present to either switch
-		between both or make the wget_ssl_open function call initially
-		irrespective of the porotocol used and then decide on the protocol.
-	*/
-	if (config.alpn) {
-		gnutls_datum_t protocol;
-		if ((rc = gnutls_alpn_get_selected_protocol(session, &protocol))) {
-			debug_printf("GnuTLS: Get ALPN: %s\n", gnutls_strerror(rc));
-			if (!strstr(config.alpn,"h3"))
-				ret = WGET_E_CONNECT;
-		}
-	}
-#endif
-
-	if (config.print_info)
-		print_info(session);
-	
-	if (ret == WGET_E_SUCCESS) {
-		int resumed = gnutls_session_is_resumed(session);
-		debug_printf("Handshake completed%s\n", resumed ? " (resumed session)" : "");
-
-		if (!resumed && config.tls_session_cache) {
-			gnutls_datum_t session_data;
-			if ((rc = gnutls_session_get_data2(session, &session_data)) == GNUTLS_E_SUCCESS) {
-				wget_tls_session_db_add(config.tls_session_cache,
-					wget_tls_session_new(ctx->hostname, 18 * 3600, session_data.data, session_data.size)); // 18h valid
-				xfree(session_data.data);
-			} else
-				debug_printf("Failed to get session data: %s", gnutls_strerror(rc));
-		}
-
-	}
-
-	ret = wget_ssl_gnutls_quic_integration(&session);
-
-	if (ret != WGET_E_SUCCESS) {
-		if (ret == WGET_E_TIMEOUT)
-			debug_printf("Handshake timed out\n");
-		xfree(ctx->hostname);
-		xfree(ctx);
-		gnutls_deinit(session);
-		quic->ssl_session = NULL;
-	}
-
-	return ret;
+	return 0;
 }
 
-#define MAX_TP_SIZE 128
+static int
+tp_send_func (gnutls_session_t session, gnutls_buffer_t extdata)
+{
+	ngtcp2_conn *conn = gnutls_session_get_ptr (session);
+
+	const ngtcp2_transport_params *params = ngtcp2_conn_get_local_transport_params (conn);
+
+	uint8_t buf[MAX_TP_SIZE];
+	ngtcp2_ssize n_encoded =
+	ngtcp2_transport_params_encode (buf, sizeof(buf), params);
+	if (n_encoded < 0)
+	{
+		wget_debug_printf ("ngtcp2_encode_transport_params: %s", ngtcp2_strerror (n_encoded));
+		return -1;
+	}
+
+	int ret = gnutls_buffer_append_data (extdata, buf, n_encoded);
+	if (ret < 0)
+	{
+		wget_debug_printf ("gnutls_buffer_append_data failed: %s", gnutls_strerror (ret));
+		return -1;
+	}
+
+	return n_encoded;
+}
+
+
+
 
 /* Helper functions for ssl_setup_quic */
 static int
@@ -2471,57 +2315,123 @@ alert_read_func (gnutls_session_t session __attribute__((unused)),
 }
 
 
-static int
-tp_recv_func (gnutls_session_t session, const uint8_t *data, size_t data_size)
-{
-	ngtcp2_conn *conn = gnutls_session_get_ptr (session);
-	int ret;
 
-	ret = ngtcp2_conn_decode_and_set_remote_transport_params (conn, data, data_size);
-	if (ret < 0)
-	{
-		wget_info_printf ("ngtcp2_decode_transport_params: %s\n", ngtcp2_strerror (ret));
-		return -1;
+/*
+	SSL open function for QUIC protocol.
+	As of now OCSP is not configured.
+	Also exact usage of tls_stats_data not clear.
+	As of now excluded that.
+*/
+int
+wget_ssl_open_quic(wget_quic *quic)
+{
+    gnutls_session_t session;
+
+    int ret = WGET_E_UNKNOWN, ncerts = -1;
+	int rc;
+	const char *hostname;
+
+
+    if (!quic)
+		return WGET_E_INVALID;
+    
+	gnutls_global_init();
+	
+	/*
+	 	This is to be decided whether to keep this or not.
+		If this is there then a local host GNUTLS_NAME_DNS 
+		will be declared in the global quic struct.
+	*/
+	hostname = wget_quic_get_ssl_hostname(quic);
+	
+	/*
+		As of now used same flags as used by Daiki in his repo.
+		But Still to confirm are these flags available in all the
+		versions of GNUTLS. 
+		Also to confirm how should I integrate the already available
+		flag setting login in this.
+	*/
+	unsigned int flags = GNUTLS_CLIENT | GNUTLS_ENABLE_EARLY_DATA | GNUTLS_NO_END_OF_EARLY_DATA;
+	gnutls_init(&session, flags);
+
+	if (hostname) {
+		gnutls_server_name_set(session, GNUTLS_NAME_DNS, hostname, strlen(hostname));
+		debug_printf("SNI %s\n", hostname);
 	}
 
-	return 0;
-}
+	gnutls_certificate_allocate_credentials(&credentials);
 
-static int
-tp_send_func (gnutls_session_t session, gnutls_buffer_t extdata)
-{
-	ngtcp2_conn *conn = gnutls_session_get_ptr (session);
+	ncerts = gnutls_certificate_set_x509_system_trust(credentials);
+	gnutls_certificate_set_x509_trust_file(credentials, "/home/hmk/wget2/examples/credentials/ca.pem", GNUTLS_X509_FMT_PEM);
+	gnutls_credentials_set(session, GNUTLS_CRD_CERTIFICATE, credentials);
+	debug_printf("Certificates loaded: %d\n", ncerts);
 
-	const ngtcp2_transport_params *params = ngtcp2_conn_get_local_transport_params (conn);
+	const char *priorities = "NORMAL:-VERS-ALL:+VERS-TLS1.3:" \
+  "-CIPHER-ALL:+AES-128-GCM:+AES-256-GCM:+CHACHA20-POLY1305:+AES-128-CCM:" \
+  "-GROUP-ALL:+GROUP-SECP256R1:+GROUP-X25519:+GROUP-SECP384R1:+GROUP-SECP521R1:" \
+  "%DISABLE_TLS13_COMPAT_MODE";	
+			rc = gnutls_priority_init(&priority_cache, priorities, NULL);
+			if (rc != GNUTLS_E_SUCCESS)
+				error_printf(_("GnuTLS: Unsupported priority string '%s': %s\n"), priorities ? priorities : "(null)", gnutls_strerror(rc));
 
-	uint8_t buf[MAX_TP_SIZE];
-	ngtcp2_ssize n_encoded =
-	ngtcp2_transport_params_encode (buf, sizeof(buf), params);
-	if (n_encoded < 0)
-	{
-		wget_debug_printf ("ngtcp2_encode_transport_params: %s", ngtcp2_strerror (n_encoded));
-		return -1;
+	if ((rc = gnutls_priority_set(session, priority_cache)) != GNUTLS_E_SUCCESS)
+		error_printf(_("GnuTLS: Failed to set priorities: %s\n"), gnutls_strerror(rc));
+
+
+	gnutls_session_set_verify_cert(session, hostname, 0);
+	
+	struct session_context *ctx = wget_calloc(1, sizeof(struct session_context));
+	ctx->hostname = wget_strdup(hostname);
+	ctx->port = wget_quic_get_remote_port(quic);
+
+	/*
+		OCSP is not configured as of now.
+		Not sure whether to confirm it or not.
+	*/
+
+#if GNUTLS_VERSION_NUMBER >= 0x030200
+	if (config.alpn) {
+		unsigned nprot;
+		const char *e, *s;
+
+		for (nprot = 0, s = e = config.alpn; *e; s = e + 1)
+			if ((e = strchrnul(s, ',')) != s)
+				nprot++;
+
+		if (nprot) {
+			gnutls_datum_t data[16];
+
+			for (nprot = 0, s = e = config.alpn; *e && nprot < countof(data); s = e + 1) {
+				if ((e = strchrnul(s, ',')) != s) {
+					data[nprot].data = (unsigned char *) s;
+					data[nprot].size = (unsigned) (e - s);
+					debug_printf("ALPN offering %.*s\n", (int) data[nprot].size, data[nprot].data);
+					nprot++;
+				}
+			}
+
+			if ((rc = gnutls_alpn_set_protocols(session, data, nprot, 0)))
+				debug_printf("GnuTLS: Set ALPN: %s\n", gnutls_strerror(rc));
+		}
 	}
+#endif
+	wget_quic_set_ssl_session(quic, (void *)session);
 
-	int ret = gnutls_buffer_append_data (extdata, buf, n_encoded);
-	if (ret < 0)
-	{
-		wget_debug_printf ("gnutls_buffer_append_data failed: %s", gnutls_strerror (ret));
-		return -1;
-	}
+#ifdef _WIN32
+	gnutls_transport_set_push_function(session, (gnutls_push_func) win32_send);
+	gnutls_transport_set_pull_function(session, (gnutls_pull_func) win32_recv);
+#endif
 
-	return n_encoded;
-}
 
-int 
-wget_ssl_gnutls_quic_integration(void *session)
-{
-	gnutls_session_t *gnutls_session = (gnutls_session_t *)session;
-    gnutls_handshake_set_secret_function ((*gnutls_session), handshake_secret_func);
-	gnutls_handshake_set_read_function ((*gnutls_session), handshake_read_func);
-	gnutls_alert_set_read_function ((*gnutls_session), alert_read_func);
 
-	int ret = gnutls_session_ext_register ((*gnutls_session), "QUIC Transport Parameters",
+	if (config.print_info)
+		print_info(session);
+
+    gnutls_handshake_set_secret_function (session, handshake_secret_func);
+	gnutls_handshake_set_read_function (session, handshake_read_func);
+	gnutls_alert_set_read_function (session, alert_read_func);
+
+	ret = gnutls_session_ext_register ((session), "QUIC Transport Parameters",
                                      NGTCP2_TLSEXT_QUIC_TRANSPORT_PARAMETERS_V1,
                                      GNUTLS_EXT_TLS,
                                      tp_recv_func, tp_send_func,
@@ -2529,5 +2439,11 @@ wget_ssl_gnutls_quic_integration(void *session)
                                      GNUTLS_EXT_FLAG_TLS |
                                      GNUTLS_EXT_FLAG_CLIENT_HELLO |
                                      GNUTLS_EXT_FLAG_EE);
-    return ret;
+
+
+	if (ret < 0){
+		return WGET_E_UNKNOWN;
+	}else{
+		return WGET_E_SUCCESS;
+	}
 }

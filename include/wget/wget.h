@@ -2084,7 +2084,15 @@ WGETAPI void
                            size_t remote_addrlen);
 
 WGETAPI void
+	wget_quic_set_remote_port(wget_quic *quic, uint16_t port);
+
+WGETAPI uint16_t 
+	wget_quic_get_remote_port(wget_quic *quic);
+
+WGETAPI void
 	wget_quic_set_ssl_hostname(wget_quic *quic, const char *hostname);
+WGETAPI const char *
+	wget_quic_get_ssl_hostname(wget_quic* quic);
 				
 WGETAPI void *
 	wget_quic_get_ssl_session(wget_quic *quic);
@@ -2097,6 +2105,9 @@ WGETAPI void
 
 WGETAPI int
 	wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port);
+
+WGETAPI int 
+	wget_quic_handshake(wget_quic_client *cli);
 
 WGETAPI ssize_t
 	wget_quic_write(wget_quic_client *cli, wget_quic_stream *stream);
