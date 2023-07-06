@@ -2670,31 +2670,6 @@ static void test_parse_response_header(void)
 	xfree(response_text);
 }
 
-static void test_quic_handshake(const char* host, uint16_t port)
-{
-	int ret;
-	printf("Hello! - %d\n", port);
-	wget_quic_client *cli = wget_quic_client_init();
-    if (!cli){
-		printf("Error in wget_quic_client_init()\n");
-		failed++;
-	}
-	wget_quic *quic = wget_quic_init();
-	if (!quic){
-		printf("Error in wget_quic_init()\n");
-		failed++;
-	}
-	wget_quic_set_ssl_hostname(quic, host);
-	wget_quic_set_connect_timeout(quic, 3000);
-	wget_quic_client_set_quic(cli, quic);
-    
-    ret = wget_quic_connect(cli, host, port);
-	if (ret < 0){
-		printf("Error in wget_quic_connect()\n");
-		failed++;
-	}
-	ok++;
-}
 static unsigned alloc_flags;
 
 static void *test_malloc(size_t size)
@@ -2787,7 +2762,6 @@ int main(int argc, const char **argv)
 	test_parse_response_header();
 	test_parse_header_line();
 	test_http_parse_full_date();
-	test_quic_handshake("35.214.218.230", 9000);
 
 	selftest_options() ? failed++ : ok++;
 
