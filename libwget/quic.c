@@ -46,7 +46,7 @@ ssize_t send_packet(int fd, const uint8_t *data, size_t data_size,
 int get_random_cid (ngtcp2_cid *cid);
 ssize_t recv_packet(int fd, uint8_t *data, size_t data_size,
 		    struct sockaddr *remote_addr, size_t *remote_addrlen);
-int quic_handshake(wget_quic_client* cli);
+int quic_handshake(wget_quic* quic);
 static void _set_async(int fd);
 void quic_stream_mark_sent(wget_quic_stream *stream, ngtcp2_ssize offset);
 int  quic_stream_peek_data(wget_quic_stream *stream, ngtcp2_vec *datav);
@@ -99,6 +99,25 @@ wget_quic *wget_quic_init(void)
 	}
 
 	return quic;
+}
+
+void wget_quic_deinit (wget_quic **_quic)
+{
+	wget_quic *quic = *_quic;
+
+	if (quic){
+		if (quic->ssl_hostname){
+			xfree(quic->ssl_hostname);
+		}
+
+		xfree(quic->local->addr);
+		xfree(quic->remote->addr);
+		xfree(quic->local);
+		xfree(quic->remote);
+		xfree(quic);
+	}
+
+	quic = NULL;
 }
 
 void *
@@ -211,27 +230,6 @@ wget_quic_set_ssl_hostname(wget_quic *quic, const char *hostname)
 const char* wget_quic_get_ssl_hostname(wget_quic* quic)
 {
 	return quic->ssl_hostname;
-}
-
-wget_quic_client *
-wget_quic_client_init(void)
-{
-	wget_quic_client *client = wget_malloc(sizeof(wget_quic_client));
-	if (client){
-		client->coalesce_count = 0;
-		client->n_coalescing = 0;
-		client->n_streams = 0;
-		client->quic = NULL;
-		client->stream_index = -1;
-	}
-	return client;
-}
-
-void 
-wget_quic_client_set_quic(wget_quic_client *cli, wget_quic *quic)
-{
-	cli->quic = quic;
-	return;
 }
 
 /*
@@ -451,15 +449,15 @@ handshake_read(wget_quic *quic)
 }
 
 int 
-quic_handshake(wget_quic_client* cli){
+quic_handshake(wget_quic* quic){
 	int ret,
-	timer_fd = wget_quic_get_timer_fd(cli->quic);
-	ngtcp2_conn *conn = (ngtcp2_conn *)wget_quic_get_ngtcp2_conn(cli->quic);
+	timer_fd = wget_quic_get_timer_fd(quic);
+	ngtcp2_conn *conn = (ngtcp2_conn *)wget_quic_get_ngtcp2_conn(quic);
 	ngtcp2_tstamp expiry, now;
 	struct itimerspec it;
 
 	while (!ngtcp2_conn_get_handshake_completed(conn)){
-		if ((ret = handshake_write(cli->quic)) < 0){
+		if ((ret = handshake_write(quic)) < 0){
 			return ret;
 		}
 		memset(&it, 0 , sizeof(it));
@@ -484,7 +482,7 @@ quic_handshake(wget_quic_client* cli){
 			fprintf(stderr, "ERROR: timerfd_settime: %s", strerror(errno));
 			return WGET_E_TIMEOUT;
 		}
-		handshake_read(cli->quic);
+		handshake_read(quic);
 	}
 	return 0;
 }
@@ -508,7 +506,7 @@ static void _set_async(int fd)
 }
 
 /**
- * \param[in] cli A `wget_quic_client` structure representing a QUIC client.
+ * \param[in] quic A `wget_quic` structure representing a QUIC.
  * \param[in] host Hostname or IP to connect to.
  * \param[in] port Port Number.
  * 
@@ -516,9 +514,8 @@ static void _set_async(int fd)
 */
 
 int 
-wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port)
+wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 {
-	wget_quic* quic = cli->quic;
 	struct addrinfo *ai_rp;
 	int ret = WGET_E_UNKNOWN ,rc;
 
@@ -553,6 +550,9 @@ wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port)
 					*/
 					break;
 				}
+				if (!quic->local || !quic->remote || !quic->local->addr || !quic->remote->addr){
+					return WGET_E_MEMORY;
+				}
 				socklen_t len;
 				quic->local->size = sizeof(quic->local->addr);
 				len = (socklen_t) quic->local->size;
@@ -573,10 +573,9 @@ wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port)
 }
 
 int 
-wget_quic_handshake(wget_quic_client *cli)
+wget_quic_handshake(wget_quic *quic)
 {
 	int ret = WGET_E_INVALID;
-	wget_quic* quic = cli->quic;
 	if (unlikely(!quic))
 		return WGET_E_INVALID;
 
@@ -634,7 +633,7 @@ wget_quic_handshake(wget_quic_client *cli)
 	}
 
 	wget_quic_set_timer_fd(quic, timerfd);	
-	if ((ret = quic_handshake(cli)) < 0){
+	if ((ret = quic_handshake(quic)) < 0){
 		return ret;
 	}
 	return WGET_E_SUCCESS;
@@ -1042,20 +1041,20 @@ write_stream(wget_quic *quic, wget_quic_stream *stream)
 
 
 ssize_t
-wget_quic_write(wget_quic_client *cli, wget_quic_stream *stream)
+wget_quic_write(wget_quic *quic, wget_quic_stream *stream)
 {
-	int ret = write_stream(cli->quic, stream);
+	int ret = write_stream(quic, stream);
 	if (ret < 0){
 		return WGET_E_UNKNOWN;
 	}
 
-	ngtcp2_tstamp expiry = ngtcp2_conn_get_expiry (cli->quic->conn);
+	ngtcp2_tstamp expiry = ngtcp2_conn_get_expiry (quic->conn);
 	ngtcp2_tstamp now = timestamp ();
 	struct itimerspec it;
 
 	memset (&it, 0, sizeof (it));
 
-	ret = timerfd_settime (cli->quic->timerfd, 0, &it, NULL);
+	ret = timerfd_settime (wget_quic_get_timer_fd(quic), 0, &it, NULL);
 	if (ret < 0) {
 		wget_error_printf("ERROR: timerfd_settime: %s", strerror(errno));
 		return -1;
@@ -1068,7 +1067,7 @@ wget_quic_write(wget_quic_client *cli, wget_quic_stream *stream)
 		it.it_value.tv_nsec = ((expiry - now) % NGTCP2_SECONDS) / NGTCP2_NANOSECONDS;
 	}
 
-	ret = timerfd_settime (cli->quic->timerfd, 0, &it, NULL);
+	ret = timerfd_settime (wget_quic_get_timer_fd(quic), 0, &it, NULL);
 	if (ret < 0) {
 		wget_error_printf("ERROR: timerfd_settime: %s", strerror(errno));
 		return -1;
@@ -1083,20 +1082,20 @@ wget_quic_write(wget_quic_client *cli, wget_quic_stream *stream)
 	}
 
 	ev.events = EPOLLIN | EPOLLET;
-	ev.data.fd = wget_quic_get_socket_fd(cli->quic);
+	ev.data.fd = wget_quic_get_socket_fd(quic);
 	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev) < 0) {
 		wget_error_printf("ERROR: epoll_ctl\n");
 		return -1;
 	}
 
 	ev.events = EPOLLIN | EPOLLET;
-	ev.data.fd = wget_quic_get_timer_fd(cli->quic);
+	ev.data.fd = wget_quic_get_timer_fd(quic);
 	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev) < 0) {
 		wget_error_printf("ERROR: epoll_ctl\n");
 		return -1;
 	}
 
-	while (!handshake_completed(cli->quic)) {
+	while (!handshake_completed(quic)) {
 		nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
 		if (nfds < 0) {
 			wget_error_printf("ERROR: epoll_wait\n");
@@ -1104,12 +1103,12 @@ wget_quic_write(wget_quic_client *cli, wget_quic_stream *stream)
 		}
 
 		for (int i = 0; i < nfds; i++) {
-			if (events[i].data.fd == wget_quic_get_socket_fd(cli->quic)) {
-				if (handle_socket(cli->quic, &events[i]) < 0)
+			if (events[i].data.fd == wget_quic_get_socket_fd(quic)) {
+				if (handle_socket(quic, &events[i]) < 0)
 					return -1;
 			}
-			if (events[i].data.fd == wget_quic_get_timer_fd(cli->quic)) {
-				if (handle_timer(cli->quic) < 0)
+			if (events[i].data.fd == wget_quic_get_timer_fd(quic)) {
+				if (handle_timer(quic) < 0)
 					return -1;
 			}
 		}
@@ -1128,7 +1127,7 @@ wget_quic_write(wget_quic_client *cli, wget_quic_stream *stream)
 */
 
 int 
-wget_quic_read(wget_quic_client *cli, const char *buf, size_t count)
+wget_quic_read(wget_quic *quic, const char *buf, size_t count)
 {
 	ngtcp2_ssize ret;
 	struct sockaddr_storage remote_addr;
@@ -1139,7 +1138,7 @@ wget_quic_read(wget_quic_client *cli, const char *buf, size_t count)
 	while(1) {
 		remote_addrlen = sizeof(remote_addr);
 
-		ret = recv_packet(cli->quic->sockfd,
+		ret = recv_packet(wget_quic_get_socket_fd(quic),
 				  (uint8_t *)buf, count,
 				  (struct sockaddr *) &remote_addr, &remote_addrlen);
 		if (ret < 0) {
@@ -1149,13 +1148,13 @@ wget_quic_read(wget_quic_client *cli, const char *buf, size_t count)
 			return -1;
 		}
 
-		memcpy(&path, ngtcp2_conn_get_path(cli->quic->conn), sizeof(path));
+		memcpy(&path, ngtcp2_conn_get_path(quic->conn), sizeof(path));
 		path.remote.addrlen = remote_addrlen;
 		path.remote.addr = (struct sockaddr *) &remote_addr;
 
 		memset(&pi, 0, sizeof(pi));
 
-		ret = ngtcp2_conn_read_pkt(cli->quic->conn, &path, &pi, (const uint8_t *)buf, ret, timestamp());
+		ret = ngtcp2_conn_read_pkt(quic->conn, &path, &pi, (const uint8_t *)buf, ret, timestamp());
 		if (ret < 0) {
 			fprintf(stderr, "ERROR: ngtcp2_conn_read_pkt: %s\n",
 				ngtcp2_strerror(ret));
