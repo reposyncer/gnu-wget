@@ -123,15 +123,13 @@ struct wget_quic_st{
 		is_closed;
 	uint16_t
 		remote_port;
-};
 
-struct wget_quic_client_st{
-	wget_quic *quic;
-	wget_quic_stream *streams[MAX_STREAMS];
+	// wget_quic_stream *streams[MAX_STREAMS]; //Still not figured out.
 	size_t n_streams; /* Number of Open Streams */
 	size_t stream_index; /* Current Stream Index */
 	size_t n_coalescing; /* Number of lines coalesced into single packet */
 	size_t coalesce_count; /* Number of lines currently coalesced */
+	
 };
 
 #endif /* LIBWGET_NET_H */

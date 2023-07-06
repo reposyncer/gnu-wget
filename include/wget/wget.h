@@ -2024,16 +2024,12 @@ WGETAPI bool
 
 
 typedef struct wget_quic_st wget_quic;
-typedef struct wget_quic_client_st wget_quic_client;
-
-WGETAPI wget_quic_client * NULLABLE
-	wget_quic_client_init(void);
-
-WGETAPI void 
-	wget_quic_client_set_quic(wget_quic_client *cli, wget_quic *quic);
 
 WGETAPI wget_quic * 
 	wget_quic_init(void);
+
+WGETAPI void
+	wget_quic_deinit (wget_quic **_quic);
 
 typedef struct wget_quic_stream_st wget_quic_stream;
 
@@ -2104,16 +2100,16 @@ WGETAPI void
 	wget_quic_set_connect_timeout(wget_quic *quic, int timeout);
 
 WGETAPI int
-	wget_quic_connect(wget_quic_client *cli, const char *host, uint16_t port);
+	wget_quic_connect(wget_quic *quic, const char *host, uint16_t port);
 
 WGETAPI int 
-	wget_quic_handshake(wget_quic_client *cli);
+	wget_quic_handshake(wget_quic *quic);
 
 WGETAPI ssize_t
-	wget_quic_write(wget_quic_client *cli, wget_quic_stream *stream);
+	wget_quic_write(wget_quic *quic, wget_quic_stream *stream);
 
 WGETAPI int 
-	wget_quic_read(wget_quic_client *cli, const char *buf, size_t count);
+	wget_quic_read(wget_quic *quic, const char *buf, size_t count);
 
 /*
  * SSL routines
