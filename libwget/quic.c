@@ -37,6 +37,7 @@ static struct wget_quic_st global_quic = {
 	.connect_timeout = -1,
 	.family = AF_UNSPEC,
 	.preferred_family = AF_UNSPEC,
+	.streams = {NULL},
 };
 
 uint64_t timestamp (void);
@@ -126,7 +127,7 @@ wget_quic_get_ngtcp2_conn (wget_quic *quic)
   return (void *)quic->conn;
 }
 
-wget_list* 
+wget_quic_stream**
 wget_quic_get_streams(wget_quic *quic)
 {
 	return quic->streams;
@@ -654,11 +655,11 @@ static wget_quic_stream *_stream_new(int64_t id)
 }
 
 wget_quic_stream *
-wget_quic_stream_new(void *quic_conn)
+wget_quic_stream_init(wget_quic *quic)
 {
 	int retval;
 	int64_t stream_id;
-	ngtcp2_conn *conn = (ngtcp2_conn *)quic_conn;
+	ngtcp2_conn *conn = quic->conn;
 
 	if(!ngtcp2_conn_get_streams_bidi_left(conn)){
 		wget_error_printf("Error: Cannot open a new stream!");
@@ -669,7 +670,17 @@ wget_quic_stream_new(void *quic_conn)
 		wget_error_printf("Error: Cannot create a new bidirection stream");
 		return NULL;
 	}
-	return _stream_new(stream_id);
+	wget_quic_stream* stream = _stream_new(stream_id);
+
+	for (int i = 0 ; i < MAX_STREAMS ; i++){
+		if (!quic->streams[i]){
+			quic->streams[i] = stream;
+			quic->n_streams++;
+			break;
+		}
+	}
+
+	return stream;
 }
 
 
@@ -702,9 +713,9 @@ wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen
 wget_quic_stream *
 wget_quic_stream_find (wget_quic *quic, int64_t stream_id)
 {
-  for (void *l = (void *)wget_quic_get_streams(quic); l; l = wget_list_getnext(l))
+  	for (int i = 0 ; i < MAX_STREAMS ; i++)
     {
-      wget_quic_stream *stream = (wget_quic_stream *)l;
+      wget_quic_stream *stream = quic->streams[i];
 	  /*
 	  	Stream_get_id is not very good name. Write getter and setter 
 	  	functions for Stream as well.
@@ -712,7 +723,7 @@ wget_quic_stream_find (wget_quic *quic, int64_t stream_id)
       if (wget_quic_stream_get_id (stream) == stream_id)
         return stream;
     }
-  return NULL;
+  	return NULL;
 }
 
 int64_t 
@@ -742,8 +753,7 @@ quic_stream_peek_data(wget_quic_stream *stream, ngtcp2_vec *datav)
 void
 quic_stream_mark_acked (wget_quic_stream *stream, size_t offset)
 {
-  while (!wget_queue_is_empty (stream->buffer))
-    {
+  	while (!wget_queue_is_empty (stream->buffer)){
       wget_byte *head  = (wget_byte *)wget_queue_peek (stream->buffer);
       if (stream->ack_offset + wget_byte_get_size (head) > offset)
         break;
@@ -1025,7 +1035,7 @@ write_stream(wget_quic *quic, wget_quic_stream *stream)
 		return -1;
 	}
 
-	return 0;
+	return n_written;
 }
 
 /*
@@ -1043,8 +1053,13 @@ write_stream(wget_quic *quic, wget_quic_stream *stream)
 ssize_t
 wget_quic_write(wget_quic *quic, wget_quic_stream *stream)
 {
-	int ret = write_stream(quic, stream);
-	if (ret < 0){
+
+	if (!handshake_completed(quic)){
+		return WGET_E_HANDSHAKE;
+	}
+
+	int n_write = write_stream(quic, stream);
+	if (n_write < 0){
 		return WGET_E_UNKNOWN;
 	}
 
@@ -1054,7 +1069,7 @@ wget_quic_write(wget_quic *quic, wget_quic_stream *stream)
 
 	memset (&it, 0, sizeof (it));
 
-	ret = timerfd_settime (wget_quic_get_timer_fd(quic), 0, &it, NULL);
+	int ret = timerfd_settime (wget_quic_get_timer_fd(quic), 0, &it, NULL);
 	if (ret < 0) {
 		wget_error_printf("ERROR: timerfd_settime: %s", strerror(errno));
 		return -1;
@@ -1072,51 +1087,8 @@ wget_quic_write(wget_quic *quic, wget_quic_stream *stream)
 		wget_error_printf("ERROR: timerfd_settime: %s", strerror(errno));
 		return -1;
 	}
-	
-	int epoll_fd, nfds;
-	struct epoll_event ev, events[MAX_EVENTS];
 
-	if ((epoll_fd = epoll_create(4)) < 0) {
-		wget_error_printf("ERROR: epoll_create\n");
-		return -1;
-	}
-
-	ev.events = EPOLLIN | EPOLLET;
-	ev.data.fd = wget_quic_get_socket_fd(quic);
-	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev) < 0) {
-		wget_error_printf("ERROR: epoll_ctl\n");
-		return -1;
-	}
-
-	ev.events = EPOLLIN | EPOLLET;
-	ev.data.fd = wget_quic_get_timer_fd(quic);
-	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev) < 0) {
-		wget_error_printf("ERROR: epoll_ctl\n");
-		return -1;
-	}
-
-	while (!handshake_completed(quic)) {
-		nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
-		if (nfds < 0) {
-			wget_error_printf("ERROR: epoll_wait\n");
-			return -1;
-		}
-
-		for (int i = 0; i < nfds; i++) {
-			if (events[i].data.fd == wget_quic_get_socket_fd(quic)) {
-				if (handle_socket(quic, &events[i]) < 0)
-					return -1;
-			}
-			if (events[i].data.fd == wget_quic_get_timer_fd(quic)) {
-				if (handle_timer(quic) < 0)
-					return -1;
-			}
-		}
-	}
-
-	close(epoll_fd);
-
-	return 0;
+	return n_write;
 
 }
 
