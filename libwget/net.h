@@ -112,8 +112,6 @@ struct wget_quic_st{
 			have that function generalised for connection type.
 		*/
 		*bind_addrinfo;
-	wget_list
-		*streams;
 	wget_dns
 		*dns;
 	const char
@@ -124,7 +122,7 @@ struct wget_quic_st{
 	uint16_t
 		remote_port;
 
-	// wget_quic_stream *streams[MAX_STREAMS]; //Still not figured out.
+	wget_quic_stream *streams[MAX_STREAMS]; //Still not figured out.
 	size_t n_streams; /* Number of Open Streams */
 	size_t stream_index; /* Current Stream Index */
 	size_t n_coalescing; /* Number of lines coalesced into single packet */
