@@ -2034,7 +2034,7 @@ WGETAPI void
 typedef struct wget_quic_stream_st wget_quic_stream;
 
 WGETAPI wget_quic_stream *
-	wget_quic_stream_new(void *conn);
+	wget_quic_stream_init(wget_quic *quic);
 
 WGETAPI int 
 	wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen);
@@ -2048,7 +2048,7 @@ WGETAPI int64_t
 WGETAPI void *
 	wget_quic_get_ngtcp2_conn (wget_quic *quic);
 
-WGETAPI wget_list* 
+WGETAPI wget_quic_stream** 
 	wget_quic_get_streams(wget_quic *quic);
 
 WGETAPI void
