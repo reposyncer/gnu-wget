@@ -1,4 +1,5 @@
 #include <wget.h>
+#include <string.h>
 
 int main(void){
     int ret;
@@ -10,6 +11,8 @@ int main(void){
 		fprintf(stderr, "Error in wget_quic_init()\n");
 	}
 
+	const char *key_path = "/home/hmk/wget2/examples/credentials/ca.pem";
+    wget_ssl_quic_set_config_string(WGET_SSL_CA_FILE, key_path);
     wget_quic_set_ssl_hostname(quic, hostname);
 
 
@@ -30,7 +33,7 @@ int main(void){
 		return -1;
 	}
 	const char *data = "Hello World!";
-	ret = wget_quic_stream_push(stream, data, sizeof(data));
+	ret = wget_quic_stream_push(stream, data, strlen(data));
 	if (ret < 0){
 		return ret;
 	}
