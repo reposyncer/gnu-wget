@@ -9,6 +9,7 @@ noinst_PROGRAMS = \
  print_html_urls\
  quic_handshake\
  quic_write\
+ quic_write_read\
  websequencediagram\
  websequencediagram_high\
  check_url_types\
