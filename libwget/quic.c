@@ -54,6 +54,7 @@ int  quic_stream_peek_data(wget_quic_stream *stream, ngtcp2_vec *datav);
 void log_printf(void *user_data, const char *fmt, ...);
 int connection_read(wget_quic *quic);
 int connection_write(wget_quic *quic);
+wget_quic_stream *stream_new(int64_t id);
 
 static inline void print_error_host(const char *msg, const char *host)
 {
@@ -305,11 +306,17 @@ recv_stream_data_cb (ngtcp2_conn *conn __attribute__((unused)),
 		     int64_t stream_id __attribute__((unused)),
                      uint64_t offset __attribute__((unused)),
 		     const uint8_t *data, size_t datalen,
-                     void *user_data __attribute__((unused)),
+                     void *user_data,
 		     void *stream_user_data __attribute__((unused)))
 {
-  int ret = write (STDOUT_FILENO, data, datalen);
-  return ret;
+	fprintf(stderr, "receiving %zu bytes from stream #%zd\n", datalen, stream_id);
+	wget_quic *connection = user_data;
+	wget_quic_stream *stream = wget_quic_stream_find (connection, stream_id);
+
+	if (stream)
+		wget_quic_stream_push(stream, (const char *)data, datalen);
+
+	return 0;
 }
 
 static int
@@ -319,10 +326,41 @@ acked_stream_data_offset_cb (ngtcp2_conn *conn __attribute__((unused)),
                              void *user_data,
 			     void *stream_user_data __attribute__((unused)))
 {
+	wget_quic *connection = user_data;
+	wget_quic_stream *stream = wget_quic_stream_find (connection, stream_id);
+	if (stream){
+		quic_stream_mark_acked (stream, offset + datalen);
+		fprintf(stderr, "acked %zu bytes on stream #%zd\n", datalen, stream_id);
+	} else {
+		fprintf(stderr, "acked %zu bytes on no stream\n", datalen);
+	}
+	return 0;
+}
+
+int handshake_completed_int = 0;
+
+static int handshake_completed_cb(ngtcp2_conn *conn __attribute__((unused)), 
+	void *user_data __attribute__((unused)))
+{
+	handshake_completed_int = 1;
+	fprintf(stderr, "Handshake completed!\n");
+	return 0;
+}
+
+static int handshake_confirmed_cb(ngtcp2_conn *conn __attribute__((unused)), 
+	void *user_data __attribute__((unused)))
+{
+	fprintf(stderr, "Handshake confirmed!\n");
+	return 0;
+}
+
+static int
+stream_open_cb (ngtcp2_conn *conn __attribute__((unused)),
+		int64_t stream_id, void *user_data)
+{
   wget_quic *connection = user_data;
-  wget_quic_stream *stream = wget_quic_stream_find (connection, stream_id);
-  if (stream)
-    quic_stream_mark_acked (stream, offset + datalen);
+  wget_quic_stream *stream = stream_new(stream_id);
+  wget_quic_set_stream (connection, stream);
   return 0;
 }
 
@@ -344,9 +382,12 @@ ngtcp2_callbacks callbacks =
 	/*These callback functions implemented in same file above*/
     .acked_stream_data_offset = acked_stream_data_offset_cb,
     .recv_stream_data = recv_stream_data_cb,
+	.stream_open = stream_open_cb,
 	/*These both functions are present in the ssl_gnutls.c*/
     .rand = rand_cb,
     .get_new_connection_id = get_new_connection_id_cb,
+	.handshake_completed = handshake_completed_cb,
+	.handshake_confirmed = handshake_confirmed_cb
 };
 
 int
@@ -642,16 +683,27 @@ wget_quic_handshake(wget_quic *quic)
 
 /* Stream Struct Getter and Setter functions present [As Required] */
 
-static wget_quic_stream *_stream_new(int64_t id)
+wget_quic_stream *stream_new(int64_t id)
 {
 	wget_quic_stream *stream = wget_malloc(sizeof(wget_quic_stream));
 	if (!stream)
 		return NULL;
 	stream->id  = id;
-	stream->buffer = NULL;
+	stream->buffer = wget_queue_init();
 	stream->ack_offset = 0;
 	stream->sent_offset = 0;
 	return stream;
+}
+
+void 
+wget_quic_set_stream(wget_quic *quic, wget_quic_stream *stream){
+	for (int i = 0 ; i < MAX_STREAMS ; i++){
+		if (!quic->streams[i]){
+			quic->streams[i] = stream;
+			quic->n_streams++;
+			break;
+		}
+	}
 }
 
 wget_quic_stream *
@@ -670,16 +722,8 @@ wget_quic_stream_init(wget_quic *quic)
 		wget_error_printf("Error: Cannot create a new bidirection stream");
 		return NULL;
 	}
-	wget_quic_stream* stream = _stream_new(stream_id);
-
-	for (int i = 0 ; i < MAX_STREAMS ; i++){
-		if (!quic->streams[i]){
-			quic->streams[i] = stream;
-			quic->n_streams++;
-			break;
-		}
-	}
-
+	wget_quic_stream* stream = stream_new(stream_id);
+	wget_quic_set_stream(quic, stream);
 	return stream;
 }
 
@@ -713,15 +757,17 @@ wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen
 wget_quic_stream *
 wget_quic_stream_find (wget_quic *quic, int64_t stream_id)
 {
+	int id;
   	for (int i = 0 ; i < MAX_STREAMS ; i++)
     {
-      wget_quic_stream *stream = quic->streams[i];
+      	wget_quic_stream *stream = quic->streams[i];
 	  /*
 	  	Stream_get_id is not very good name. Write getter and setter 
 	  	functions for Stream as well.
 	 */
-      if (wget_quic_stream_get_id (stream) == stream_id)
-        return stream;
+		id = wget_quic_stream_get_id (stream);
+		if (id >= 0 && id == stream_id)
+			return stream;
     }
   	return NULL;
 }
@@ -729,7 +775,17 @@ wget_quic_stream_find (wget_quic *quic, int64_t stream_id)
 int64_t 
 wget_quic_stream_get_id(wget_quic_stream *stream)
 {
-	return stream->id;
+	if (stream)
+		return stream->id;
+	return -1;
+}
+
+wget_queue *
+wget_quic_stream_get_buffer(wget_quic_stream *stream)
+{
+	if (stream)
+		return stream->buffer;
+	return NULL;
 }
 
 void 
@@ -745,7 +801,7 @@ quic_stream_peek_data(wget_quic_stream *stream, ngtcp2_vec *datav)
 	if (!byte){
 		return WGET_E_MEMORY;
 	}
-	datav->base = wget_byte_get_data(byte);
+	datav->base = (uint8_t *)wget_byte_get_data(byte);
 	datav->len = wget_byte_get_size(byte);
 	return WGET_E_SUCCESS;
 }
@@ -941,41 +997,6 @@ int connection_write(wget_quic *quic)
 	return 0;
 }
 
-static int handle_socket(wget_quic *quic, const struct epoll_event *event)
-{
-	int ret;
-
-	if (event->events & EPOLLIN) {
-		if ((ret = connection_read(quic)) < 0)
-			return -1;
-	}
-
-	if (event->events & EPOLLOUT) {
-		if ((ret = connection_write(quic)) < 0)
-			return -1;
-	}
-
-	return 0;
-}
-
-static int handle_timer(wget_quic *quic)
-{
-	int ret;
-	ngtcp2_conn *conn = (ngtcp2_conn *)wget_quic_get_ngtcp2_conn(quic);
-
-	if ((ret = ngtcp2_conn_handle_expiry(conn, timestamp())) < 0) {
-		wget_error_printf("ERROR: ngtcp2_conn_handle_expiry: %s\n",
-			ngtcp2_strerror(ret));
-		return -1;
-	}
-
-	if ((ret = connection_write(quic)) < 0)
-		return -1;
-
-	return 0;
-}
-
-
 /*
 	As of now not decided on the flags.
 	To have NGTCP2_WRITE_STREAM_FLAG_MORE will be decided as per
@@ -994,6 +1015,7 @@ write_stream(wget_quic *quic, wget_quic_stream *stream)
 	ngtcp2_path_storage_zero(&ps);
 
 	ngtcp2_pkt_info pi;
+	memset(&pi, 0, sizeof(pi));
 	uint64_t ts = timestamp();
 
 	/* uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_MORE; */
@@ -1058,6 +1080,10 @@ wget_quic_write(wget_quic *quic, wget_quic_stream *stream)
 		return WGET_E_HANDSHAKE;
 	}
 
+	if (wget_ready_2_write(wget_quic_get_socket_fd(quic), wget_quic_get_timer_fd(quic)) < 0){
+		return WGET_E_TIMEOUT;
+	}
+
 	int n_write = write_stream(quic, stream);
 	if (n_write < 0){
 		return WGET_E_UNKNOWN;
@@ -1098,20 +1124,22 @@ wget_quic_write(wget_quic *quic, wget_quic_stream *stream)
 	implementation is tested.
 */
 
-int 
-wget_quic_read(wget_quic *quic, const char *buf, size_t count)
+static int
+read_stream(wget_quic *quic)
 {
 	ngtcp2_ssize ret;
+	uint8_t buf[BUF_SIZE];
 	struct sockaddr_storage remote_addr;
 	size_t remote_addrlen = sizeof(remote_addr);
 	ngtcp2_path path;
 	ngtcp2_pkt_info pi;
+	uint64_t ts = timestamp();
 
 	while(1) {
 		remote_addrlen = sizeof(remote_addr);
 
 		ret = recv_packet(wget_quic_get_socket_fd(quic),
-				  (uint8_t *)buf, count,
+				  (uint8_t *)buf, sizeof(buf),
 				  (struct sockaddr *) &remote_addr, &remote_addrlen);
 		if (ret < 0) {
 			if (errno == EAGAIN)
@@ -1126,13 +1154,56 @@ wget_quic_read(wget_quic *quic, const char *buf, size_t count)
 
 		memset(&pi, 0, sizeof(pi));
 
-		ret = ngtcp2_conn_read_pkt(quic->conn, &path, &pi, (const uint8_t *)buf, ret, timestamp());
+		ret = ngtcp2_conn_read_pkt(quic->conn, &path, &pi, (const uint8_t *)buf, ret, ts);
 		if (ret < 0) {
 			fprintf(stderr, "ERROR: ngtcp2_conn_read_pkt: %s\n",
 				ngtcp2_strerror(ret));
 			return -1;
 		}
 	}
+	return WGET_E_SUCCESS;
+}
 
-	return 0;
+int 
+wget_quic_read(wget_quic *quic)
+{
+	if (!handshake_completed(quic)){
+		return WGET_E_HANDSHAKE;
+	}
+
+	if (wget_ready_2_read(wget_quic_get_socket_fd(quic), wget_quic_get_timer_fd(quic)) < 0){
+		return WGET_E_TIMEOUT;
+	}
+
+	int ret = read_stream(quic);
+	if (ret < 0){
+		return WGET_E_UNKNOWN;
+	}
+
+	ngtcp2_tstamp expiry = ngtcp2_conn_get_expiry (quic->conn);
+	ngtcp2_tstamp now = timestamp ();
+	struct itimerspec it;
+
+	memset (&it, 0, sizeof (it));
+
+	ret = timerfd_settime (wget_quic_get_timer_fd(quic), 0, &it, NULL);
+	if (ret < 0) {
+		wget_error_printf("ERROR: timerfd_settime: %s", strerror(errno));
+		return -1;
+	}
+	if (expiry < now) {
+		it.it_value.tv_sec = 0;
+		it.it_value.tv_nsec = 1;
+	} else {
+		it.it_value.tv_sec = (expiry - now) / NGTCP2_SECONDS;
+		it.it_value.tv_nsec = ((expiry - now) % NGTCP2_SECONDS) / NGTCP2_NANOSECONDS;
+	}
+
+	ret = timerfd_settime (wget_quic_get_timer_fd(quic), 0, &it, NULL);
+	if (ret < 0) {
+		wget_error_printf("ERROR: timerfd_settime: %s", strerror(errno));
+		return -1;
+	}
+
+	return ret;
 }
