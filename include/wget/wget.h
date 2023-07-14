@@ -2045,6 +2045,9 @@ WGETAPI wget_quic_stream *
 WGETAPI int64_t 
 	wget_quic_stream_get_id(wget_quic_stream *stream);
 
+WGETAPI wget_queue *
+	wget_quic_stream_get_buffer(wget_quic_stream *stream);
+
 WGETAPI void *
 	wget_quic_get_ngtcp2_conn (wget_quic *quic);
 
@@ -2099,6 +2102,9 @@ WGETAPI void
 WGETAPI void 
 	wget_quic_set_connect_timeout(wget_quic *quic, int timeout);
 
+WGETAPI void 
+	wget_quic_set_stream(wget_quic *quic, wget_quic_stream *stream);
+
 WGETAPI int
 	wget_quic_connect(wget_quic *quic, const char *host, uint16_t port);
 
@@ -2109,7 +2115,7 @@ WGETAPI ssize_t
 	wget_quic_write(wget_quic *quic, wget_quic_stream *stream);
 
 WGETAPI int 
-	wget_quic_read(wget_quic *quic, const char *buf, size_t count);
+	wget_quic_read(wget_quic *quic);
 
 /*
  * SSL routines
