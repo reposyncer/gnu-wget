@@ -2048,56 +2048,11 @@ WGETAPI int64_t
 WGETAPI wget_queue *
 	wget_quic_stream_get_buffer(wget_quic_stream *stream);
 
-WGETAPI void *
-	wget_quic_get_ngtcp2_conn (wget_quic *quic);
-
 WGETAPI wget_quic_stream** 
 	wget_quic_get_streams(wget_quic *quic);
 
 WGETAPI void
-	wget_quic_set_ngtcp2_conn (wget_quic *quic, void *conn);
-
-WGETAPI int
-	wget_quic_get_socket_fd (wget_quic *quic);
-
-WGETAPI void
-	wget_quic_set_socket_fd (wget_quic *quic, int socketfd);
-
-WGETAPI int
-	wget_quic_get_timer_fd (wget_quic *quic);
-
-WGETAPI void
-	wget_quic_set_timer_fd (wget_quic *quic, int timerfd);
-
-WGETAPI struct sockaddr *
-	wget_quic_get_local_addr (wget_quic *quic, size_t *local_addrlen);
-
-WGETAPI void
-	wget_quic_set_local_addr (wget_quic *quic,
-                           struct sockaddr *local_addr,
-                           size_t local_addrlen);
-
-WGETAPI void
-	wget_quic_set_remote_addr (wget_quic *quic,
-                           struct sockaddr *remote_addr,
-                           size_t remote_addrlen);
-
-WGETAPI void
-	wget_quic_set_remote_port(wget_quic *quic, uint16_t port);
-
-WGETAPI uint16_t 
-	wget_quic_get_remote_port(wget_quic *quic);
-
-WGETAPI void
 	wget_quic_set_ssl_hostname(wget_quic *quic, const char *hostname);
-WGETAPI const char *
-	wget_quic_get_ssl_hostname(wget_quic* quic);
-				
-WGETAPI void *
-	wget_quic_get_ssl_session(wget_quic *quic);
-
-WGETAPI void
-	wget_quic_set_ssl_session(wget_quic *quic, void *session);
 
 WGETAPI void 
 	wget_quic_set_connect_timeout(wget_quic *quic, int timeout);
@@ -2163,6 +2118,12 @@ WGETAPI void
 	wget_ssl_set_config_object(int key, void *value);
 WGETAPI void
 	wget_ssl_set_config_int(int key, int value);
+WGETAPI void 
+	wget_ssl_quic_set_config_int(int key, int value);
+WGETAPI void 
+	wget_ssl_quic_set_config_string(int key, const char *value);
+//WGETAPI void *
+//	wget_ssl_open(int sockfd, const char *hostname, int connect_timeout) G_GNUC_WGET_NONNULL((2));
 WGETAPI int
 	wget_ssl_open(wget_tcp *tcp);
 WGETAPI int

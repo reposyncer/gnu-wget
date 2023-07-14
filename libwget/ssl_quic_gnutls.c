@@ -47,13 +47,18 @@ static struct config {
 	const char
 		*secure_protocol,
 		*ca_directory,
+		*ca_file,
+		*cert_file,
+		*key_file,
+		*crl_file,
 		*alpn;
 	char
 		ca_type,
 		cert_type,
 		key_type;
 	bool
-		check_certificate : 1;
+		check_certificate : 1,
+		check_hostname : 1;
 } config = {
 	.check_certificate = 1,
 	.ca_type = WGET_SSL_X509_FMT_PEM,
@@ -73,6 +78,26 @@ static struct config {
 #endif
 };
 
+void wget_ssl_quic_set_config_int(int key, int value)
+{
+	switch (key) {
+	case WGET_SSL_CHECK_CERTIFICATE: config.check_certificate = (char)value; break;
+	case WGET_SSL_CHECK_HOSTNAME: config.check_hostname = (char)value; break;
+	default: error_printf(_("Unknown config key %d (or value must not be an integer)\n"), key);
+	}
+}
+
+void wget_ssl_quic_set_config_string(int key, const char *value)
+{
+	switch (key) {
+	case WGET_SSL_CA_DIRECTORY: config.ca_directory = value; break;
+	case WGET_SSL_CA_FILE: config.ca_file = value; break;
+	case WGET_SSL_CERT_FILE: config.cert_file = value; break;
+	case WGET_SSL_KEY_FILE: config.key_file = value; break;
+	case WGET_SSL_CRL_FILE: config.crl_file = value; break;
+	default: error_printf(_("Unknown config key %d (or value must not be a string)\n"), key);
+	}
+}
 
 
 #define MAX_TP_SIZE 128
@@ -212,7 +237,7 @@ wget_ssl_open_quic(wget_quic *quic)
 		If this is there then a local host GNUTLS_NAME_DNS 
 		will be declared in the global quic struct.
 	*/
-	hostname = wget_quic_get_ssl_hostname(quic);
+	hostname = quic->ssl_hostname;
 	
 	/*
 		As of now used same flags as used by Daiki in his repo.
@@ -232,7 +257,7 @@ wget_ssl_open_quic(wget_quic *quic)
 	gnutls_certificate_allocate_credentials(&credentials);
 
 	ncerts = gnutls_certificate_set_x509_system_trust(credentials);
-	gnutls_certificate_set_x509_trust_file(credentials, "/home/hmk/wget2/examples/credentials/ca.pem", GNUTLS_X509_FMT_PEM);
+	gnutls_certificate_set_x509_trust_file(credentials, config.ca_file , GNUTLS_X509_FMT_PEM);
 	gnutls_credentials_set(session, GNUTLS_CRD_CERTIFICATE, credentials);
 	debug_printf("Certificates loaded: %d\n", ncerts);
 
@@ -247,12 +272,17 @@ wget_ssl_open_quic(wget_quic *quic)
 	if ((rc = gnutls_priority_set(session, priority_cache)) != GNUTLS_E_SUCCESS)
 		error_printf(_("GnuTLS: Failed to set priorities: %s\n"), gnutls_strerror(rc));
 
-
-	gnutls_session_set_verify_cert(session, hostname, 0);
+	if (config.check_certificate){
+		if (config.check_hostname){
+			gnutls_session_set_verify_cert(session, hostname, 0);
+		}else {
+			gnutls_session_set_verify_cert(session, NULL, 0);
+		}
+	}
 	
 	struct session_context *ctx = wget_calloc(1, sizeof(struct session_context));
 	ctx->hostname = wget_strdup(hostname);
-	ctx->port = wget_quic_get_remote_port(quic);
+	ctx->port = quic->remote_port;
 
 	/*
 		OCSP is not configured as of now.
@@ -285,7 +315,7 @@ wget_ssl_open_quic(wget_quic *quic)
 		}
 	}
 #endif
-	wget_quic_set_ssl_session(quic, (void *)session);
+	quic->ssl_session = (void *)session;
 
 #ifdef _WIN32
 	gnutls_transport_set_push_function(session, (gnutls_push_func) win32_send);
