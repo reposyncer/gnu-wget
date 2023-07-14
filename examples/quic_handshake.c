@@ -11,7 +11,6 @@ int main(void){
 	}
 
     wget_quic_set_ssl_hostname(quic, hostname);
-	wget_quic_set_remote_port(quic, port);
 
 
     ret = wget_quic_connect(quic, hostname, port);
