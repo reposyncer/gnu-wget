@@ -2075,6 +2075,9 @@ WGETAPI ssize_t
 WGETAPI int 
 	wget_quic_read(wget_quic *quic);
 
+WGETAPI int 
+	wget_quic_once(wget_quic *quic, const char *data);
+
 /*
  * SSL routines
  */
