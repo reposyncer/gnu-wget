@@ -55,6 +55,7 @@ void log_printf(void *user_data, const char *fmt, ...);
 int connection_read(wget_quic *quic);
 int connection_write(wget_quic *quic);
 wget_quic_stream *stream_new(int64_t id);
+static int handshake_completed(wget_quic *quic);
 
 static inline void print_error_host(const char *msg, const char *host)
 {
@@ -360,6 +361,54 @@ handshake_write(wget_quic *quic)
 	return WGET_E_SUCCESS;
 }
 
+int 
+wget_quic_ack(wget_quic *quic)
+{
+	if (!handshake_completed(quic)){
+		return WGET_E_HANDSHAKE;
+	}
+	int ret;
+	uint8_t buf[BUF_SIZE];
+	ngtcp2_ssize n_read, n_written;
+	ngtcp2_path_storage ps;
+	ngtcp2_pkt_info pi;
+	ngtcp2_vec datav;
+	ngtcp2_conn *conn = (ngtcp2_conn *)quic->conn;
+	int64_t stream_id = -1;
+	uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_MORE;
+	uint64_t ts = timestamp();
+
+	ngtcp2_path_storage_zero(&ps);
+
+	datav.base = NULL;
+	datav.len = 0;
+
+	n_written = ngtcp2_conn_writev_stream(conn, &ps.path, &pi,
+					      buf, sizeof(buf),
+					      &n_read,
+					      flags,
+					      stream_id,
+					      &datav, 1,
+					      ts);
+	if (n_written < 0) {
+		error_printf("ERROR: ngtcp2_conn_writev_stream: %s\n",
+			ngtcp2_strerror((int) n_written));
+		return WGET_E_INVALID;
+	}
+
+	if (n_written == 0)
+		return WGET_E_SUCCESS;
+
+	ret = send_packet(quic->sockfd, buf, n_written,
+			  NULL, 0);
+	if (ret < 0) {
+		error_printf("ERROR: send_packet: %s\n", strerror(errno));
+		return WGET_E_INVALID;
+	}
+
+	return WGET_E_SUCCESS;
+}
+
 static int 
 handshake_read(wget_quic *quic)
 {
@@ -553,7 +602,8 @@ wget_quic_handshake(wget_quic *quic)
 	/*
 		Not sure what to do with this log_printf function.
 	*/
-	settings.log_printf = log_printf;
+	// settings.log_printf = log_printf;
+	settings.log_printf = NULL;
 
 	ngtcp2_transport_params params;
 	ngtcp2_transport_params_default (&params);
@@ -756,8 +806,8 @@ ssize_t send_packet(int fd, const uint8_t *data, size_t data_size,
 
 static int handshake_completed(wget_quic *quic)
 {
-	return ngtcp2_conn_get_handshake_completed(
-		(ngtcp2_conn *)quic->conn);
+	return (quic && quic->conn && ngtcp2_conn_get_handshake_completed(
+		(ngtcp2_conn *)quic->conn));
 }
 
 ssize_t recv_packet(int fd, uint8_t *data, size_t data_size,
@@ -930,8 +980,8 @@ write_stream(wget_quic *quic, wget_quic_stream *stream)
 	memset(&pi, 0, sizeof(pi));
 	uint64_t ts = timestamp();
 
-	/* uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_MORE; */
-	uint32_t flags = 0;
+	uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_MORE;
+	// uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_NONE;
 
 	ngtcp2_vec datav;
 	int64_t stream_id;
