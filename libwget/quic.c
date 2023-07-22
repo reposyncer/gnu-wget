@@ -1171,3 +1171,25 @@ wget_quic_read(wget_quic *quic)
 
 	return ret;
 }
+
+int
+wget_quic_once(wget_quic *quic, const char *data)
+{
+	int ret = -1;
+	wget_quic_stream *stream = wget_quic_stream_init(quic);
+	if (stream){
+        ret = wget_quic_stream_push(stream, data, strlen(data));
+        ret = wget_quic_write(quic, stream);
+        while(1){
+            ret = wget_quic_read(quic);
+            wget_byte *byte = (wget_byte *)wget_queue_dequeue(wget_quic_stream_get_buffer(stream));
+            if (byte)
+                fprintf(stderr ,"Data recorded : %s\n", (char *)wget_byte_get_data(byte));
+            else
+                break;
+        }
+        wget_quic_ack(quic);
+    }
+
+	return ret;
+}
