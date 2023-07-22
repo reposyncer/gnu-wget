@@ -2066,6 +2066,9 @@ WGETAPI int
 WGETAPI int 
 	wget_quic_handshake(wget_quic *quic);
 
+WGETAPI int
+	wget_quic_ack(wget_quic *quic);
+
 WGETAPI ssize_t
 	wget_quic_write(wget_quic *quic, wget_quic_stream *stream);
 
