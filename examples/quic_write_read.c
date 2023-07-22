@@ -36,10 +36,15 @@ int main(void){
         const char *data = "Hello World!";
         ret = wget_quic_stream_push(stream, data, strlen(data));
         ret = wget_quic_write(quic, stream);
-        ret = wget_quic_read(quic);
-        wget_byte *byte = (wget_byte *)wget_queue_peek(wget_quic_stream_get_buffer(stream));
-        if (byte)
-            fprintf(stderr ,"Data recorded : %s\n", (char *)wget_byte_get_data(byte));
+        while(1){
+            ret = wget_quic_read(quic);
+            wget_byte *byte = (wget_byte *)wget_queue_dequeue(wget_quic_stream_get_buffer(stream));
+            if (byte)
+                fprintf(stderr ,"Data recorded : %s\n", (char *)wget_byte_get_data(byte));
+            else
+                break;
+        }
+        wget_quic_ack(quic);
     }else{
         return -1;
     }
