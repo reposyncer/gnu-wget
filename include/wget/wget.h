@@ -2076,7 +2076,7 @@ WGETAPI int
 	wget_quic_read(wget_quic *quic);
 
 WGETAPI int 
-	wget_quic_once(wget_quic *quic, const char *data);
+	wget_quic_rw_once(wget_quic *quic, wget_quic_stream *stream);
 
 /*
  * SSL routines
