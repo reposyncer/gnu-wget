@@ -777,12 +777,12 @@ void
 quic_stream_mark_acked (wget_quic_stream *stream, size_t offset)
 {
   	while (stream && !wget_queue_is_empty (stream->buffer)) {
-      wget_byte *head  = (wget_byte *)wget_queue_peek (stream->buffer);
-      if (stream->ack_offset + wget_byte_get_size (head) > offset)
-        break;
+		wget_byte *head  = (wget_byte *)wget_queue_peek (stream->buffer);
+		if (stream->ack_offset + wget_byte_get_size (head) > offset)
+			break;
 
-      stream->ack_offset += wget_byte_get_size (head);
-      head = wget_queue_dequeue (stream->buffer);
+		stream->ack_offset += wget_byte_get_size (head);
+		head = wget_queue_dequeue (stream->buffer);
     }
 }
 
