@@ -66,9 +66,6 @@ static struct config {
 	.key_type = WGET_SSL_X509_FMT_PEM,
 	.secure_protocol = "AUTO",
 	.ca_directory = "system",
-#ifdef WITH_LIBNGHTTP2
-	.alpn = "h2,http/1.1",
-#endif
 /*
 	As of now a sample alpn for http3 defined for usage.
 	TBDL
