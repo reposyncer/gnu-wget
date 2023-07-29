@@ -2483,6 +2483,15 @@ WGETAPI wget_http_response *
 
 
 /*
+	HTTP/3 routines
+*/
+
+typedef struct wget_http3_connection_st wget_http3_connection;
+
+WGETAPI wget_http3_connection *
+	wget_http3_init(void);
+
+/*
  * random routines
  */
 
