@@ -11,8 +11,10 @@
 #include "net.h"
 
 wget_quic_stream *stream_new(int64_t id);
+wget_quic_stream *quic_stream_init(wget_quic *quic, int unidirectional);
 
-wget_quic_stream *stream_new(int64_t id)
+wget_quic_stream *
+stream_new(int64_t id)
 {
 	wget_quic_stream *stream = wget_malloc(sizeof(wget_quic_stream));
 	if (!stream)
@@ -37,25 +39,54 @@ wget_quic_set_stream(wget_quic *quic, wget_quic_stream *stream)
 }
 
 wget_quic_stream *
-wget_quic_stream_init(wget_quic *quic)
+wget_quic_stream_init_unidirectional(wget_quic *quic)
+{
+	return quic_stream_init(quic, 1);
+}
+
+wget_quic_stream *
+wget_quic_stream_init_bidirectional(wget_quic *quic)
+{
+	return quic_stream_init(quic, 0);
+}
+
+wget_quic_stream *
+quic_stream_init(wget_quic *quic, int unidirectional)
 {
 	int retval;
 	int64_t stream_id;
+	
+	if (!quic)
+		return NULL;
 	ngtcp2_conn *conn = quic->conn;
 
-	if(!ngtcp2_conn_get_streams_bidi_left(conn)) {
-		wget_error_printf("Error: Cannot open a new stream!");
+	uint64_t (*stream_check_func)(ngtcp2_conn *);
+	int (*stream_create_func)(ngtcp2_conn *, int64_t *, void *);
+
+	stream_check_func = (unidirectional ?
+			     ngtcp2_conn_get_streams_uni_left :
+			     ngtcp2_conn_get_streams_bidi_left);
+
+	if (!stream_check_func(conn)) {
+		fprintf(stderr, "ERROR: Cannot open new streams!\n");
 		return NULL;
 	}
 
-	if((retval = ngtcp2_conn_open_bidi_stream(conn, &stream_id, NULL)) < 0) {
-		wget_error_printf("Error: Cannot create a new bidirection stream");
+	stream_create_func = (unidirectional ?
+			      ngtcp2_conn_open_uni_stream :
+			      ngtcp2_conn_open_bidi_stream);
+
+	if ((retval = stream_create_func(conn, &stream_id, NULL)) < 0) {
+		fprintf(stderr, "ERROR: Cannot open new bidirectional stream.\n");
 		return NULL;
 	}
+
 	wget_quic_stream* stream = stream_new(stream_id);
 	wget_quic_set_stream(quic, stream);
 	return stream;
 }
+
+/* TODO : Implement a wget_quic_stream_deinit */
 
 
 int 
@@ -85,7 +116,7 @@ wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen
 }
 
 wget_quic_stream *
-wget_quic_stream_find (wget_quic *quic, int64_t stream_id)
+wget_quic_stream_find(wget_quic *quic, int64_t stream_id)
 {
 	int id;
   	for (int i = 0 ; i < MAX_STREAMS ; i++) {

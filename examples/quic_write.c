@@ -28,7 +28,7 @@ int main(void){
 		wget_quic_deinit(&quic);
 	}
 
-	wget_quic_stream *stream = wget_quic_stream_init(quic);
+	wget_quic_stream *stream = wget_quic_stream_init_bidirectional(quic);
 	if (!stream){
 		return -1;
 	}
