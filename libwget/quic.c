@@ -50,7 +50,7 @@ ssize_t recv_packet(int fd, uint8_t *data, size_t data_size,
 int quic_handshake(wget_quic* quic);
 static void _set_async(int fd);
 void quic_stream_mark_sent(wget_quic_stream *stream, ngtcp2_ssize offset);
-int  quic_stream_peek_data(wget_quic_stream *stream, ngtcp2_vec *datav);
+wget_byte *quic_stream_peek_data(wget_quic_stream *stream);
 void log_printf(void *user_data, const char *fmt, ...);
 int connection_read(wget_quic *quic);
 int connection_write(wget_quic *quic);
@@ -369,7 +369,7 @@ wget_quic_ack(wget_quic *quic)
 	ngtcp2_vec datav;
 	ngtcp2_conn *conn = (ngtcp2_conn *)quic->conn;
 	int64_t stream_id = -1;
-	uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_MORE;
+	uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_NONE;
 	uint64_t ts = timestamp();
 
 	ngtcp2_path_storage_zero(&ps);
@@ -385,7 +385,7 @@ wget_quic_ack(wget_quic *quic)
 					      &datav, 1,
 					      ts);
 	if (n_written < 0) {
-		error_printf("ERROR: ngtcp2_conn_writev_stream: %s\n",
+		error_printf("ERROR: ngtcp2_conn_writev_stream : %s\n",
 			ngtcp2_strerror((int) n_written));
 		return WGET_E_INVALID;
 	}
@@ -648,19 +648,14 @@ quic_stream_mark_sent(wget_quic_stream *stream, ngtcp2_ssize offset)
 	stream->sent_offset += offset;
 }
 
-int 
-quic_stream_peek_data(wget_quic_stream *stream, ngtcp2_vec *datav)
+wget_byte *
+quic_stream_peek_data(wget_quic_stream *stream)
 {
 	if (!stream)
-		return WGET_E_INVALID;
+		return NULL;
 
 	wget_byte *byte = wget_queue_peek_untransmitted_node(stream->buffer);
-	if (!byte) {
-		return WGET_E_MEMORY;
-	}
-	datav->base = (uint8_t *)wget_byte_get_data(byte);
-	datav->len = wget_byte_get_size(byte);
-	return datav->len;
+	return byte;
 }
 
 void
@@ -866,6 +861,7 @@ static int
 write_stream(wget_quic *quic, wget_quic_stream *stream)
 {
 	int ret;
+	bool sent = false;
 	uint8_t buf[BUF_SIZE];
 
 	ngtcp2_path_storage ps;
@@ -875,48 +871,55 @@ write_stream(wget_quic *quic, wget_quic_stream *stream)
 	memset(&pi, 0, sizeof(pi));
 	uint64_t ts = timestamp();
 
-	uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_MORE;
-	// uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_NONE;
+	// uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_MORE;
+	uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_NONE;
 
-	ngtcp2_ssize n_read, n_written;
+	ngtcp2_ssize n_read, n_written = 0;
 
 	ngtcp2_vec datav;
 	int64_t stream_id;
+	wget_byte *byte;
 
-	ret = quic_stream_peek_data(stream, &datav);
-	if (ret <= 0) {	
-		datav.base = NULL;
-		datav.len = 0;
-		stream_id = -1;
-	} else {
+	while(1){
+		byte = quic_stream_peek_data(stream);
+		if (!byte)
+			break;
+		datav.base = wget_byte_get_data(byte);
+		datav.len = wget_byte_get_size(byte);
 		stream_id = wget_quic_stream_get_id(stream);
+
+		n_written = ngtcp2_conn_writev_stream(quic->conn, &ps.path, &pi,
+							buf, sizeof(buf),
+							&n_read,
+							flags,
+							stream_id,
+							&datav, 1,
+							ts);
+		if (n_written < 0) {
+			fprintf(stderr, "ERROR: ngtcp2_conn_writev_stream: %s\n",
+				ngtcp2_strerror((int) n_written));
+			return n_written;
+		}
+
+		wget_byte_set_transmitted(byte);
+		sent = true;
+
+		if (n_written == 0)
+			return 0;
+
+		if (n_read > 0)
+			quic_stream_mark_sent(stream, n_read);
 	}
 
-	n_written = ngtcp2_conn_writev_stream(quic->conn, &ps.path, &pi,
-					      buf, sizeof(buf),
-					      &n_read,
-					      flags,
-					      stream_id,
-					      &datav, 1,
-					      ts);
-	if (n_written < 0) {
-		fprintf(stderr, "ERROR: ngtcp2_conn_writev_stream: %s\n",
-			ngtcp2_strerror((int) n_written));
-		return n_written;
-	}
-
-	if (n_written == 0)
-		return 0;
-
-	if (n_read > 0)
-		quic_stream_mark_sent(stream, n_read);
-
-	ret = send_packet(quic->sockfd, buf, n_written,
-			  quic->remote->addr,
-			  quic->remote->size);
-	if (ret < 0) {
-		wget_error_printf("ERROR: send_packet: %s\n", strerror(errno));
-		return -1;
+	if (sent){
+		ret = send_packet(quic->sockfd, buf, n_written,
+				quic->remote->addr,
+				quic->remote->size);
+		if (ret < 0) {
+			wget_error_printf("ERROR: send_packet: %s\n", strerror(errno));
+			return -1;
+		}
+		sent = false;
 	}
 
 	return n_written;

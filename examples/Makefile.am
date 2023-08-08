@@ -10,6 +10,7 @@ noinst_PROGRAMS = \
  quic_handshake\
  quic_write\
  quic_write_read\
+ http3_send_request\
  websequencediagram\
  websequencediagram_high\
  check_url_types\

@@ -19,17 +19,13 @@ typedef struct wget_http3_connection_st {
         mem;
 
     nghttp3_settings *
-        settings; 
+        settings;
 #endif
-
-    /*
-        As of now streams will be
-        implemented for only Control
-        Stream
-    */
-
-    wget_quic_stream *
-        streams;
+    wget_quic_stream
+        * control_stream,
+        * qpac_encoder_stream,
+        * qpac_decoder_stream,
+        * client_stream;
 
 } wget_http3_connection_st;
 
