@@ -45,6 +45,23 @@ wget_queue
     return queue;
 }
 
+void
+wget_queue_deinit(wget_queue *queue)
+{
+    if (queue){
+        wget_queue_node *fn = queue->head;
+        wget_queue_node *next = queue->head;
+        while (fn){
+            next = fn->next;
+            xfree(fn);
+            fn = next;
+        }
+        fn = NULL;
+        next = NULL;
+        xfree(queue);
+    }
+}
+
 int 
 wget_queue_is_empty(wget_queue *queue) 
 {
@@ -113,6 +130,9 @@ wget_queue_free(wget_queue *queue)
 wget_byte *
 wget_queue_peek_untransmitted_node(wget_queue *queue)
 {
+    if (wget_queue_is_empty(queue)) 
+        return NULL;
+
     wget_queue_node *temp = queue->head;
     while(temp) {
         wget_byte *data = (wget_byte *)(temp + 1);

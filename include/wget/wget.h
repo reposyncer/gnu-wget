@@ -459,6 +459,8 @@ typedef struct wget_queue_st wget_queue;
 
 WGETAPI wget_queue* 
 	wget_queue_init(void);
+WGETAPI void
+	wget_queue_deinit(wget_queue *queue);
 WGETAPI int 
 	wget_queue_is_empty(wget_queue *queue);
 WGETAPI void* 
@@ -2041,7 +2043,10 @@ WGETAPI void
 typedef struct wget_quic_stream_st wget_quic_stream;
 
 WGETAPI wget_quic_stream *
-	wget_quic_stream_init(wget_quic *quic);
+	wget_quic_stream_init_bidirectional(wget_quic *quic);
+
+WGETAPI wget_quic_stream *
+	wget_quic_stream_init_unidirectional(wget_quic *quic);
 
 WGETAPI int 
 	wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen);
@@ -2500,6 +2505,27 @@ WGETAPI wget_http3_connection *
 
 WGETAPI void 
 	wget_http3_deinit(wget_http3_connection *http3);
+
+WGETAPI int
+	wget_http3_init_bind_streams(wget_http3_connection *http3);
+
+WGETAPI int
+	wget_http3_send_request(wget_http3_connection *http3,
+		       const char *hostname, const char *path,
+		       int (*sender_func)(int64_t, const void *, void *));
+
+WGETAPI int 
+	wget_http3_open(wget_http3_connection *http3, const char *hostname, uint16_t port);
+
+WGETAPI int 
+	wget_http3_stream_push(int64_t stream_id, const void *vector, 
+							void *userdata);
+
+WGETAPI int 
+	wget_http3_write_all_streams(wget_http3_connection *http3);
+
+WGETAPI void *
+	wget_http3_get_quic_conn(wget_http3_connection *http3);
 
 /*
  * random routines
