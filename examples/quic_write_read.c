@@ -31,9 +31,9 @@ int main(void){
         return -1;
 	}
 
-    wget_quic_stream *stream = wget_quic_stream_init(quic);
+    wget_quic_stream *stream = wget_quic_stream_init_bidirectional(quic);
     if (!stream) {
-        fprintf(stderr, "ERROR: wget_quic_stream_init\n");
+        fprintf(stderr, "ERROR: wget_quic_stream_init_bidirectional\n");
         return -1;
     }
 
