@@ -265,9 +265,22 @@ stream_open_cb (ngtcp2_conn *conn __attribute__((unused)),
 		int64_t stream_id, void *user_data)
 {
   wget_quic *connection = user_data;
-  wget_quic_stream *stream = stream_new(stream_id);
-  wget_quic_set_stream (connection, stream);
-  return 0;
+  wget_quic_stream *stream = wget_quic_stream_set_stream (connection, stream_id);
+  if (stream)
+	return 0;
+  return -1;
+}
+
+static int
+stream_close_cb(ngtcp2_conn *conn, uint32_t flags __attribute__((unused)),
+					int64_t stream_id, uint64_t app_error_code,
+					void *user_data __attribute__((unused)), 
+					void *stream_user_data __attribute__((unused)))
+{
+	// wget_quic *connection = user_data;
+	// wget_quic_stream_unset(user_data, stream_id);
+	int ret = ngtcp2_conn_shutdown_stream(conn, 0, stream_id, app_error_code);
+	return ret;
 }
 
 static const 
@@ -289,6 +302,7 @@ ngtcp2_callbacks callbacks =
     .acked_stream_data_offset = acked_stream_data_offset_cb,
     .recv_stream_data = recv_stream_data_cb,
 	.stream_open = stream_open_cb,
+	.stream_close = stream_close_cb,
 	/*These both functions are present in the ssl_gnutls.c*/
     .rand = rand_cb,
     .get_new_connection_id = get_new_connection_id_cb,
