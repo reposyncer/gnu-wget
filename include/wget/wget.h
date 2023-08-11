@@ -2051,6 +2051,9 @@ WGETAPI wget_quic_stream *
 WGETAPI int 
 	wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen);
 
+void
+wget_quic_stream_deinit(wget_quic *quic, int64_t stream_id);
+
 WGETAPI wget_quic_stream *
 	wget_quic_stream_find (wget_quic *quic, int64_t stream_id);
 
@@ -2069,8 +2072,11 @@ WGETAPI void
 WGETAPI void 
 	wget_quic_set_connect_timeout(wget_quic *quic, int timeout);
 
-WGETAPI void 
-	wget_quic_set_stream(wget_quic *quic, wget_quic_stream *stream);
+WGETAPI wget_quic_stream*
+	wget_quic_stream_set_stream(wget_quic *quic, int64_t id);
+
+WGETAPI void
+	wget_quic_stream_unset(wget_quic *quic, wget_quic_stream *stream);
 
 WGETAPI int
 	wget_quic_connect(wget_quic *quic, const char *host, uint16_t port);

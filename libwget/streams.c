@@ -10,12 +10,14 @@
 #include "private.h"
 #include "net.h"
 
-wget_quic_stream *stream_new(int64_t id);
 wget_quic_stream *quic_stream_init(wget_quic *quic, int unidirectional);
 
 wget_quic_stream *
-stream_new(int64_t id)
+wget_quic_stream_set_stream(wget_quic *quic, int64_t id)
 {
+	if (!quic)
+		return NULL;
+
 	wget_quic_stream *stream = wget_malloc(sizeof(wget_quic_stream));
 	if (!stream)
 		return NULL;
@@ -23,19 +25,31 @@ stream_new(int64_t id)
 	stream->buffer = wget_queue_init();
 	stream->ack_offset = 0;
 	stream->sent_offset = 0;
-	return stream;
-}
 
-void 
-wget_quic_set_stream(wget_quic *quic, wget_quic_stream *stream)
-{
 	for (int i = 0 ; i < MAX_STREAMS ; i++) {
 		if (!quic->streams[i]) {
 			quic->streams[i] = stream;
 			quic->n_streams++;
+			return stream;
+		}
+	}
+	return NULL;
+}
+
+void
+wget_quic_stream_unset(wget_quic *quic, wget_quic_stream *stream)
+{
+	if (!quic || !stream)
+		return;
+
+	for (int i = 0 ; i < MAX_STREAMS ; i++){
+		if (quic->streams[i] && quic->streams[i] == stream) {
+			quic->streams[i] = NULL;
+			quic->n_streams--;
 			break;
 		}
 	}
+	return;
 }
 
 wget_quic_stream *
@@ -81,13 +95,23 @@ quic_stream_init(wget_quic *quic, int unidirectional)
 		return NULL;
 	}
 
-	wget_quic_stream* stream = stream_new(stream_id);
-	wget_quic_set_stream(quic, stream);
+	wget_quic_stream *stream = wget_quic_stream_set_stream(quic, stream_id);
 	return stream;
 }
 
 /* TODO : Implement a wget_quic_stream_deinit */
+/* Close the ngtcp2_stream and then remove it from quic stack */
 
+void
+wget_quic_stream_deinit(wget_quic *quic, int64_t stream_id)
+{
+	wget_quic_stream *stream = wget_quic_stream_find(quic, stream_id);
+	if (!stream)
+		return;
+	wget_queue_deinit(stream->buffer);
+	xfree(stream);
+	return;
+}
 
 int 
 wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen)
