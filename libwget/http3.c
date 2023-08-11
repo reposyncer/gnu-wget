@@ -35,7 +35,7 @@ static int _stop_sending(ngtcp2_conn *conn,
 			 int64_t stream_id, uint64_t app_error_code);
 static int _reset_stream(ngtcp2_conn *conn,
 			 int64_t stream_id, uint64_t app_error_code);
-static void _http3_consume(ngtcp2_conn *conn, uint64_t 
+static int _http3_consume(ngtcp2_conn *conn, uint64_t 
 			 stream_id, size_t nconsumed);
 static void _http3_write_data(int64_t stream_id __attribute__((unused)),
 			     const uint8_t *data __attribute__((unused)), 
@@ -44,7 +44,22 @@ static void make_header(const char *name, const char *value,
 			nghttp3_nv *nv);
 static int _call_data_sender(int64_t stream_id, const nghttp3_vec *vec, size_t veccnt,
 			     int (*_cb_func)(int64_t, const void*, void *), void *userdata);
+void http3_stream_mark_acked (wget_quic_stream *stream, size_t offset);
 
+
+void
+http3_stream_mark_acked (wget_quic_stream *stream, size_t datalen)
+{
+  	while (stream && !wget_queue_is_empty (stream->buffer)) {
+		wget_byte *head  = (wget_byte *)wget_queue_peek (stream->buffer);
+		if (wget_byte_get_size (head) > datalen)
+			break;
+
+		stream->ack_offset += wget_byte_get_size (head);
+		datalen -= wget_byte_get_size (head);
+		head = wget_queue_dequeue (stream->buffer);
+    }
+}
 
 static int _stop_sending(ngtcp2_conn *conn,
 			 int64_t stream_id, uint64_t app_error_code)
@@ -61,6 +76,7 @@ static int _stop_sending(ngtcp2_conn *conn,
 	return 0;
 }
 
+/* Questionable */
 static int _reset_stream(ngtcp2_conn *conn,
 			 int64_t stream_id, uint64_t app_error_code)
 {
@@ -76,10 +92,13 @@ static int _reset_stream(ngtcp2_conn *conn,
 	return 0;
 }
 
-static void _http3_consume(ngtcp2_conn *conn, uint64_t stream_id, size_t nconsumed)
+static int _http3_consume(ngtcp2_conn *conn, uint64_t stream_id, size_t nconsumed)
 {
-    ngtcp2_conn_extend_max_stream_offset(conn, stream_id, nconsumed);
+    int ret = ngtcp2_conn_extend_max_stream_offset(conn, stream_id, nconsumed);
+	if (ret < 0)
+		return ret;
     ngtcp2_conn_extend_max_offset(conn, nconsumed);
+	return 0;
 }
 
 static void _http3_write_data(int64_t stream_id __attribute__((unused)),
@@ -114,18 +133,22 @@ static int deferred_consume_cb(nghttp3_conn *http3 __attribute__((unused)),
 
 {
     ngtcp2_conn *conn = (ngtcp2_conn *)conn_user_data;
-    _http3_consume(conn, stream_id, consumed);
-    return 0;
+    int ret = _http3_consume(conn, stream_id, consumed);
+    return ret;
 }
 
-static int stream_close_cb(nghttp3_conn *conn __attribute__((unused)), int64_t stream_id,
-                        uint64_t app_error_coee __attribute__((unused)), 
+static int stream_close_cb(nghttp3_conn *conn, int64_t stream_id,
+                        uint64_t app_error_code, 
                         void* conn_user_data __attribute__((unused)), 
                         void* stream_user_data __attribute__((unused)))
 {
-    /* Implement a wget_queue_deinit function */
-    fprintf(stderr, "Closing stream : %ld\n", stream_id);
-    return 0;
+    int ret = nghttp3_conn_close_stream(conn, stream_id, app_error_code);
+	// if (ret < 0)
+	// 	return ret;
+	// wget_http3_connection *http3 = (wget_http3_connection *)conn_user_data;
+	// wget_quic_stream_unset(http3->quic, stream_id);
+	// int ret = ngtcp2_conn_shutdown_stream(http3->quic->conn, 0, stream_id, app_error_code);
+    return ret;
 }
 
 static int recv_data_cb(nghttp3_conn *conn __attribute__((unused)),
@@ -140,11 +163,19 @@ static int recv_data_cb(nghttp3_conn *conn __attribute__((unused)),
 }
 
 static int acked_stream_data_cb(nghttp3_conn *conn __attribute__((unused)), 
-						int64_t stream_id __attribute__((unused)), 
-                        uint64_t datalen __attribute__((unused)), 
+						int64_t stream_id, 
+                        uint64_t datalen, 
 						void *conn_user_data __attribute__((unused)), 
-                        void *stream_user_data __attribute__((unused)))
+                        void *stream_user_data)
 {
+	wget_quic *connection = (wget_quic *)stream_user_data;
+	wget_quic_stream *stream = wget_quic_stream_find(connection, stream_id);
+
+	if (stream) {
+		http3_stream_mark_acked (stream, datalen);
+		fprintf(stderr, "acked %zu bytes on stream #%zd\n", datalen, stream_id);
+	} else 
+		fprintf(stderr, "acked %zu bytes on no stream\n", datalen);	
     return 0;
 }
 
