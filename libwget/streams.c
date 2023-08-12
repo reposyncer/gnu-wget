@@ -114,7 +114,7 @@ wget_quic_stream_deinit(wget_quic *quic, int64_t stream_id)
 }
 
 int 
-wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen)
+wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen, uint8_t type)
 {
 	wget_byte *buf;
 	if (stream->buffer == NULL) {
@@ -122,17 +122,17 @@ wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen
 		if (!stream->buffer)
 			return WGET_E_MEMORY;
 		
-		if ((buf = wget_byte_new(data, datalen)) == NULL)
+		if ((buf = wget_byte_new(data, datalen, type)) == NULL)
 			return WGET_E_MEMORY;
 		
-		if (wget_queue_enqueue(stream->buffer, buf, sizeof(buf)) == NULL)
+		if (wget_queue_enqueue(stream->buffer, buf, wget_byte_get_struct_size()) == NULL)
 			return WGET_E_MEMORY;
 		
 	} else {
-		if ((buf = wget_byte_new(data, datalen)) == NULL)
+		if ((buf = wget_byte_new(data, datalen, type)) == NULL)
 			return WGET_E_MEMORY;
 		
-		if (wget_queue_enqueue(stream->buffer, buf, sizeof(buf)) == NULL)
+		if (wget_queue_enqueue(stream->buffer, buf, wget_byte_get_struct_size()) == NULL)
 			return WGET_E_MEMORY;
 		
 	}
