@@ -430,8 +430,14 @@ WGETAPI int
 
 typedef struct wget_byte_st wget_byte;
 
+
+#define	REQUEST_BYTE 0
+#define	RESPONSE_HEADER_BYTE 1
+#define	RESPONSE_DATA_BYTE 2
+
+
 WGETAPI wget_byte *
-	wget_byte_new(const char *data, size_t size);
+	wget_byte_new(const char *data, size_t size, int8_t type);
 WGETAPI size_t 
 	wget_byte_get_size(const wget_byte *bytes);
 WGETAPI unsigned char *
@@ -442,6 +448,10 @@ WGETAPI bool
 	wget_byte_get_transmitted(wget_byte *bytes);
 WGETAPI void
 	wget_byte_set_transmitted (wget_byte *bytes);
+WGETAPI int8_t
+	wget_byte_get_type(wget_byte *bytes);
+WGETAPI size_t
+	wget_byte_get_struct_size(void);
 
 
 /**
@@ -453,6 +463,7 @@ typedef struct wget_queue_node {
 	struct wget_queue_node
 		*next,
 		*prev;
+	void *data;
 }wget_queue_node;
 
 typedef struct wget_queue_st wget_queue;
@@ -467,12 +478,18 @@ WGETAPI void*
 	wget_queue_enqueue(wget_queue *queue, const void *data, size_t size);
 WGETAPI void* 
 	wget_queue_dequeue(wget_queue *queue);
-WGETAPI struct wget_queue_node* 
+WGETAPI wget_byte *
 	wget_queue_peek(wget_queue *queue); 
 WGETAPI void 
 	wget_queue_free(wget_queue *queue);
 WGETAPI wget_byte *
 	wget_queue_peek_untransmitted_node (wget_queue *queue);
+WGETAPI wget_byte *
+	wget_queue_peek_transmitted_node(wget_queue *queue);
+WGETAPI void
+	wget_queue_dequeue_transmitted_node(wget_queue *queue);
+WGETAPI wget_byte *
+	wget_queue_dequeue_data_node(wget_queue *queue);
 
 /**
  * \ingroup libwget-xalloc
@@ -2049,7 +2066,7 @@ WGETAPI wget_quic_stream *
 	wget_quic_stream_init_unidirectional(wget_quic *quic);
 
 WGETAPI int 
-	wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen);
+	wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen, uint8_t type);
 
 void
 wget_quic_stream_deinit(wget_quic *quic, int64_t stream_id);

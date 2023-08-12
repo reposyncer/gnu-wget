@@ -33,7 +33,7 @@ int main(void){
 		return -1;
 	}
 	const char *data = "Hello World!";
-	ret = wget_quic_stream_push(stream, data, strlen(data));
+	ret = wget_quic_stream_push(stream, data, strlen(data), REQUEST_BYTE);
 	if (ret < 0){
 		return ret;
 	}
