@@ -220,7 +220,7 @@ recv_stream_data_cb (ngtcp2_conn *conn __attribute__((unused)),
 	wget_quic_stream *stream = wget_quic_stream_find (connection, stream_id);
 
 	if (stream)
-		wget_quic_stream_push(stream, (const char *)data, datalen);
+		wget_quic_stream_push(stream, (const char *)data, datalen, RESPONSE_DATA_BYTE);
 
 	return 0;
 }
@@ -675,13 +675,14 @@ quic_stream_peek_data(wget_quic_stream *stream)
 void
 quic_stream_mark_acked (wget_quic_stream *stream, size_t offset)
 {
-  	while (stream && !wget_queue_is_empty (stream->buffer)) {
-		wget_byte *head  = (wget_byte *)wget_queue_peek (stream->buffer);
+  	while (stream && stream->ack_offset < offset) {
+		wget_byte *head  = (wget_byte *)wget_queue_peek_transmitted_node(stream->buffer);
+
 		if (stream->ack_offset + wget_byte_get_size (head) > offset)
 			break;
 
 		stream->ack_offset += wget_byte_get_size (head);
-		head = wget_queue_dequeue (stream->buffer);
+		wget_queue_dequeue_transmitted_node(stream->buffer);
     }
 }
 
@@ -1104,10 +1105,13 @@ wget_quic_rw_once(wget_quic *quic, wget_quic_stream *stream)
 	if (ret < 0)
 		return ret;
 
-	wget_byte *byte = (wget_byte *)wget_queue_dequeue(wget_quic_stream_get_buffer(stream));
-	if (byte)
+	wget_byte *byte = (wget_byte *)wget_queue_dequeue_data_node(wget_quic_stream_get_buffer(stream));
+	if (byte){
 		fprintf(stderr ,"Data recorded : %s\n", (char *)wget_byte_get_data(byte));
+		fprintf(stderr ,"Data recorded Type : %d\n", wget_byte_get_type(byte));
+	}
+
+	ret = wget_quic_ack(quic);
 		
-	wget_quic_ack(quic);
 	return ret;
 }
