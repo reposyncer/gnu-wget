@@ -38,7 +38,7 @@ int main(void){
     }
 
     const char *data = "Hello World!";
-    ret = wget_quic_stream_push(stream, data, strlen(data));
+    ret = wget_quic_stream_push(stream, data, strlen(data), REQUEST_BYTE);
     if (ret <= 0) {
         fprintf(stderr, "ERROR: wget_quic_stream_push\n");
         return -1;

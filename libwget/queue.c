@@ -71,10 +71,11 @@ wget_queue_is_empty(wget_queue *queue)
 void* 
 wget_queue_enqueue(wget_queue *queue, const void *data, size_t size) 
 {
-    struct wget_queue_node *node = wget_malloc(sizeof(struct wget_queue_node) + size);
+    struct wget_queue_node *node = wget_malloc(sizeof(struct wget_queue_node));
     if (!node)
 		return NULL;
-    memcpy(node + 1, data, size);
+    node->data = wget_malloc(size);
+    memcpy(node->data, data, size);
     node->next = NULL;
     if (wget_queue_is_empty(queue)) {
         node->prev = NULL;
@@ -97,7 +98,7 @@ wget_queue_dequeue(wget_queue *queue)
     }
 
     struct wget_queue_node *node = queue->head;
-    void *data = node + 1;
+    void *data = node->data;
     queue->head = queue->head->next;
     if (queue->head != NULL) {
         queue->head->prev = NULL;
@@ -108,13 +109,80 @@ wget_queue_dequeue(wget_queue *queue)
     return data;
 }
 
-struct wget_queue_node* 
+wget_byte * 
 wget_queue_peek(wget_queue *queue) 
 {
     if (wget_queue_is_empty(queue)) {
         return NULL;
     }
-    return queue->head + 1;
+    return queue->head->data;
+}
+
+wget_byte *
+wget_queue_peek_transmitted_node(wget_queue *queue)
+{
+    if (wget_queue_is_empty(queue)) 
+        return NULL;
+
+    wget_queue_node *temp = queue->head;
+    while(temp) {
+        wget_byte *data = (wget_byte *)(temp->data);
+        if (wget_byte_get_transmitted(data) && wget_byte_get_type(data) == REQUEST_BYTE) {
+            return data;
+        }
+        temp = temp->next;
+    }
+
+    return NULL;
+}
+
+void
+wget_queue_dequeue_transmitted_node(wget_queue *queue)
+{
+    if (wget_queue_is_empty(queue)) 
+        return;
+    wget_queue_node *temp = queue->head;
+    while(temp) {
+        wget_byte *data = (wget_byte *)(temp->data);
+        if (wget_byte_get_transmitted(data) && wget_byte_get_type(data) == REQUEST_BYTE) {
+            if (temp->prev)
+                temp->prev->next = temp->next;
+            else
+                queue->head = temp->next;
+            
+            if (temp->next)
+                temp->next->prev = temp->prev;
+            else
+                queue->tail = temp->prev;
+        }
+        temp = temp->next;
+    }
+    return;
+}
+
+wget_byte *
+wget_queue_dequeue_data_node(wget_queue *queue)
+{
+    if (wget_queue_is_empty(queue)) 
+        return NULL;
+    wget_queue_node *temp = queue->head;
+    while(temp) {
+        wget_byte *data = (wget_byte *)(temp->data);
+        if (!wget_byte_get_transmitted(data) && wget_byte_get_type(data) == RESPONSE_DATA_BYTE) {
+            if (temp->prev)
+                temp->prev->next = temp->next;
+            else
+                queue->head = temp->next;
+            
+            if (temp->next)
+                temp->next->prev = temp->prev;
+            else
+                queue->tail = temp->prev;
+            return data;
+        }
+        temp = temp->next;
+    }
+    return NULL;
 }
 
 void 
@@ -135,8 +203,8 @@ wget_queue_peek_untransmitted_node(wget_queue *queue)
 
     wget_queue_node *temp = queue->head;
     while(temp) {
-        wget_byte *data = (wget_byte *)(temp + 1);
-        if (!wget_byte_get_transmitted(data)) {
+        wget_byte *data = (wget_byte *)(temp->data);
+        if (!wget_byte_get_transmitted(data) && wget_byte_get_type(data) == REQUEST_BYTE) {
             return data;
         }
         temp = temp->next;

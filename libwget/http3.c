@@ -37,9 +37,8 @@ static int _reset_stream(ngtcp2_conn *conn,
 			 int64_t stream_id, uint64_t app_error_code);
 static int _http3_consume(ngtcp2_conn *conn, uint64_t 
 			 stream_id, size_t nconsumed);
-static void _http3_write_data(int64_t stream_id __attribute__((unused)),
-			     const uint8_t *data __attribute__((unused)), 
-				 size_t datalen __attribute__((unused)));
+static int _http3_write_data(wget_quic* quic, int64_t stream_id, const uint8_t *data, 
+				 				size_t datalen, uint8_t type);
 static void make_header(const char *name, const char *value,
 			nghttp3_nv *nv);
 static int _call_data_sender(int64_t stream_id, const nghttp3_vec *vec, size_t veccnt,
@@ -50,14 +49,15 @@ void http3_stream_mark_acked (wget_quic_stream *stream, size_t offset);
 void
 http3_stream_mark_acked (wget_quic_stream *stream, size_t datalen)
 {
-  	while (stream && !wget_queue_is_empty (stream->buffer)) {
-		wget_byte *head  = (wget_byte *)wget_queue_peek (stream->buffer);
+  	while (stream) {
+		wget_byte *head  = (wget_byte *)wget_queue_peek_transmitted_node(stream->buffer);
 		if (wget_byte_get_size (head) > datalen)
 			break;
 
 		stream->ack_offset += wget_byte_get_size (head);
 		datalen -= wget_byte_get_size (head);
-		head = wget_queue_dequeue (stream->buffer);
+		wget_queue_dequeue_transmitted_node(stream->buffer);
+		return;
     }
 }
 
@@ -101,11 +101,16 @@ static int _http3_consume(ngtcp2_conn *conn, uint64_t stream_id, size_t nconsume
 	return 0;
 }
 
-static void _http3_write_data(int64_t stream_id __attribute__((unused)),
-			     const uint8_t *data __attribute__((unused)), 
-				 size_t datalen __attribute__((unused)))
+static int _http3_write_data(wget_quic* quic, int64_t stream_id, const uint8_t *data, 
+				 				size_t datalen, uint8_t type)
 {
-	/* TODO implement */
+	if (!quic)
+		return -1;
+	wget_quic_stream *stream = wget_quic_stream_find(quic, stream_id);
+	if(stream)
+		return wget_quic_stream_push(stream, (const char *)data, datalen, type);
+
+	return -1;
 }
 
 static int recv_header_cb(nghttp3_conn *h3conn __attribute__((unused)), 
@@ -155,11 +160,12 @@ static int recv_data_cb(nghttp3_conn *conn __attribute__((unused)),
                         int64_t stream_id, const uint8_t *data, 
                         size_t datalen,
                         void *conn_user_data __attribute__((unused)), 
-                        void *stream_user_data __attribute__((unused)))
+                        void *stream_user_data)
 {
     fprintf(stderr, "Recieving data | %s | from stream : %ld\n", data, stream_id);
-	_http3_write_data(stream_id, data, datalen);
-    return 0;
+	wget_quic *connection = (wget_quic *)stream_user_data;
+	int ret = _http3_write_data(connection, stream_id, data, datalen, RESPONSE_DATA_BYTE);
+    return ret;
 }
 
 static int acked_stream_data_cb(nghttp3_conn *conn __attribute__((unused)), 
@@ -230,7 +236,7 @@ int wget_http3_stream_push(int64_t stream_id, const void* vector,
 	if ((stream = wget_quic_stream_find(quic, stream_id)) == NULL)
 		return -1;
 
-	if ((ret = wget_quic_stream_push(stream, (const char *)vec->base, vec->len)) <= 0)
+	if ((ret = wget_quic_stream_push(stream, (const char *)vec->base, vec->len, REQUEST_BYTE)) <= 0)
 		return -1;
 
 	return ret;

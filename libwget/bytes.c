@@ -30,32 +30,43 @@
 #include <wget.h>
 #include "private.h"
 
-enum byte_status{
-	STATUS_INITIALISED,
-	STATUS_SENT
-};
+
+#define STATUS_INITIALISED 0
+#define STATUS_SENT 1
+
+typedef struct byte_info {
+	int8_t status;
+	int8_t type;
+}byte_info;
 
 typedef struct wget_byte_st {
 	unsigned char* data;
 	size_t size;
-	enum byte_status status;
+	byte_info info;
 }wget_byte_st;
 
 wget_byte *
-wget_byte_new(const char *data, size_t size)
+wget_byte_new(const char *data, size_t size, int8_t type)
 {
-	wget_byte *bytes = wget_malloc(sizeof(wget_byte_st));
+	wget_byte *bytes = wget_malloc(sizeof(wget_byte));
 	if (bytes){
-		bytes->status = STATUS_INITIALISED;
+		bytes->size = size;
+		bytes->info.status = STATUS_INITIALISED;
+		bytes->info.type = type;
 		bytes->data = wget_malloc(size);
 		if (!bytes->data){
 			xfree(bytes->data);
 			return NULL;
 		}
 		memcpy((void *)bytes->data, data, size);
-		bytes->size = size;
 	}
 	return bytes;
+}
+
+size_t
+wget_byte_get_struct_size(void)
+{
+	return sizeof(wget_byte);
 }
 
 size_t 
@@ -84,16 +95,25 @@ wget_byte_free(wget_byte *bytes)
 bool wget_byte_get_transmitted(wget_byte *bytes)
 {
 	if (bytes){
-		if (bytes->status!= STATUS_SENT)
+		if (bytes->info.status == STATUS_INITIALISED)
 			return false;
 		return true;
 	}
-	return false;
+	return true;
 }
 
 void wget_byte_set_transmitted(wget_byte *bytes)
 {
 	if (bytes)
-		bytes->status = STATUS_SENT;
+		bytes->info.status = STATUS_SENT;
 	return;
+}
+
+int8_t
+wget_byte_get_type(wget_byte *bytes)
+{
+	if (bytes){
+		return bytes->info.type;
+	}
+	return -1;
 }
