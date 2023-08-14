@@ -457,9 +457,9 @@ void wget_tcp_set_bind_address(wget_tcp *tcp, const char *bind_address)
 			wget_strscpy(port, s + 1, sizeof(port));
 
 			if (c_isdigit(*port))
-				tcp->bind_addrinfo = wget_dns_resolve(tcp->dns, host, (uint16_t) atoi(port), tcp->family, tcp->preferred_family);
+				tcp->bind_addrinfo = wget_dns_resolve(tcp->dns, host, (uint16_t) atoi(port), tcp->family, tcp->preferred_family, WGET_TCP_PROTOCOL);
 		} else {
-			tcp->bind_addrinfo = wget_dns_resolve(tcp->dns, host, 0, tcp->family, tcp->preferred_family);
+			tcp->bind_addrinfo = wget_dns_resolve(tcp->dns, host, 0, tcp->family, tcp->preferred_family, WGET_TCP_PROTOCOL);
 		}
 	}
 }
@@ -751,7 +751,7 @@ int wget_tcp_connect(wget_tcp *tcp, const char *host, uint16_t port)
 	wget_dns_freeaddrinfo(tcp->dns, &tcp->addrinfo);
 	xfree(tcp->host);
 
-	tcp->addrinfo = wget_dns_resolve(tcp->dns, host, port, tcp->family, tcp->preferred_family);
+	tcp->addrinfo = wget_dns_resolve(tcp->dns, host, port, tcp->family, tcp->preferred_family, WGET_TCP_PROTOCOL);
 	tcp->remote_port = port;
 
 	for (ai = tcp->addrinfo; ai; ai = ai->ai_next) {
