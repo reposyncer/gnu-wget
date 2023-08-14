@@ -238,7 +238,7 @@ static int getaddrinfo_merging(const char *host, const char *s_port, struct addr
 }
 
 // we can't provide a portable way of respecting a DNS timeout
-static int resolve(int family, int flags, const char *host, uint16_t port, struct addrinfo **out_addr, int connection_protocol)
+static int resolve(int family, int flags, const char *host, uint16_t port, struct addrinfo **out_addr)
 {
 	struct addrinfo hints[] = {
 		.ai_family = family,
@@ -348,7 +348,7 @@ int wget_dns_cache_ip(wget_dns *dns, const char *ip, const char *name, uint16_t 
  *
  *  The returned `addrinfo` structure must be freed with `wget_dns_freeaddrinfo()`.
  */
-struct addrinfo *wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port, int family, int preferred_family)
+struct addrinfo *wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port, int family, int preferred_family, int prefered_protocol)
 {
 	struct addrinfo *addrinfo = NULL;
 	int rc = 0;
@@ -380,110 +380,7 @@ struct addrinfo *wget_dns_resolve(wget_dns *dns, const char *host, uint16_t port
 
 		addrinfo = NULL;
 
-		rc = resolve(family, 0, host, port, &addrinfo, WGET_TCP_CONNECTION);
-		if (rc == 0 || rc != EAI_AGAIN)
-			break;
-
-		if (tries < max - 1) {
-			if (dns->cache)
-				wget_thread_mutex_unlock(dns->mutex);
-			wget_millisleep(100);
-		}
-	}
-
-	if (dns->stats_callback) {
-		long long after_millisecs = wget_get_timemillis();
-		stats.dns_secs = after_millisecs - before_millisecs;
-		stats.hostname = host;
-		stats.port = port;
-	}
-
-	if (rc) {
-		error_printf(_("Failed to resolve '%s' (%s)\n"),
-				(host ? host : ""), gai_strerror(rc));
-
-		if (dns->cache)
-			wget_thread_mutex_unlock(dns->mutex);
-
-		if (dns->stats_callback) {
-			stats.ip = NULL;
-			dns->stats_callback(dns, &stats, dns->stats_ctx);
-		}
-
-		return NULL;
-	}
-
-	if (family == AF_UNSPEC && preferred_family != AF_UNSPEC)
-		addrinfo = sort_preferred(addrinfo, preferred_family);
-
-	if (dns->stats_callback) {
-		if (getnameinfo(addrinfo->ai_addr, addrinfo->ai_addrlen, adr, sizeof(adr), sport, sizeof(sport), NI_NUMERICHOST | NI_NUMERICSERV) == 0)
-			stats.ip = adr;
-		else
-			stats.ip = "???";
-
-		dns->stats_callback(dns, &stats, dns->stats_ctx);
-	}
-
-	/* Finally, print the address list to the debug pipe if enabled */
-	if (wget_logger_is_active(wget_get_logger(WGET_LOGGER_DEBUG))) {
-		for (struct addrinfo *ai = addrinfo; ai; ai = ai->ai_next) {
-			if ((rc = getnameinfo(ai->ai_addr, ai->ai_addrlen, adr, sizeof(adr), sport, sizeof(sport), NI_NUMERICHOST | NI_NUMERICSERV)) == 0)
-				debug_printf("has %s:%s\n", adr, sport);
-			else
-				debug_printf("has ??? (%s)\n", gai_strerror(rc));
-		}
-	}
-
-	if (dns->cache) {
-		/*
-		 * In case of a race condition the already existing addrinfo is returned.
-		 * The addrinfo argument given to wget_dns_cache_add() will be freed in this case.
-		 */
-		rc = wget_dns_cache_add(dns->cache, host, port, &addrinfo);
-		wget_thread_mutex_unlock(dns->mutex);
-		if ( rc < 0) {
-			freeaddrinfo(addrinfo);
-			return NULL;
-		}
-	}
-
-	return addrinfo;
-}
-
-struct addrinfo *wget_dns_resolve_quic(wget_dns *dns, const char *host, uint16_t port, int family, int preferred_family)
-{
-	struct addrinfo *addrinfo = NULL;
-	int rc = 0;
-	char adr[NI_MAXHOST], sport[NI_MAXSERV];
-	long long before_millisecs = 0;
-	wget_dns_stats_data stats;
-
-	if (!dns)
-		dns = &default_dns;
-
-	if (dns->stats_callback)
-		before_millisecs = wget_get_timemillis();
-
-	// get the IP address for the server
-	for (int tries = 0, max = 3; tries < max; tries++) {
-		if (dns->cache) {
-			if ((addrinfo = wget_dns_cache_get(dns->cache, host, port)))
-				return addrinfo;
-
-			// prevent multiple address resolutions of the same host
-			wget_thread_mutex_lock(dns->mutex);
-
-			// now try again
-			if ((addrinfo = wget_dns_cache_get(dns->cache, host, port))) {
-				wget_thread_mutex_unlock(dns->mutex);
-				return addrinfo;
-			}
-		}
-
-		addrinfo = NULL;
-
-		rc = resolve(family, 0, host, port, &addrinfo, WGET_QUIC_CONNECTION);
+		rc = resolve(family, 0, host, port, &addrinfo, prefered_protocol);
 		if (rc == 0 || rc != EAI_AGAIN)
 			break;
 
