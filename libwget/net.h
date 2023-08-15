@@ -30,8 +30,10 @@
 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#ifdef WITH_LIBNGTCP2
 #include <ngtcp2/ngtcp2.h>
 #include <ngtcp2/ngtcp2_crypto.h>
+#endif
 #include <netdb.h>
 
 #define MAX_STREAMS 10
