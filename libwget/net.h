@@ -100,8 +100,8 @@ struct wget_quic_st{
 		protocol,
 		connect_timeout;
 	info_addr 
-		*local,
-		*remote;
+		local,
+		remote;
 	/* 
 		Added this so as to accomodate with existing DNS function.
 		Planning to go with this. Will replace the info_addr struct as and when the further code is edited.
