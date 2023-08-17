@@ -34,6 +34,9 @@
 #include <ngtcp2/ngtcp2.h>
 #include <ngtcp2/ngtcp2_crypto.h>
 #endif
+#ifdef WITH_LIBNGHTTP3
+#include <nghttp3/nghttp3.h>
+#endif
 #include <netdb.h>
 
 #define MAX_STREAMS 10
@@ -92,6 +95,8 @@ struct wget_quic_st{
 		*ssl_session;
 	ngtcp2_conn
 		*conn;
+	nghttp3_conn
+	 	*http3_conn;
 	int
 		sockfd,
 		timerfd,
