@@ -2087,6 +2087,9 @@ WGETAPI void
 WGETAPI void 
 	wget_quic_set_connect_timeout(wget_quic *quic, int timeout);
 
+WGETAPI void 
+	wget_quic_set_http3_conn(wget_quic *quic, void *http3_conn);
+
 WGETAPI wget_quic_stream*
 	wget_quic_stream_set_stream(wget_quic *quic, int64_t id);
 
@@ -2536,6 +2539,9 @@ WGETAPI int
 
 WGETAPI int 
 	wget_http3_write_all_streams(wget_http3_connection *http3);
+
+WGETAPI int 
+	wget_http3_read_all_streams(wget_http3_connection *http3);
 
 WGETAPI void *
 	wget_http3_get_quic_conn(wget_http3_connection *http3);
