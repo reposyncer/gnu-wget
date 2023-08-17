@@ -17,6 +17,9 @@
 #ifdef WITH_LIBNGTCP2
 #include <ngtcp2/ngtcp2.h>
 #endif
+#ifndef WITH_LIBNGHTTP3
+#include <nghttp3/nghttp3.h>
+#endif
 #include <gnutls/gnutls.h>
 #include <gnutls/crypto.h>
 
@@ -144,6 +147,20 @@ wget_quic_set_connect_timeout(wget_quic *quic, int timeout)
 
 #ifdef WITH_LIBNGTCP2
 void 
+wget_quic_set_http3_conn(wget_quic *quic, void *http3_conn)
+{
+	(quic ? quic : &global_quic)->http3_conn = http3_conn;
+}
+#else
+void 
+wget_quic_set_http3_conn(wget_quic *quic, int timeout)
+{
+	return;
+}
+#endif
+
+#ifdef WITH_LIBNGTCP2
+void 
 wget_quic_set_ssl_hostname(wget_quic *quic, const char *hostname)
 {
 	if (!quic)
@@ -229,8 +246,8 @@ get_new_connection_id_cb (ngtcp2_conn *conn __attribute__((unused)),
 
 static int
 recv_stream_data_cb (ngtcp2_conn *conn __attribute__((unused)),
-		     uint32_t flags __attribute__((unused)),
-		     int64_t stream_id __attribute__((unused)),
+		     uint32_t flags,
+		     int64_t stream_id,
                      uint64_t offset __attribute__((unused)),
 		     const uint8_t *data, size_t datalen,
                      void *user_data,
@@ -238,11 +255,15 @@ recv_stream_data_cb (ngtcp2_conn *conn __attribute__((unused)),
 {
 	debug_printf("receiving %zu bytes from stream #%zd\n", datalen, stream_id);
 	wget_quic *connection = user_data;
-	wget_quic_stream *stream = wget_quic_stream_find (connection, stream_id);
-
-	if (stream)
-		wget_quic_stream_push(stream, (const char *)data, datalen, RESPONSE_DATA_BYTE);
-
+	// if (datalen == 0){
+	// 	ngtcp2_conn_submit_shutdown
+	// 	return 0;
+	// }
+	int nconsumed = nghttp3_conn_read_stream(connection->http3_conn, stream_id, data, datalen, flags);
+	if (nconsumed < 0){
+		error_printf("ERROR: recv_stream_data_cb: %s\n",nghttp3_strerror(nconsumed));
+		return -1;
+	}
 	return 0;
 }
 
@@ -276,15 +297,19 @@ stream_open_cb (ngtcp2_conn *conn __attribute__((unused)),
 }
 
 static int
-stream_close_cb(ngtcp2_conn *conn, uint32_t flags __attribute__((unused)),
-					int64_t stream_id, uint64_t app_error_code,
+stream_close_cb(ngtcp2_conn *conn __attribute__((unused)), 
+					uint32_t flags __attribute__((unused)),
+					int64_t stream_id __attribute__((unused)), 
+					uint64_t app_error_code __attribute__((unused)),
 					void *user_data __attribute__((unused)), 
 					void *stream_user_data __attribute__((unused)))
 {
 	// wget_quic *connection = user_data;
 	// wget_quic_stream_unset(user_data, stream_id);
-	int ret = ngtcp2_conn_shutdown_stream(conn, 0, stream_id, app_error_code);
-	return ret;
+	// int ret = nghttp3_conn_close_stream(connection->http3_conn, stream_id, app_error_code);
+	// if (ret < 0)
+	// 	return -1;
+	return 0;
 }
 
 static const 
