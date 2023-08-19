@@ -43,6 +43,7 @@ static struct wget_quic_st global_quic = {
 	.family = AF_UNSPEC,
 	.preferred_family = AF_UNSPEC,
 	.streams = {NULL},
+	.is_closed = false,
 };
 
 uint64_t timestamp (void);
@@ -160,7 +161,23 @@ wget_quic_set_http3_conn(wget_quic *quic, int timeout)
 #endif
 
 #ifdef WITH_LIBNGTCP2
-void 
+bool
+wget_quic_get_is_closed(wget_quic *quic)
+{
+	if (quic)
+		return quic->is_closed;
+	return true;
+}
+#else
+bool
+wget_quic_get_is_closed(wget_quic *quic)
+{
+	return true;
+}
+#endif
+
+#ifdef WITH_LIBNGTCP2
+void
 wget_quic_set_ssl_hostname(wget_quic *quic, const char *hostname)
 {
 	if (!quic)
@@ -255,10 +272,10 @@ recv_stream_data_cb (ngtcp2_conn *conn __attribute__((unused)),
 {
 	debug_printf("receiving %zu bytes from stream #%zd\n", datalen, stream_id);
 	wget_quic *connection = user_data;
-	// if (datalen == 0){
-	// 	ngtcp2_conn_submit_shutdown
-	// 	return 0;
-	// }
+	if (datalen == 0){
+		connection->is_closed = true;
+		return 0;
+	}
 	int nconsumed = nghttp3_conn_read_stream(connection->http3_conn, stream_id, data, datalen, flags);
 	if (nconsumed < 0){
 		error_printf("ERROR: recv_stream_data_cb: %s\n",nghttp3_strerror(nconsumed));
