@@ -2084,6 +2084,9 @@ WGETAPI wget_quic_stream**
 WGETAPI void
 	wget_quic_set_ssl_hostname(wget_quic *quic, const char *hostname);
 
+WGETAPI bool
+	wget_quic_get_is_closed(wget_quic *quic);
+
 WGETAPI void 
 	wget_quic_set_connect_timeout(wget_quic *quic, int timeout);
 
@@ -2527,24 +2530,26 @@ WGETAPI int
 
 WGETAPI int
 	wget_http3_send_request(wget_http3_connection *http3,
-		       const char *hostname, const char *path,
-		       int (*sender_func)(int64_t, const void *, void *));
+		       wget_http_request *req);
 
-WGETAPI int 
-	wget_http3_open(wget_http3_connection *http3, const char *hostname, uint16_t port);
+WGETAPI wget_http3_connection * 
+	wget_http3_open(const wget_iri *iri);
 
 WGETAPI int 
 	wget_http3_stream_push(int64_t stream_id, const void *vector, 
 							void *userdata);
 
 WGETAPI int 
-	wget_http3_write_all_streams(wget_http3_connection *http3);
+	wget_http3_write_streams(wget_http3_connection *http3);
 
 WGETAPI int 
-	wget_http3_read_all_streams(wget_http3_connection *http3);
+	wget_http3_read_streams(wget_http3_connection *http3);
 
 WGETAPI void *
 	wget_http3_get_quic_conn(wget_http3_connection *http3);
+
+WGETAPI int 
+	wget_http3_get_response(wget_http3_connection *http3);
 
 /*
  * random routines
