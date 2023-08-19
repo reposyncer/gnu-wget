@@ -2,51 +2,29 @@
 #include <string.h>
 
 int main(void){
-    int ret;
-    const uint16_t port = 443;
+    // int ret = 0;
+    // const uint16_t port = 443;
     const char *hostname = "quic.nginx.org";
+    wget_iri *uri;
+    wget_http_request *req;
+    wget_http3_connection *http3 = NULL;
 
-   	wget_logger_set_stream(wget_get_logger(WGET_LOGGER_DEBUG), stdout);
-   	wget_logger_set_stream(wget_get_logger(WGET_LOGGER_ERROR), stderr);
+	// wget_logger_set_stream(wget_get_logger(WGET_LOGGER_DEBUG), stderr);
+	// wget_logger_set_stream(wget_get_logger(WGET_LOGGER_ERROR), stderr);
+	// wget_logger_set_stream(wget_get_logger(WGET_LOGGER_INFO), stdout);
 
+    uri = wget_iri_parse(hostname, NULL);
 
-    wget_http3_connection *http3 = wget_http3_init();
-    if (!http3){
-        fprintf(stderr, "Error in wget_http3_init\n");
-        return -1;
-    }
-    wget_quic_set_ssl_hostname((wget_quic *)wget_http3_get_quic_conn(http3), hostname);
+    req = wget_http_create_request(uri, "GET");
+    wget_http_add_header(req, "user-agent", "hello-client");
 
-    ret = wget_http3_open(http3, hostname, port);
-    if (ret < 0){
-        fprintf(stderr, "Error in wget_http3_open\n");
-        return -1;
-    }
-
-    ret = wget_http3_init_bind_streams(http3);
-    if (ret < 0){
-        fprintf(stderr, "Error in wget_http3_init_bind_streams\n");
-        return -1;
+    http3 = wget_http3_open(uri);
+    if (http3){
+        if (wget_http3_send_request(http3, req) == 0){
+            if (wget_http3_get_response(http3) == 0)
+                return 0;
+        }
     }
 
-    ret = wget_http3_send_request(http3, hostname, "/", wget_http3_stream_push);
-    if (ret < 0){
-        fprintf(stderr, "Error in wget_http3_send_request\n");
-        return -1;
-    }
-
-    ret = wget_http3_write_all_streams(http3);
-    if (ret < 0){
-        fprintf(stderr, "Error in wget_http3_write_all_streams\n");
-        return -1;
-    }
-
-    ret = wget_http3_read_all_streams(http3);
-    if (ret < 0){
-        fprintf(stderr, "Error in wget_http3_read_all_streams\n");
-        return -1;
-    }
-
-    return 0;
-
+    return -1;
 }
