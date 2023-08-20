@@ -2548,7 +2548,7 @@ WGETAPI int
 WGETAPI void *
 	wget_http3_get_quic_conn(wget_http3_connection *http3);
 
-WGETAPI int 
+WGETAPI char * 
 	wget_http3_get_response(wget_http3_connection *http3);
 
 /*

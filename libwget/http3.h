@@ -18,7 +18,7 @@ typedef struct wget_http3_connection_st {
     const nghttp3_mem *
         mem;
 
-    nghttp3_settings *
+    nghttp3_settings
         settings;
 #endif
     wget_quic_stream
