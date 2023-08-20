@@ -575,12 +575,14 @@ wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 	wget_dns_freeaddrinfo(quic->dns, &quic->addrinfo);
 	xfree(quic->host);
 
-	quic->addrinfo = wget_dns_resolve(quic->dns, host, port, quic->family, quic->preferred_family, WGET_QUIC_PROTOCOL);
+	quic->addrinfo = wget_dns_resolve(quic->dns, host, port, quic->family, quic->preferred_family);
 	if (!quic->addrinfo)
 		return WGET_E_INVALID;
 
 	int sockfd;
 	for (ai_rp = quic->addrinfo ; ai_rp != NULL ; ai_rp = ai_rp->ai_next) {
+		if (ai_rp->ai_socktype != SOCK_DGRAM)
+			continue;
 		if ((sockfd = socket(ai_rp->ai_family, ai_rp->ai_socktype | SOCK_NONBLOCK, 
 				ai_rp->ai_protocol)) != -1) {
 			rc = connect(sockfd, ai_rp->ai_addr, ai_rp->ai_addrlen);

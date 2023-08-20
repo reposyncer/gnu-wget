@@ -10,6 +10,6 @@ int main(void)
 	wget_dns *dns;
 
 	wget_dns_init(&dns);
-	wget_dns_resolve(dns, "localhost", 80, 0, 0, WGET_TCP_PROTOCOL);
+	wget_dns_resolve(dns, "localhost", 80, 0, 0);
 	wget_dns_free(&dns);
 }
