@@ -8,9 +8,9 @@ int main(void){
     wget_http_request *req;
     wget_http3_connection *http3 = NULL;
 
-	// wget_logger_set_stream(wget_get_logger(WGET_LOGGER_DEBUG), stderr);
-	// wget_logger_set_stream(wget_get_logger(WGET_LOGGER_ERROR), stderr);
-	// wget_logger_set_stream(wget_get_logger(WGET_LOGGER_INFO), stdout);
+wget_logger_set_stream(wget_get_logger(WGET_LOGGER_DEBUG), stderr);
+wget_logger_set_stream(wget_get_logger(WGET_LOGGER_ERROR), stderr);
+wget_logger_set_stream(wget_get_logger(WGET_LOGGER_INFO), stdout);
 
     uri = wget_iri_parse(hostname, NULL);
 
