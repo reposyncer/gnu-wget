@@ -13,9 +13,15 @@ int main(void){
     wget_http_request *req;
     wget_http_connection *http3 = NULL;
 
+<<<<<<< HEAD
 	wget_logger_set_stream(wget_get_logger(WGET_LOGGER_DEBUG), stderr);
 	wget_logger_set_stream(wget_get_logger(WGET_LOGGER_ERROR), stderr);
 	wget_logger_set_stream(wget_get_logger(WGET_LOGGER_INFO), stdout);
+=======
+wget_logger_set_stream(wget_get_logger(WGET_LOGGER_DEBUG), stderr);
+wget_logger_set_stream(wget_get_logger(WGET_LOGGER_ERROR), stderr);
+wget_logger_set_stream(wget_get_logger(WGET_LOGGER_INFO), stdout);
+>>>>>>> 831ec624 (Remove unused wget_ssl_init_quic)
 
     uri = wget_iri_parse(hostname, NULL);
 
@@ -44,6 +50,5 @@ int main(void){
         return -1;
     }
     wget_http3_close(&http3);
-
     return 0;
 }
