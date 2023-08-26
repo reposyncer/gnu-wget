@@ -11,6 +11,7 @@
 #include "net.h"
 
 wget_quic_stream *quic_stream_init(wget_quic *quic, int unidirectional);
+void quic_stream_unset(wget_quic *quic, wget_quic_stream *stream);
 
 wget_quic_stream *
 wget_quic_stream_set_stream(wget_quic *quic, int64_t id)
@@ -37,7 +38,7 @@ wget_quic_stream_set_stream(wget_quic *quic, int64_t id)
 }
 
 void
-wget_quic_stream_unset(wget_quic *quic, wget_quic_stream *stream)
+quic_stream_unset(wget_quic *quic, wget_quic_stream *stream)
 {
 	if (!quic || !stream)
 		return;
@@ -103,12 +104,13 @@ quic_stream_init(wget_quic *quic, int unidirectional)
 /* Close the ngtcp2_stream and then remove it from quic stack */
 
 void
-wget_quic_stream_deinit(wget_quic *quic, int64_t stream_id)
+wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s)
 {
-	wget_quic_stream *stream = wget_quic_stream_find(quic, stream_id);
+	wget_quic_stream *stream = *s;
 	if (!stream)
 		return;
 	wget_queue_deinit(stream->buffer);
+	quic_stream_unset(quic, stream);
 	xfree(stream);
 	return;
 }

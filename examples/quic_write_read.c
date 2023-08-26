@@ -6,6 +6,10 @@ int main(void){
     const uint16_t port = 5556;
     const char *hostname = "localhost";
 
+    wget_logger_set_stream(wget_get_logger(WGET_LOGGER_DEBUG), stderr);
+	wget_logger_set_stream(wget_get_logger(WGET_LOGGER_ERROR), stderr);
+	wget_logger_set_stream(wget_get_logger(WGET_LOGGER_INFO), stdout);
+
 	wget_quic *quic = wget_quic_init();
 	if (!quic) {
 		fprintf(stderr, "Error in wget_quic_init()\n");
@@ -20,13 +24,6 @@ int main(void){
     ret = wget_quic_connect(quic, hostname, port);
 	if (ret < 0) {
 		fprintf(stderr, "Error in wget_quic_connect()\n");
-		wget_quic_deinit(&quic);
-        return -1;
-	}
-
-	ret = wget_quic_handshake(quic);
-	if (ret < 0) {
-		fprintf(stderr, "Error in wget_quic_handshake()\n");
 		wget_quic_deinit(&quic);
         return -1;
 	}

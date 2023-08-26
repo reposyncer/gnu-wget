@@ -25,8 +25,12 @@ int main(void){
             if (!data)
                 return -1;
             fprintf(stdout, "%s", data);
+            wget_http_free_request(&req);
         }
+    } else{
+        return -1;
     }
+    wget_http3_close(&http3);
 
-    return -1;
+    return 0;
 }
