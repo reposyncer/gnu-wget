@@ -79,7 +79,7 @@ struct wget_tcp_st {
 };
 
 typedef struct{
-	struct sockaddr *addr;
+	struct sockaddr addr;
 	size_t size;
 }info_addr;
 
@@ -125,7 +125,8 @@ struct wget_quic_st{
 		*host,
 		*ssl_hostname;
 	bool
-		is_closed;
+		is_closed,
+		is_fin_packet;
 	uint16_t
 		remote_port;
 

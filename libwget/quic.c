@@ -44,6 +44,8 @@ static struct wget_quic_st global_quic = {
 	.preferred_family = AF_UNSPEC,
 	.streams = {NULL},
 	.is_closed = false,
+	.is_fin_packet = false,
+	.http3_conn = NULL,
 };
 
 uint64_t timestamp (void);
@@ -53,12 +55,15 @@ ssize_t send_packet(int fd, const uint8_t *data, size_t data_size,
 int get_random_cid (ngtcp2_cid *cid);
 ssize_t recv_packet(int fd, uint8_t *data, size_t data_size,
 		    struct sockaddr *remote_addr, size_t *remote_addrlen);
-int quic_handshake(wget_quic* quic);
+int make_handshake(wget_quic* quic);
 void quic_stream_mark_sent(wget_quic_stream *stream, ngtcp2_ssize offset);
 wget_byte *quic_stream_peek_data(wget_quic_stream *stream);
 void log_printf(void *user_data, const char *fmt, ...);
 wget_quic_stream *stream_new(int64_t id);
 static int handshake_completed(wget_quic *quic);
+static int quic_write_data(wget_quic* quic, int64_t stream_id, const uint8_t *data, 
+				 				size_t datalen, uint8_t type);
+int quic_handshake(wget_quic *quic);
 
 static inline void print_error_host(const char *msg, const char *host)
 {
@@ -87,18 +92,6 @@ wget_quic *wget_quic_init(void)
 		return NULL;
 	}
 
-	quic->local.addr = NULL;
-	quic->local.addr = wget_malloc(sizeof(struct sockaddr));
-	if(!quic->local.addr){
-		xfree(quic);
-		return NULL;
-	}
-	quic->remote.addr = wget_malloc(sizeof(struct sockaddr));
-	if(!quic->remote.addr){
-		xfree(quic);
-		return NULL;
-	}
-
 	return quic;
 }
 #else
@@ -111,19 +104,24 @@ wget_quic *wget_quic_init(void)
 #ifdef WITH_LIBNGTCP2
 void wget_quic_deinit (wget_quic **_quic)
 {
-	wget_quic *quic = *_quic;
+	wget_quic *q = *_quic;
 
-	if (quic){
-		if (quic->ssl_hostname){
-			xfree(quic->ssl_hostname);
+	if (q){
+
+		ngtcp2_conn_del(q->conn);
+
+		if (q->ssl_hostname){
+			xfree(q->ssl_hostname);
 		}
 
-		xfree(quic->local.addr);
-		xfree(quic->remote.addr);
-		xfree(quic);
+		for (int i = 0 ; i < MAX_STREAMS ; i++){
+			if (q->streams[i]){
+				wget_quic_stream_deinit(q, &(q->streams[i]));
+			}
+		}
+		
+		xfree(q);
 	}
-
-	quic = NULL;
 }
 #else
 void wget_quic_deinit (wget_quic **_quic)
@@ -164,8 +162,14 @@ wget_quic_set_http3_conn(wget_quic *quic, int timeout)
 bool
 wget_quic_get_is_closed(wget_quic *quic)
 {
-	if (quic)
-		return quic->is_closed;
+	if (quic){
+		if (quic->is_closed){
+			quic->is_closed = false;
+			return true;
+		}else{
+			return false;
+		}
+	}
 	return true;
 }
 #else
@@ -173,6 +177,22 @@ bool
 wget_quic_get_is_closed(wget_quic *quic)
 {
 	return true;
+}
+#endif
+
+#ifdef WITH_LIBNGTCP2
+void
+wget_quic_set_is_fin_packet(wget_quic* quic, bool is_fin_packet)
+{
+	if (quic)
+		quic->is_fin_packet = is_fin_packet;
+	return;
+}
+#else
+void
+wget_quic_set_is_fin_packet(wget_quic* quic, bool is_fin_packet)
+{
+	return;
 }
 #endif
 
@@ -223,6 +243,22 @@ timestamp (void)
     return 0;
 
   return (uint64_t)tp.tv_sec * NGTCP2_SECONDS + (uint64_t)tp.tv_nsec;
+}
+
+static int quic_write_data(wget_quic* quic, int64_t stream_id, const uint8_t *data, 
+				 				size_t datalen, uint8_t type)
+{
+	if (!quic){
+		return -1;
+	}
+	wget_quic_stream *stream = wget_quic_stream_find(quic, stream_id);
+	if(stream){
+		int ret = wget_quic_stream_push(stream, (const char *)data, datalen, type);
+		if (ret < 0)
+			return ret;
+		return 0;
+	}
+	return -1;
 }
 
 /* Callback functions for ngtcp2 */
@@ -276,10 +312,19 @@ recv_stream_data_cb (ngtcp2_conn *conn __attribute__((unused)),
 		connection->is_closed = true;
 		return 0;
 	}
-	int nconsumed = nghttp3_conn_read_stream(connection->http3_conn, stream_id, data, datalen, flags);
-	if (nconsumed < 0){
-		error_printf("ERROR: recv_stream_data_cb: %s\n",nghttp3_strerror(nconsumed));
-		return -1;
+	if (connection->http3_conn){
+		int nconsumed = nghttp3_conn_read_stream(connection->http3_conn, stream_id, data, datalen, flags);
+		if (nconsumed < 0){
+			error_printf("ERROR: recv_stream_data_cb: %s\n",nghttp3_strerror(nconsumed));
+			return -1;
+		}
+	} 
+	else {
+		int ret = quic_write_data(connection, stream_id, data, datalen, RESPONSE_DATA_BYTE);
+		if (ret < 0){
+			error_printf("ERROR: recv_stream_data_cb\n");
+			return -1;
+		}
 	}
 	return 0;
 }
@@ -321,11 +366,10 @@ stream_close_cb(ngtcp2_conn *conn __attribute__((unused)),
 					void *user_data __attribute__((unused)), 
 					void *stream_user_data __attribute__((unused)))
 {
-	// wget_quic *connection = user_data;
-	// wget_quic_stream_unset(user_data, stream_id);
-	// int ret = nghttp3_conn_close_stream(connection->http3_conn, stream_id, app_error_code);
-	// if (ret < 0)
-	// 	return -1;
+	wget_quic *connection = user_data;
+	int ret = nghttp3_conn_close_stream(connection->http3_conn, stream_id, app_error_code);
+	if (ret < 0)
+		return -1;
 	return 0;
 }
 
@@ -510,7 +554,7 @@ handshake_read(wget_quic *quic)
 }
 
 int 
-quic_handshake(wget_quic* quic){
+make_handshake(wget_quic* quic){
 	int ret,
 	timer_fd = quic->timerfd;
 	ngtcp2_conn *conn = (ngtcp2_conn *)quic->conn;
@@ -598,18 +642,19 @@ wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 					close(sockfd);
 					break;
 				}
-				if (!quic->local.addr || !quic->remote.addr) {
-					return WGET_E_MEMORY;
-				}
 				socklen_t len;
 				quic->local.size = sizeof(quic->local.addr);
 				len = (socklen_t) quic->local.size;
-				getsockname(sockfd, quic->local.addr, &len);
+				getsockname(sockfd, &quic->local.addr, &len);
 				quic->local.size = len;	
 
-				quic->remote.addr = ai_rp->ai_addr;
+				memcpy(&quic->remote.addr, ai_rp->ai_addr, sizeof(struct sockaddr));
 				quic->remote.size = ai_rp->ai_addrlen;
-				ret = WGET_E_SUCCESS;
+				ret = quic_handshake(quic);
+				if (ret < 0){
+					error_printf("Error in quic_handshake()\n");
+					ret = WGET_E_HANDSHAKE;
+				}
 				break;
 			}
 		} else {
@@ -627,9 +672,8 @@ wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 }
 #endif
 
-#ifdef WITH_LIBNGTCP2
 int 
-wget_quic_handshake(wget_quic *quic)
+quic_handshake(wget_quic *quic)
 {
 	int ret = WGET_E_INVALID;
 	if (unlikely(!quic))
@@ -641,11 +685,11 @@ wget_quic_handshake(wget_quic *quic)
 	{
 		.local = {
 			.addrlen = quic->local.size,
-			.addr = quic->local.addr,
+			.addr = &quic->local.addr,
 		},
 		.remote = {
 			.addrlen = quic->remote.size,
-			.addr = quic->remote.addr,
+			.addr = &quic->remote.addr,
 		}
 	};
 
@@ -687,20 +731,13 @@ wget_quic_handshake(wget_quic *quic)
 	}
 
 	quic->timerfd = timerfd;	
-	if ((ret = quic_handshake(quic)) < 0) {
+	if ((ret = make_handshake(quic)) < 0) {
 		return ret;
 	}
 
 	ret = wget_quic_ack(quic);
 	return WGET_E_SUCCESS;
 }
-#else
-int 
-wget_quic_handshake(wget_quic *quic)
-{
-	return WGET_E_UNSUPPORTED;
-}
-#endif
 
 /* Stream Struct Getter and Setter functions present [As Required] */
 
@@ -814,6 +851,11 @@ write_stream(wget_quic *quic, wget_quic_stream *stream)
 	// uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_MORE;
 	uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_NONE;
 
+	if (quic->is_fin_packet){
+		flags |= NGTCP2_WRITE_STREAM_FLAG_FIN;
+		quic->is_fin_packet = false;
+	}
+
 	ngtcp2_ssize n_read, n_written = 0;
 
 	ngtcp2_vec datav;
@@ -853,7 +895,7 @@ write_stream(wget_quic *quic, wget_quic_stream *stream)
 
 	if (sent){
 		ret = send_packet(quic->sockfd, buf, n_written,
-				quic->remote.addr,
+				&quic->remote.addr,
 				quic->remote.size);
 		if (ret < 0) {
 			error_printf("ERROR: send_packet: %s\n", strerror(errno));

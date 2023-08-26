@@ -21,11 +21,5 @@ int main(void){
 		wget_quic_deinit(&quic);
 	}
 
-	ret = wget_quic_handshake(quic);
-	if (ret < 0){
-		fprintf(stderr, "Error in wget_quic_handshake()\n");
-		wget_quic_deinit(&quic);
-	}
-
     return 0;
 }

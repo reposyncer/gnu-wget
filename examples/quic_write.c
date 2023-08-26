@@ -22,12 +22,6 @@ int main(void){
 		wget_quic_deinit(&quic);
 	}
 
-	ret = wget_quic_handshake(quic);
-	if (ret < 0){
-		fprintf(stderr, "Error in wget_quic_handshake()\n");
-		wget_quic_deinit(&quic);
-	}
-
 	wget_quic_stream *stream = wget_quic_stream_init_bidirectional(quic);
 	if (!stream){
 		return -1;
