@@ -2060,10 +2060,10 @@ WGETAPI int
 	wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen, uint8_t type);
 
 void
-wget_quic_stream_deinit(wget_quic *quic, int64_t stream_id);
+wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s);
 
 WGETAPI wget_quic_stream *
-	wget_quic_stream_find (wget_quic *quic, int64_t stream_id);
+	wget_quic_stream_find(wget_quic *quic, int64_t stream_id);
 
 WGETAPI int64_t 
 	wget_quic_stream_get_id(wget_quic_stream *stream);
@@ -2086,17 +2086,14 @@ WGETAPI void
 WGETAPI void 
 	wget_quic_set_http3_conn(wget_quic *quic, void *http3_conn);
 
+WGETAPI void
+	wget_quic_set_is_fin_packet(wget_quic* quic, bool is_fin_packet);
+
 WGETAPI wget_quic_stream*
 	wget_quic_stream_set_stream(wget_quic *quic, int64_t id);
 
-WGETAPI void
-	wget_quic_stream_unset(wget_quic *quic, wget_quic_stream *stream);
-
 WGETAPI int
 	wget_quic_connect(wget_quic *quic, const char *host, uint16_t port);
-
-WGETAPI int 
-	wget_quic_handshake(wget_quic *quic);
 
 WGETAPI int
 	wget_quic_ack(wget_quic *quic);
@@ -2516,10 +2513,7 @@ WGETAPI wget_http3_connection *
 	wget_http3_init(void);
 
 WGETAPI void 
-	wget_http3_deinit(wget_http3_connection *http3);
-
-WGETAPI int
-	wget_http3_init_bind_streams(wget_http3_connection *http3);
+	wget_http3_close(wget_http3_connection **http3);
 
 WGETAPI int
 	wget_http3_send_request(wget_http3_connection *http3,
@@ -2527,19 +2521,6 @@ WGETAPI int
 
 WGETAPI wget_http3_connection * 
 	wget_http3_open(const wget_iri *iri);
-
-WGETAPI int 
-	wget_http3_stream_push(int64_t stream_id, const void *vector, 
-							void *userdata);
-
-WGETAPI int 
-	wget_http3_write_streams(wget_http3_connection *http3);
-
-WGETAPI int 
-	wget_http3_read_streams(wget_http3_connection *http3);
-
-WGETAPI void *
-	wget_http3_get_quic_conn(wget_http3_connection *http3);
 
 WGETAPI char * 
 	wget_http3_get_response(wget_http3_connection *http3);
