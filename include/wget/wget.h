@@ -2147,8 +2147,6 @@ WGETAPI int
 WGETAPI void
 	wget_ssl_init(void);
 WGETAPI void
-	wget_ssl_init_quic(void);
-WGETAPI void
 	wget_ssl_deinit(void);
 WGETAPI void
 	wget_ssl_set_config_string(int key, const char *value);
