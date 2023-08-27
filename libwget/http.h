@@ -27,6 +27,17 @@
 #	include <nghttp2/nghttp2.h>
 #endif
 
+#ifdef WITH_LIBNGTCP2
+#include <ngtcp2/ngtcp2.h>
+#endif
+
+#ifdef WITH_LIBNGHTTP3
+#include <nghttp3/nghttp3.h>
+
+#endif
+
+
+
 //wget_http_connection_t abstract type
 struct wget_http_connection_st {
 	wget_tcp *
@@ -38,6 +49,23 @@ struct wget_http_connection_st {
 #ifdef WITH_LIBNGHTTP2
 	nghttp2_session *
 		http2_session;
+#endif
+#ifdef WITH_LIBNGHTTP3
+	nghttp3_conn *
+        conn;
+    const nghttp3_mem *
+        mem;
+    nghttp3_settings
+        settings;
+	wget_quic_stream
+        * control_stream,
+        * qpac_encoder_stream,
+        * qpac_decoder_stream,
+        * client_stream;
+#endif
+#ifdef WITH_LIBNGTCP2
+	wget_quic *
+        quic;
 #endif
 	wget_vector
 		*pending_requests; // List of unresponsed requests (HTTP1 only)
