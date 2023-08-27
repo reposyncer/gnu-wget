@@ -2507,23 +2507,18 @@ WGETAPI wget_http_response *
 	HTTP/3 routines
 */
 
-typedef struct wget_http3_connection_st wget_http3_connection;
-
-WGETAPI wget_http3_connection *
-	wget_http3_init(void);
-
 WGETAPI void 
-	wget_http3_close(wget_http3_connection **http3);
+	wget_http3_close(wget_http_connection **http3);
 
 WGETAPI int
-	wget_http3_send_request(wget_http3_connection *http3,
+	wget_http3_send_request(wget_http_connection *http3,
 		       wget_http_request *req);
 
-WGETAPI wget_http3_connection * 
-	wget_http3_open(const wget_iri *iri);
+WGETAPI int 
+	wget_http3_open(wget_http_connection **h3, const wget_iri *iri);
 
-WGETAPI char * 
-	wget_http3_get_response(wget_http3_connection *http3);
+WGETAPI wget_http_response * 
+	wget_http3_get_response(wget_http_connection *http3);
 
 /*
  * random routines

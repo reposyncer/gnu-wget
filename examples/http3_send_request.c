@@ -6,7 +6,7 @@ int main(void){
     char *data = NULL;
     wget_iri *uri;
     wget_http_request *req;
-    wget_http3_connection *http3 = NULL;
+    wget_http_connection *http3 = NULL;
 
 	// wget_logger_set_stream(wget_get_logger(WGET_LOGGER_DEBUG), stderr);
 	// wget_logger_set_stream(wget_get_logger(WGET_LOGGER_ERROR), stderr);
@@ -18,14 +18,22 @@ int main(void){
     uri->port = 443;
     wget_http_add_header(req, "user-agent", "hello-client");
 
-    http3 = wget_http3_open(uri);
-    if (http3){
+    int ret = wget_http3_open(&http3, uri);
+    if (ret >= 0){
         if (wget_http3_send_request(http3, req) == 0){
-            char *data = wget_http3_get_response(http3);
-            if (!data)
+            wget_http_response *resp = wget_http3_get_response(http3);
+            if (!resp){
+                wget_http_free_request(&req);
+                wget_http3_close(&http3);
                 return -1;
-            fprintf(stdout, "%s", data);
+            }
+            fprintf(stdout, "%s", resp->body->data);
+            wget_http_free_response(&resp);
             wget_http_free_request(&req);
+        }else{
+            wget_http_free_request(&req);
+            wget_http3_close(&http3);
+            return -1;
         }
     } else{
         return -1;
