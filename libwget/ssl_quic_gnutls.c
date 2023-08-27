@@ -21,6 +21,8 @@
 #include <wget.h>
 #include "private.h"
 #include "net.h"
+#include "ssl.h"
+
 #include <ngtcp2/ngtcp2.h>
 #include <ngtcp2/ngtcp2_crypto.h>
 #include <ngtcp2/ngtcp2_crypto_gnutls.h>
@@ -43,59 +45,7 @@ static gnutls_certificate_credentials_t
 static gnutls_priority_t
 	priority_cache;
 
-static struct config {
-	const char
-		*secure_protocol,
-		*ca_directory,
-		*ca_file,
-		*cert_file,
-		*key_file,
-		*crl_file,
-		*alpn;
-	char
-		ca_type,
-		cert_type,
-		key_type;
-	bool
-		check_certificate : 1,
-		check_hostname : 1;
-} config = {
-	.check_certificate = 1,
-	.ca_type = WGET_SSL_X509_FMT_PEM,
-	.cert_type = WGET_SSL_X509_FMT_PEM,
-	.key_type = WGET_SSL_X509_FMT_PEM,
-	.secure_protocol = "AUTO",
-	.ca_directory = "system",
-/*
-	As of now a sample alpn for http3 defined for usage.
-	TBDL
-*/
-#ifdef WITH_LIBNGHTTP3
-	.alpn = "h3"
-#endif
-};
-
-void wget_ssl_quic_set_config_int(int key, int value)
-{
-	switch (key) {
-	case WGET_SSL_CHECK_CERTIFICATE: config.check_certificate = (char)value; break;
-	case WGET_SSL_CHECK_HOSTNAME: config.check_hostname = (char)value; break;
-	default: error_printf(_("Unknown config key %d (or value must not be an integer)\n"), key);
-	}
-}
-
-void wget_ssl_quic_set_config_string(int key, const char *value)
-{
-	switch (key) {
-	case WGET_SSL_CA_DIRECTORY: config.ca_directory = value; break;
-	case WGET_SSL_CA_FILE: config.ca_file = value; break;
-	case WGET_SSL_CERT_FILE: config.cert_file = value; break;
-	case WGET_SSL_KEY_FILE: config.key_file = value; break;
-	case WGET_SSL_CRL_FILE: config.crl_file = value; break;
-	default: error_printf(_("Unknown config key %d (or value must not be a string)\n"), key);
-	}
-}
-
+extern struct config config;
 
 #define MAX_TP_SIZE 128
 
@@ -241,8 +191,8 @@ int wget_ssl_open_quic(wget_quic *quic)
 
 	gnutls_certificate_allocate_credentials(&credentials);
 
-	ncerts = gnutls_certificate_set_x509_system_trust(credentials);
-	gnutls_certificate_set_x509_trust_file(credentials, config.ca_file , GNUTLS_X509_FMT_PEM);
+	ncerts = wget_ssl_load_credentials(credentials);
+
 	gnutls_credentials_set(session, GNUTLS_CRD_CERTIFICATE, credentials);
 	debug_printf("Certificates loaded: %d\n", ncerts);
 
@@ -275,30 +225,8 @@ int wget_ssl_open_quic(wget_quic *quic)
 	*/
 
 #if GNUTLS_VERSION_NUMBER >= 0x030200
-	if (config.alpn) {
-		unsigned nprot;
-		const char *e, *s;
-
-		for (nprot = 0, s = e = config.alpn; *e; s = e + 1)
-			if ((e = strchrnul(s, ',')) != s)
-				nprot++;
-
-		if (nprot) {
-			gnutls_datum_t data[16];
-
-			for (nprot = 0, s = e = config.alpn; *e && nprot < countof(data); s = e + 1) {
-				if ((e = strchrnul(s, ',')) != s) {
-					data[nprot].data = (unsigned char *) s;
-					data[nprot].size = (unsigned) (e - s);
-					debug_printf("ALPN offering %.*s\n", (int) data[nprot].size, data[nprot].data);
-					nprot++;
-				}
-			}
-
-			if ((rc = gnutls_alpn_set_protocols(session, data, nprot, 0)))
-				debug_printf("GnuTLS: Set ALPN: %s\n", gnutls_strerror(rc));
-		}
-	}
+	debug_printf("Forcing ALPN to: 'h3'\n");
+	wget_ssl_set_alpn(session, "h3");
 #endif
 	quic->ssl_session = (void *)session;
 

@@ -61,6 +61,7 @@
 #include <wget.h>
 #include "private.h"
 #include "net.h"
+#include "ssl.h"
 
 
 /**
@@ -81,38 +82,7 @@ static wget_ocsp_stats_callback
 static void
 	*ocsp_stats_ctx;
 
-static struct config {
-	const char
-		*secure_protocol,
-		*ca_directory,
-		*ca_file,
-		*cert_file,
-		*key_file,
-		*crl_file,
-		*ocsp_server,
-		*alpn;
-	wget_ocsp_db
-		*ocsp_cert_cache,
-		*ocsp_host_cache;
-	wget_tls_session_db
-		*tls_session_cache;
-	wget_hpkp_db
-		*hpkp_cache;
-	char
-		ca_type,
-		cert_type,
-		key_type;
-	bool
-		check_certificate : 1,
-		report_invalid_cert : 1,
-		check_hostname : 1,
-		print_info : 1,
-		ocsp : 1,
-		ocsp_date : 1,
-		ocsp_stapling : 1,
-		ocsp_nonce : 1,
-		dane : 1;
-} config = {
+struct config config = {
 	.check_certificate = 1,
 	.report_invalid_cert = 1,
 	.check_hostname = 1,
@@ -128,13 +98,6 @@ static struct config {
 	.ca_file = "system",
 #ifdef WITH_LIBNGHTTP2
 	.alpn = "h2,http/1.1",
-#endif
-/*
-	As of now a sample alpn for http3 defined for usage.
-	TBDL
-*/
-#ifdef WITH_LIBNGHTTP3
-	.alpn = "h3"
 #endif
 };
 
@@ -1315,6 +1278,124 @@ static void set_credentials(gnutls_certificate_credentials_t creds)
 	}
 }
 
+int wget_ssl_load_credentials(gnutls_certificate_credentials_t credentials)
+{
+	int rc, ncerts;
+
+	if (config.ca_directory && *config.ca_directory && config.check_certificate) {
+#if GNUTLS_VERSION_NUMBER >= 0x03000d
+		if (!strcmp(config.ca_directory, "system")) {
+			//Looks for places on the system where the certificates are stored.
+			//Different for different systems.
+			//Gets the file from paths already specified in the lib.
+			//Depending on the option specified on the user.
+			ncerts = gnutls_certificate_set_x509_system_trust(credentials);
+			if (ncerts < 0)
+				debug_printf("GnuTLS system certificate store error %d\n", ncerts);
+			else
+				debug_printf("GnuTLS system certificate store is empty\n");
+		}
+#endif
+		/*
+			While initialising the application, we can also give a certificate
+			and so this code should be same for both quic as well as tcp.
+			Also if the certificate used for quic is present in the system files 
+			then it is great. To verify this.
+		*/
+		if (ncerts < 0) {
+			DIR *dir;
+
+			ncerts = 0;
+
+			if (!strcmp(config.ca_directory, "system"))
+				config.ca_directory = wget_ssl_default_cert_dir();
+
+			if ((dir = opendir(config.ca_directory))) {
+				struct dirent *dp;
+
+				while ((dp = readdir(dir))) {
+					size_t len = strlen(dp->d_name);
+
+					if (len >= 4 && !wget_strncasecmp_ascii(dp->d_name + len - 4, ".pem", 4)) {
+						char *fname = wget_aprintf("%s/%s", config.ca_directory, dp->d_name);
+
+						if (!fname) {
+							error_printf(_("Failed to allocate file name for cert '%s/%s'\n"), config.ca_directory, dp->d_name);
+							continue;
+						}
+
+						struct stat st;
+						if (stat(fname, &st) == 0 && S_ISREG(st.st_mode)) {
+							debug_printf("GnuTLS loading %s\n", fname);
+							if ((rc = gnutls_certificate_set_x509_trust_file(credentials, fname, GNUTLS_X509_FMT_PEM)) <= 0)
+								debug_printf("Failed to load cert '%s': (%d)\n", fname, rc);
+							else
+								ncerts += rc;
+						}
+
+						xfree(fname);
+					}
+				}
+
+				closedir(dir);
+			} else {
+				error_printf(_("Failed to opendir %s\n"), config.ca_directory);
+			}
+		}
+	}
+
+	/*
+		Basically to list all the certificates that have been issued.
+		This isnt seen in any of the repo in usage.
+		But this will also be common with for quic as well as tcp.
+	*/
+
+	if (config.crl_file) {
+		if ((rc = gnutls_certificate_set_x509_crl_file(credentials, config.crl_file, GNUTLS_X509_FMT_PEM)) <= 0)
+			error_printf(_("Failed to load CRL '%s': (%d)\n"), config.crl_file, rc);
+	}
+
+	set_credentials(credentials);
+
+	return ncerts;
+}
+
+unsigned int wget_ssl_set_alpn(gnutls_session_t session, const char *alpn)
+{
+	int rc;
+	unsigned nprot = 0;
+	const char *e, *s;
+
+	// Choose a default value if the caller doesn't force anything
+	if (!alpn)
+		alpn = config.alpn;
+
+	if (!alpn)
+		return 0;
+
+	for (nprot = 0, s = e = alpn; *e; s = e + 1)
+		if ((e = strchrnul(s, ',')) != s)
+			nprot++;
+
+	if (nprot) {
+		gnutls_datum_t data[16];
+
+		for (nprot = 0, s = e = alpn; *e && nprot < countof(data); s = e + 1) {
+			if ((e = strchrnul(s, ',')) != s) {
+				data[nprot].data = (unsigned char *) s;
+				data[nprot].size = (unsigned) (e - s);
+				debug_printf("ALPN offering %.*s\n", (int) data[nprot].size, data[nprot].data);
+				nprot++;
+			}
+		}
+
+		if ((rc = gnutls_alpn_set_protocols(session, data, nprot, 0)))
+			debug_printf("GnuTLS: Set ALPN: %s\n", gnutls_strerror(rc));
+	}
+
+	return nprot;
+}
+
 /**
  * Initialize the SSL/TLS engine as a client.
  *
@@ -1349,82 +1430,9 @@ void wget_ssl_init()
 		gnutls_certificate_allocate_credentials(&credentials);
 		gnutls_certificate_set_verify_function(credentials, verify_certificate_callback);
 
-		if (config.ca_directory && *config.ca_directory && config.check_certificate) {
-#if GNUTLS_VERSION_NUMBER >= 0x03000d
-			if (!strcmp(config.ca_directory, "system")) {
-				//Looks for places on the system where the certificates are stored.
-				//Different for different systems.
-				//Gets the file from paths already specified in the lib.
-				//Depending on the option specified on the user.
-				ncerts = gnutls_certificate_set_x509_system_trust(credentials);
-				if (ncerts < 0)
-					debug_printf("GnuTLS system certificate store error %d\n", ncerts);
-				else
-					debug_printf("GnuTLS system certificate store is empty\n");
-			}
-#endif
-			/*
-				While initialising the application, we can also give a certificate
-				and so this code should be same for both quic as well as tcp.
-				Also if the certificate used for quic is present in the system files 
-				then it is great. To verify this.
-			*/
-			if (ncerts < 0) {
-				DIR *dir;
-
-				ncerts = 0;
-
-				if (!strcmp(config.ca_directory, "system"))
-					config.ca_directory = wget_ssl_default_cert_dir();
-
-				if ((dir = opendir(config.ca_directory))) {
-					struct dirent *dp;
-
-					while ((dp = readdir(dir))) {
-						size_t len = strlen(dp->d_name);
-
-						if (len >= 4 && !wget_strncasecmp_ascii(dp->d_name + len - 4, ".pem", 4)) {
-							char *fname = wget_aprintf("%s/%s", config.ca_directory, dp->d_name);
-
-							if (!fname) {
-								error_printf(_("Failed to allocate file name for cert '%s/%s'\n"), config.ca_directory, dp->d_name);
-								continue;
-							}
-
-							struct stat st;
-							if (stat(fname, &st) == 0 && S_ISREG(st.st_mode)) {
-								debug_printf("GnuTLS loading %s\n", fname);
-								if ((rc = gnutls_certificate_set_x509_trust_file(credentials, fname, GNUTLS_X509_FMT_PEM)) <= 0)
-									debug_printf("Failed to load cert '%s': (%d)\n", fname, rc);
-								else
-									ncerts += rc;
-							}
-
-							xfree(fname);
-						}
-					}
-
-					closedir(dir);
-				} else {
-					error_printf(_("Failed to opendir %s\n"), config.ca_directory);
-				}
-			}
-		}
-
-		/*
-			Basically to list all the certificates that have been issued.
-			This isnt seen in any of the repo in usage.
-			But this will also be common with for quic as well as tcp.
-		*/
-
-		if (config.crl_file) {
-			if ((rc = gnutls_certificate_set_x509_crl_file(credentials, config.crl_file, GNUTLS_X509_FMT_PEM)) <= 0)
-				error_printf(_("Failed to load CRL '%s': (%d)\n"), config.crl_file, rc);
-		}
-
-		set_credentials(credentials);
-
+		ncerts = wget_ssl_load_credentials(credentials);
 		debug_printf("Certificates loaded: %d\n", ncerts);
+
 
 		/*
 			The values here seem to be a bit different from those
@@ -1847,30 +1855,8 @@ int wget_ssl_open(wget_tcp *tcp)
 #endif
 
 #if GNUTLS_VERSION_NUMBER >= 0x030200
-	if (config.alpn) {
-		unsigned nprot;
-		const char *e, *s;
-
-		for (nprot = 0, s = e = config.alpn; *e; s = e + 1)
-			if ((e = strchrnul(s, ',')) != s)
-				nprot++;
-
-		if (nprot) {
-			gnutls_datum_t data[16];
-
-			for (nprot = 0, s = e = config.alpn; *e && nprot < countof(data); s = e + 1) {
-				if ((e = strchrnul(s, ',')) != s) {
-					data[nprot].data = (unsigned char *) s;
-					data[nprot].size = (unsigned) (e - s);
-					debug_printf("ALPN offering %.*s\n", (int) data[nprot].size, data[nprot].data);
-					nprot++;
-				}
-			}
-
-			if ((rc = gnutls_alpn_set_protocols(session, data, nprot, 0)))
-				debug_printf("GnuTLS: Set ALPN: %s\n", gnutls_strerror(rc));
-		}
-	}
+	if (config.alpn)
+		wget_ssl_set_alpn(session, NULL);
 #endif
 
 	tcp->ssl_session = session;
