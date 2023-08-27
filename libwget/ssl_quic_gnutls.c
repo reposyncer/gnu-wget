@@ -99,42 +99,37 @@ void wget_ssl_quic_set_config_string(int key, const char *value)
 
 #define MAX_TP_SIZE 128
 
-static int
-tp_recv_func (gnutls_session_t session, const uint8_t *data, size_t data_size)
+static int tp_recv_func(gnutls_session_t session, const uint8_t *data, size_t data_size)
 {
-	ngtcp2_conn *conn = gnutls_session_get_ptr (session);
 	int ret;
+	ngtcp2_conn *conn = gnutls_session_get_ptr(session);
 
-	ret = ngtcp2_conn_decode_and_set_remote_transport_params (conn, data, data_size);
-	if (ret < 0)
-	{
-		wget_info_printf ("ngtcp2_decode_transport_params: %s\n", ngtcp2_strerror (ret));
+	ret = ngtcp2_conn_decode_and_set_remote_transport_params(conn, data, data_size);
+	if (ret < 0) {
+		wget_info_printf("ngtcp2_decode_transport_params: %s\n", ngtcp2_strerror (ret));
 		return -1;
 	}
 
 	return 0;
 }
 
-static int
-tp_send_func (gnutls_session_t session, gnutls_buffer_t extdata)
+static int tp_send_func(gnutls_session_t session, gnutls_buffer_t extdata)
 {
-	ngtcp2_conn *conn = gnutls_session_get_ptr (session);
-
-	const ngtcp2_transport_params *params = ngtcp2_conn_get_local_transport_params (conn);
-
+	int ret;
 	uint8_t buf[MAX_TP_SIZE];
+	ngtcp2_conn *conn = gnutls_session_get_ptr(session);
+	const ngtcp2_transport_params *params = ngtcp2_conn_get_local_transport_params(conn);
 	ngtcp2_ssize n_encoded =
-	ngtcp2_transport_params_encode (buf, sizeof(buf), params);
-	if (n_encoded < 0)
-	{
-		wget_debug_printf ("ngtcp2_encode_transport_params: %s", ngtcp2_strerror (n_encoded));
+		ngtcp2_transport_params_encode(buf, sizeof(buf), params);
+
+	if (n_encoded < 0) {
+		wget_debug_printf("ngtcp2_encode_transport_params: %s", ngtcp2_strerror (n_encoded));
 		return -1;
 	}
 
-	int ret = gnutls_buffer_append_data (extdata, buf, n_encoded);
-	if (ret < 0)
-	{
-		wget_debug_printf ("gnutls_buffer_append_data failed: %s", gnutls_strerror (ret));
+	ret = gnutls_buffer_append_data(extdata, buf, n_encoded);
+	if (ret < 0) {
+		wget_debug_printf("gnutls_buffer_append_data failed: %s", gnutls_strerror (ret));
 		return -1;
 	}
 
@@ -145,63 +140,59 @@ tp_send_func (gnutls_session_t session, gnutls_buffer_t extdata)
 
 
 /* Helper functions for ssl_setup_quic */
-static int
-handshake_secret_func (gnutls_session_t session,
-                       gnutls_record_encryption_level_t glevel,
-                       const void *secret_read, const void *secret_write,
-                       size_t secret_size)
+static int handshake_secret_func(gnutls_session_t session,
+				 gnutls_record_encryption_level_t glevel,
+				 const void *secret_read, const void *secret_write,
+				 size_t secret_size)
 {
-	ngtcp2_conn *conn = gnutls_session_get_ptr (session);
-	ngtcp2_encryption_level level =
-	ngtcp2_crypto_gnutls_from_gnutls_record_encryption_level (glevel);
 	uint8_t key[64], iv[64], hp_key[64];
+	ngtcp2_conn *conn = gnutls_session_get_ptr(session);
+	ngtcp2_encryption_level level =
+		ngtcp2_crypto_gnutls_from_gnutls_record_encryption_level(glevel);
 
 	if (secret_read &&
-		ngtcp2_crypto_derive_and_install_rx_key (conn,
-												key, iv, hp_key, level,
-												secret_read, secret_size) < 0)
-	return -1;
+		ngtcp2_crypto_derive_and_install_rx_key(conn,
+							key, iv, hp_key, level,
+							secret_read, secret_size) < 0)
+		return -1;
 
 	if (secret_write &&
-		ngtcp2_crypto_derive_and_install_tx_key (conn,
-												key, iv, hp_key, level,
-												secret_write, secret_size) < 0)
-	return -1;
+		ngtcp2_crypto_derive_and_install_tx_key(conn,
+							key, iv, hp_key, level,
+							secret_write, secret_size) < 0)
+		return -1;
 
 	return 0;
 }
 
-static int
-handshake_read_func (gnutls_session_t session,
-                     gnutls_record_encryption_level_t glevel,
-                     gnutls_handshake_description_t htype,
-                     const void *data, size_t data_size)
+static int handshake_read_func(gnutls_session_t session,
+			       gnutls_record_encryption_level_t glevel,
+			       gnutls_handshake_description_t htype,
+			        const void *data, size_t data_size)
 {
+	int ret;
+
 	if (htype == GNUTLS_HANDSHAKE_CHANGE_CIPHER_SPEC)
-	return 0;
+		return 0;
 
 	ngtcp2_conn *conn = gnutls_session_get_ptr (session);
 	ngtcp2_encryption_level level =
-	ngtcp2_crypto_gnutls_from_gnutls_record_encryption_level (glevel);
-
-	int ret;
+		ngtcp2_crypto_gnutls_from_gnutls_record_encryption_level (glevel);
 
 	ret = ngtcp2_conn_submit_crypto_data (conn, level, data, data_size);
-	if (ret < 0)
-	{
+	if (ret < 0) {
 		wget_debug_printf("ngtcp2_conn_submit_crypto_data: %s",
-				ngtcp2_strerror (ret));
+				  ngtcp2_strerror (ret));
 		return -1;
 	}
 
 	return 0;
 }
 
-static int
-alert_read_func (gnutls_session_t session __attribute__((unused)),
-                 gnutls_record_encryption_level_t level __attribute__((unused)),
-                 gnutls_alert_level_t alert_level __attribute__((unused)),
-                 gnutls_alert_description_t alert_desc __attribute__((unused)))
+static int alert_read_func(gnutls_session_t session __attribute__((unused)),
+			   gnutls_record_encryption_level_t level __attribute__((unused)),
+			   gnutls_alert_level_t alert_level __attribute__((unused)),
+			   gnutls_alert_description_t alert_desc __attribute__((unused)))
 {
 	return 0;
 }
@@ -214,17 +205,14 @@ alert_read_func (gnutls_session_t session __attribute__((unused)),
 	Also exact usage of tls_stats_data not clear.
 	As of now excluded that.
 */
-int
-wget_ssl_open_quic(wget_quic *quic)
+int wget_ssl_open_quic(wget_quic *quic)
 {
-    gnutls_session_t session;
-
-    int ret = WGET_E_UNKNOWN, ncerts = -1;
-	int rc;
+	gnutls_session_t session;
+	int rc, ret = WGET_E_UNKNOWN, ncerts = -1;
 	const char *hostname;
 
 
-    if (!quic)
+	if (!quic)
 		return WGET_E_INVALID;
     
 	gnutls_global_init();
@@ -262,17 +250,17 @@ wget_ssl_open_quic(wget_quic *quic)
   "-CIPHER-ALL:+AES-128-GCM:+AES-256-GCM:+CHACHA20-POLY1305:+AES-128-CCM:" \
   "-GROUP-ALL:+GROUP-SECP256R1:+GROUP-X25519:+GROUP-SECP384R1:+GROUP-SECP521R1:" \
   "%DISABLE_TLS13_COMPAT_MODE";	
-			rc = gnutls_priority_init(&priority_cache, priorities, NULL);
-			if (rc != GNUTLS_E_SUCCESS)
-				error_printf(_("GnuTLS: Unsupported priority string '%s': %s\n"), priorities ? priorities : "(null)", gnutls_strerror(rc));
+	rc = gnutls_priority_init(&priority_cache, priorities, NULL);
+	if (rc != GNUTLS_E_SUCCESS)
+		error_printf(_("GnuTLS: Unsupported priority string '%s': %s\n"), priorities ? priorities : "(null)", gnutls_strerror(rc));
 
 	if ((rc = gnutls_priority_set(session, priority_cache)) != GNUTLS_E_SUCCESS)
 		error_printf(_("GnuTLS: Failed to set priorities: %s\n"), gnutls_strerror(rc));
 
-	if (config.check_certificate){
-		if (config.check_hostname){
+	if (config.check_certificate) {
+		if (config.check_hostname) {
 			gnutls_session_set_verify_cert(session, hostname, 0);
-		}else {
+		} else {
 			gnutls_session_set_verify_cert(session, NULL, 0);
 		}
 	}
@@ -319,23 +307,18 @@ wget_ssl_open_quic(wget_quic *quic)
 	gnutls_transport_set_pull_function(session, (gnutls_pull_func) win32_recv);
 #endif
 
-    gnutls_handshake_set_secret_function (session, handshake_secret_func);
+	gnutls_handshake_set_secret_function (session, handshake_secret_func);
 	gnutls_handshake_set_read_function (session, handshake_read_func);
 	gnutls_alert_set_read_function (session, alert_read_func);
 
-	ret = gnutls_session_ext_register ((session), "QUIC Transport Parameters",
-                                     NGTCP2_TLSEXT_QUIC_TRANSPORT_PARAMETERS_V1,
-                                     GNUTLS_EXT_TLS,
-                                     tp_recv_func, tp_send_func,
-                                     NULL, NULL, NULL,
-                                     GNUTLS_EXT_FLAG_TLS |
-                                     GNUTLS_EXT_FLAG_CLIENT_HELLO |
-                                     GNUTLS_EXT_FLAG_EE);
+	ret = gnutls_session_ext_register((session), "QUIC Transport Parameters",
+					  NGTCP2_TLSEXT_QUIC_TRANSPORT_PARAMETERS_V1,
+					  GNUTLS_EXT_TLS,
+					  tp_recv_func, tp_send_func,
+					  NULL, NULL, NULL,
+					  GNUTLS_EXT_FLAG_TLS |
+					  GNUTLS_EXT_FLAG_CLIENT_HELLO |
+					  GNUTLS_EXT_FLAG_EE);
 
-
-	if (ret < 0){
-		return WGET_E_UNKNOWN;
-	}else{
-		return WGET_E_SUCCESS;
-	}
+	return ret < 0 ? WGET_E_UNKNOWN : WGET_E_SUCCESS;
 }
