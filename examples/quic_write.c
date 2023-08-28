@@ -1,3 +1,8 @@
+/**
+ * Demostrate writing of data using QUIC stack to a QUIC echo server
+ * set up at localhost.
+*/
+
 #include <wget.h>
 #include <string.h>
 

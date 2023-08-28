@@ -13,8 +13,19 @@
 wget_quic_stream *quic_stream_init(wget_quic *quic, int unidirectional);
 void quic_stream_unset(wget_quic *quic, wget_quic_stream *stream);
 
+#ifdef WITH_LIBNGTCP2
+/**
+ * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
+ * \param [in] id Integer specifying the id of the stream to be created
+ * 
+ * This functions intialises the `wget_quic_stream` structure.
+ * It also intialises underlying  `wget_queue` and sets the stream in the 
+ * array of streams present in the `wget_quic` structure.
+ * 
+ * \return wget_quic_stream *
+*/
 wget_quic_stream *
-wget_quic_stream_set_stream(wget_quic *quic, int64_t id)
+wget_quic_set_stream(wget_quic *quic, int64_t id)
 {
 	if (!quic)
 		return NULL;
@@ -36,6 +47,13 @@ wget_quic_stream_set_stream(wget_quic *quic, int64_t id)
 	}
 	return NULL;
 }
+#else
+wget_quic_stream *
+wget_quic_set_stream(wget_quic *quic, int64_t id)
+{
+	return NULL;
+}
+#endif
 
 void
 quic_stream_unset(wget_quic *quic, wget_quic_stream *stream)
@@ -53,18 +71,59 @@ quic_stream_unset(wget_quic *quic, wget_quic_stream *stream)
 	return;
 }
 
+#ifdef WITH_LIBNGTCP2
+/**
+ * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
+ * 
+ * This function creates a unidirectional stream and sets the stream in the 
+ * QUIC stack.
+ * 
+ * \return wget_quic_stream *
+*/
 wget_quic_stream *
 wget_quic_stream_init_unidirectional(wget_quic *quic)
 {
 	return quic_stream_init(quic, 1);
 }
+#else
+wget_quic_stream *
+wget_quic_stream_init_unidirectional(wget_quic *quic)
+{
+	return NULL;
+}
+#endif
 
+#ifdef WITH_LIBNGTCP2
+/**
+ * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
+ * 
+ * This function creates a bidirectional stream and sets the stream in the 
+ * QUIC stack.
+ * 
+ * \return wget_quic_stream *
+*/
 wget_quic_stream *
 wget_quic_stream_init_bidirectional(wget_quic *quic)
 {
 	return quic_stream_init(quic, 0);
 }
+#else
+wget_quic_stream_init_bidirectional(wget_quic *quic)
+{
+	return NULL;
+}
+#endif
 
+#ifdef WITH_LIBNGTCP2
+/**
+ * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
+ * \param [in] unidirectional Integer specifies whether we need a unidirecitonal stream or not.
+ * 
+ * This functions opens a uni/bi directional stream as specified by \p unidirectional and sets the
+ * stream in `wget_quic` structure using `wget_quic_set_stream` function.
+ * 
+ * \return wget_quic_stream *
+*/
 wget_quic_stream *
 quic_stream_init(wget_quic *quic, int unidirectional)
 {
@@ -96,13 +155,25 @@ quic_stream_init(wget_quic *quic, int unidirectional)
 		return NULL;
 	}
 
-	wget_quic_stream *stream = wget_quic_stream_set_stream(quic, stream_id);
+	wget_quic_stream *stream = wget_quic_set_stream(quic, stream_id);
 	return stream;
 }
+#else
+wget_quic_stream *
+quic_stream_init(wget_quic *quic, int unidirectional)
+{
+	return NULL;
+}
+#endif
 
-/* TODO : Implement a wget_quic_stream_deinit */
-/* Close the ngtcp2_stream and then remove it from quic stack */
-
+#ifdef WITH_LIBNGTCP2
+/**
+ * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
+ * \param [in] s A `wget_quic_stream` structure which is to be deleted.
+ * 
+ * This function deinitialises the queue in the stream and deletes the queue
+ * as well as stream.
+*/
 void
 wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s)
 {
@@ -114,7 +185,24 @@ wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s)
 	xfree(stream);
 	return;
 }
+#else
+void
+wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s)
+{
+	return;
+}
+#endif
 
+/**
+ * \param [in] stream A `wget_quic_stream` structure to which the data is to be pushed.
+ * \param [in] data character array to be pushed into the stream.
+ * \param [in] type Type of data to be pushed in.
+ * 
+ * This function takes \p data as parameter, pushes the data into the stream and returns 
+ * the length of the data pushed or error vales.
+ * 
+ * \return int  
+*/
 int 
 wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen, uint8_t type)
 {
@@ -141,25 +229,38 @@ wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen
 	return datalen;
 }
 
+#ifdef WITH_LIBNGTCP2
+/**
+ * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
+ * \param [in] stream_id Integer specifying the id of the stream to be searched
+ * 
+ * This functions searched the stream with \p stream_id as the id and returns it
+ * if found or returns NULL.
+ * 
+ * \return wget_quic_stream *
+*/
 wget_quic_stream *
 wget_quic_stream_find(wget_quic *quic, int64_t stream_id)
 {
 	int id;
   	for (int i = 0 ; i < MAX_STREAMS ; i++) {
       	wget_quic_stream *stream = quic->streams[i];
-	  /*
-	  	Stream_get_id is not very good name. Write getter and setter 
-	  	functions for Stream as well.
-	 */
-		id = wget_quic_stream_get_id (stream);
+		id = wget_quic_stream_get_stream_id (stream);
 		if (id >= 0 && id == stream_id)
 			return stream;
     }
   	return NULL;
 }
+#else
+wget_quic_stream *
+wget_quic_stream_find(wget_quic *quic, int64_t stream_id)
+{
+	return NULL;
+}
+#endif
 
 int64_t 
-wget_quic_stream_get_id(wget_quic_stream *stream)
+wget_quic_stream_get_stream_id(wget_quic_stream *stream)
 {
 	if (stream)
 		return stream->id;
@@ -172,10 +273,4 @@ wget_quic_stream_get_buffer(wget_quic_stream *stream)
 	if (stream)
 		return stream->buffer;
 	return NULL;
-}
-
-wget_quic_stream**
-wget_quic_get_streams(wget_quic *quic)
-{
-	return quic->streams;
 }
