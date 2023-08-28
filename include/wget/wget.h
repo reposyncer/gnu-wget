@@ -2066,7 +2066,7 @@ WGETAPI wget_quic_stream *
 	wget_quic_stream_find(wget_quic *quic, int64_t stream_id);
 
 WGETAPI int64_t 
-	wget_quic_stream_get_id(wget_quic_stream *stream);
+	wget_quic_stream_get_stream_id(wget_quic_stream *stream);
 
 WGETAPI wget_queue *
 	wget_quic_stream_get_buffer(wget_quic_stream *stream);
@@ -2090,7 +2090,7 @@ WGETAPI void
 	wget_quic_set_is_fin_packet(wget_quic* quic, bool is_fin_packet);
 
 WGETAPI wget_quic_stream*
-	wget_quic_stream_set_stream(wget_quic *quic, int64_t id);
+	wget_quic_set_stream(wget_quic *quic, int64_t id);
 
 WGETAPI int
 	wget_quic_connect(wget_quic *quic, const char *host, uint16_t port);
