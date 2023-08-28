@@ -1,3 +1,7 @@
+/**
+ * Demonstrate creating a connection with QUIC server set up at localhost.
+*/
+
 #include <wget.h>
 
 int main(void){
