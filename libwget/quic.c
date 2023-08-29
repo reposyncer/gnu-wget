@@ -80,25 +80,11 @@ void log_printf(void *user_data, const char *fmt, ...)
 #ifdef WITH_LIBNGTCP2
 wget_quic *wget_quic_init(void)
 {
-	wget_quic *quic = wget_malloc(sizeof(wget_quic));
-	if (quic) {
-		*quic = global_quic;
-	} else {
+	wget_quic *quic = wget_calloc(1, sizeof(wget_quic));
+	if (!quic)
 		return NULL;
-	}
 
-	quic->local.addr = NULL;
-	quic->local.addr = wget_malloc(sizeof(struct sockaddr));
-	if(!quic->local.addr){
-		xfree(quic);
-		return NULL;
-	}
-	quic->remote.addr = wget_malloc(sizeof(struct sockaddr));
-	if(!quic->remote.addr){
-		xfree(quic);
-		return NULL;
-	}
-
+	*quic = global_quic;
 	return quic;
 }
 #else
@@ -552,6 +538,31 @@ quic_handshake(wget_quic* quic){
 	return 0;
 }
 
+static int fill_addrs(wget_quic *quic, int sockfd, const struct addrinfo *ai)
+{
+	socklen_t len;
+	struct sockaddr *localaddr = wget_calloc(1, sizeof(struct sockaddr));
+	if (!localaddr)
+		return WGET_E_MEMORY;
+
+	len = sizeof(struct sockaddr);
+	if (getsockname(sockfd, localaddr, &len)) {
+		xfree(localaddr);
+		return WGET_E_UNKNOWN;
+	}
+
+	if (!(quic->remote.addr = wget_memdup(ai->ai_addr, ai->ai_addrlen))) {
+		xfree(localaddr);
+		return WGET_E_MEMORY;
+	}
+	quic->remote.size = ai->ai_addrlen;
+
+	quic->local.addr = localaddr;
+	quic->local.size = len;
+
+	return WGET_E_SUCCESS;
+}
+
 /**
  * \param[in] quic A `wget_quic` structure representing a QUIC.
  * \param[in] host Hostname or IP to connect to.
@@ -582,7 +593,7 @@ wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 	int sockfd;
 	for (ai_rp = quic->addrinfo ; ai_rp != NULL ; ai_rp = ai_rp->ai_next) {
 		if ((sockfd = socket(ai_rp->ai_family, ai_rp->ai_socktype | SOCK_NONBLOCK, 
-				ai_rp->ai_protocol)) != -1) {
+				     ai_rp->ai_protocol)) != -1) {
 			rc = connect(sockfd, ai_rp->ai_addr, ai_rp->ai_addrlen);
 			if (rc < 0 && errno != EAGAIN && errno != EINPROGRESS) {
 				print_error_host(_("Failed to connect"), host);
@@ -596,17 +607,10 @@ wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 					close(sockfd);
 					break;
 				}
-				if (!quic->local.addr || !quic->remote.addr) {
-					return WGET_E_MEMORY;
+				if ((ret = fill_addrs(quic, sockfd, ai_rp)) < 0) {
+					close(sockfd);
+					break;
 				}
-				socklen_t len;
-				quic->local.size = sizeof(quic->local.addr);
-				len = (socklen_t) quic->local.size;
-				getsockname(sockfd, quic->local.addr, &len);
-				quic->local.size = len;	
-
-				quic->remote.addr = ai_rp->ai_addr;
-				quic->remote.size = ai_rp->ai_addrlen;
 				ret = WGET_E_SUCCESS;
 				break;
 			}

@@ -78,10 +78,10 @@ struct wget_tcp_st {
 		first_send : 1; // TCP_FASTOPEN's first packet is sent different
 };
 
-typedef struct{
+struct info_addr {
 	struct sockaddr *addr;
 	size_t size;
-}info_addr;
+};
 
 struct wget_quic_stream_st{
 	int64_t id;
@@ -104,9 +104,9 @@ struct wget_quic_st{
 		preferred_family,
 		protocol,
 		connect_timeout;
-	info_addr 
+	struct info_addr
 		local,
-		remote;
+		remote,
 	/* 
 		Added this so as to accomodate with existing DNS function.
 		Planning to go with this. Will replace the info_addr struct as and when the further code is edited.
