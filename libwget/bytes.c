@@ -33,6 +33,7 @@
 typedef struct wget_byte_st {
 	unsigned char* data;
 	size_t size;
+	bool transmitted;
 }wget_byte_st;
 
 wget_byte *
@@ -47,6 +48,7 @@ wget_byte_new(const char *data, size_t size)
 		}
 		memcpy((void *)bytes->data, data, size);
 		bytes->size = size;
+		bytes->transmitted = false;
 	}
 	return bytes;
 }
@@ -68,4 +70,18 @@ wget_byte_free(wget_byte *bytes)
 {
 	xfree(bytes->data);
 	xfree(bytes);
+}
+
+bool wget_byte_get_transmitted(wget_byte *bytes)
+{
+	if (bytes)
+		return bytes->transmitted;
+	return false;
+}
+
+void wget_byte_set_transmitted(wget_byte *bytes)
+{
+	if (bytes)
+		bytes->transmitted = !bytes->transmitted;
+	return;
 }

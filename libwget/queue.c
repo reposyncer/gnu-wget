@@ -109,3 +109,18 @@ wget_queue_free(wget_queue *queue)
     }
     xfree(queue);
 }
+
+wget_byte *
+wget_queue_peek_untransmitted_node(wget_queue *queue)
+{
+    wget_queue_node *temp = queue->head;
+    while(temp) {
+        wget_byte *data = (wget_byte *)(temp + 1);
+        if (!wget_byte_get_transmitted(data)) {
+            return data;
+        }
+        temp = temp->next;
+    }
+
+    return NULL;
+}
