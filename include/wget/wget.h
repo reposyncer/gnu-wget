@@ -423,6 +423,28 @@ WGETAPI int
 	wget_list_browse(const wget_list *list, wget_list_browse_fn *browse, void *context) WGET_GCC_NONNULL((2));
 
 /**
+ * \ingroup libwget-wget_byte
+ *
+ * Type for stream-byte
+ */
+
+typedef struct wget_byte_st wget_byte;
+
+WGETAPI wget_byte *
+	wget_byte_new(const char *data, size_t size);
+WGETAPI size_t 
+	wget_byte_get_size(const wget_byte *bytes);
+WGETAPI unsigned char *
+	wget_byte_get_data(const wget_byte* bytes);
+WGETAPI void 
+	wget_byte_free(wget_byte *bytes);
+WGETAPI bool
+	wget_byte_get_transmitted(wget_byte *bytes);
+WGETAPI void
+	wget_byte_set_transmitted (wget_byte *bytes);
+
+
+/**
  * \ingroup libwget-queue
  *
  * Type for queue using linked list.
@@ -446,24 +468,9 @@ WGETAPI void*
 WGETAPI struct wget_queue_node* 
 	wget_queue_peek(wget_queue *queue); 
 WGETAPI void 
-wget_queue_free(wget_queue *queue);
-
-/**
- * \ingroup libwget-wget_byte
- *
- * Type for stream-byte
- */
-
-typedef struct wget_byte_st wget_byte;
-
+	wget_queue_free(wget_queue *queue);
 WGETAPI wget_byte *
-	wget_byte_new(const char *data, size_t size);
-WGETAPI size_t 
-	wget_byte_get_size(const wget_byte *bytes);
-WGETAPI unsigned char *
-	wget_byte_get_data(const wget_byte* bytes);
-WGETAPI void 
-	wget_byte_free(wget_byte *bytes);
+	wget_queue_peek_untransmitted_node (wget_queue *queue);
 
 /**
  * \ingroup libwget-xalloc
@@ -2490,6 +2497,9 @@ typedef struct wget_http3_connection_st wget_http3_connection;
 
 WGETAPI wget_http3_connection *
 	wget_http3_init(void);
+
+WGETAPI void 
+	wget_http3_deinit(wget_http3_connection *http3);
 
 /*
  * random routines
