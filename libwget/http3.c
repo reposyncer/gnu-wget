@@ -54,3 +54,12 @@ wget_http3_connection *wget_http3_init(void)
 
     return http3;
 }
+
+void wget_http3_deinit(wget_http3_connection *http3)
+{
+    if (http3) {
+        xfree(http3->settings);
+        wget_quic_deinit(&http3->quic);
+        xfree(http3);
+    }
+}
