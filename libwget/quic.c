@@ -654,7 +654,7 @@ quic_stream_peek_data(wget_quic_stream *stream, ngtcp2_vec *datav)
 	if (!stream)
 		return WGET_E_INVALID;
 
-	wget_byte *byte = (wget_byte *)wget_queue_peek(stream->buffer);
+	wget_byte *byte = wget_queue_peek_untransmitted_node(stream->buffer);
 	if (!byte) {
 		return WGET_E_MEMORY;
 	}
