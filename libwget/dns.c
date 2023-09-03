@@ -229,7 +229,7 @@ static int resolve(int family, int flags, const char *host, uint16_t port, struc
 		.ai_family = family,
 		.ai_socktype = 0,
 		.ai_flags = AI_ADDRCONFIG | flags
-	}};
+	};
 
 	if (port) {
 		char s_port[NI_MAXSERV];
