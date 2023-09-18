@@ -353,8 +353,8 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 
 	wget_quic_ack(http3->quic);
 
-	while(wget_quic_read(http3->quic) >= 0 && !wget_quic_get_is_closed(http3->quic)){
-		continue;
+	while (wget_quic_read(http3->quic) >= 0 && !wget_quic_get_is_closed(http3->quic)) {
+		wget_quic_ack(http3->quic);
 	}
 
 	return WGET_E_SUCCESS;
