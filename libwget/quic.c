@@ -691,6 +691,42 @@ wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 }
 #endif
 
+int wget_quic_close(wget_quic *quic)
+{
+	int retval;
+	uint8_t buf[BUF_SIZE];
+	uint64_t ts = timestamp();
+	ngtcp2_pkt_info pi;
+	ngtcp2_path_storage ps;
+	ngtcp2_ssize written;
+	ngtcp2_ccerr ccerr = {
+		.type = NGTCP2_CCERR_TYPE_APPLICATION,
+		.frame_type = 0,
+		.reason = NULL,
+		.reasonlen = 0
+	};
+
+	memset(&pi, 0, sizeof(pi));
+	ngtcp2_path_storage_zero(&ps);
+
+	written = ngtcp2_conn_write_connection_close(quic->conn,
+						     &ps.path, &pi,
+						     buf, sizeof(buf), &ccerr, ts);
+	if (written < 0)
+		return written;
+
+	if (written > 0) {
+		retval = send_packet(quic->sockfd, buf, written,
+				     &quic->remote.addr, quic->remote.size);
+		if (retval < 0) {
+			error_printf("ERROR: send_packet: %s\n", strerror(errno));
+			return -1;
+		}
+	}
+
+	return written;
+}
+
 /**
  * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
  * 
