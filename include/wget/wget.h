@@ -2096,6 +2096,9 @@ WGETAPI int
 	wget_quic_connect(wget_quic *quic, const char *host, uint16_t port);
 
 WGETAPI int
+	wget_quic_close(wget_quic *quic);
+
+WGETAPI int
 	wget_quic_ack(wget_quic *quic);
 
 WGETAPI ssize_t
