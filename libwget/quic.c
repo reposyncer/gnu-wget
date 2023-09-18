@@ -316,6 +316,7 @@ recv_stream_data_cb (ngtcp2_conn *conn __attribute__((unused)),
 	debug_printf("receiving %zu bytes from stream #%zd\n", datalen, stream_id);
 	wget_quic *connection = user_data;
 	if (datalen == 0){
+		debug_printf("closing stream #%zd\n", stream_id);
 		connection->is_closed = true;
 		return 0;
 	}
@@ -333,6 +334,12 @@ recv_stream_data_cb (ngtcp2_conn *conn __attribute__((unused)),
 			return -1;
 		}
 	}
+
+	if ((flags & NGTCP2_STREAM_DATA_FLAG_FIN) != 0) {
+		debug_printf("closing stream [fin=1] #%zd\n", stream_id);
+		connection->is_closed = true;
+	}
+
 	return 0;
 }
 
