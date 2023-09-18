@@ -384,6 +384,7 @@ void wget_http3_close(wget_http_connection **h3)
 	wget_http_connection *http3 = *h3;
     if (http3) {
 		nghttp3_conn_del(http3->conn);
+	wget_quic_close(http3->quic);
         wget_quic_deinit(&http3->quic);
         xfree(http3);
     }
