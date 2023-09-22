@@ -271,6 +271,19 @@ static int _call_data_sender(int64_t stream_id, const nghttp3_vec *vec, size_t v
 
 
 #ifdef WITH_LIBNGHTTP3
+static int http3_write_streams(wget_http_connection *http3)
+{
+	wget_quic_stream *streams[] = {
+		http3->control_stream,
+		http3->qpac_decoder_stream,
+		http3->qpac_encoder_stream,
+		http3->client_stream,
+		NULL
+	};
+
+	return wget_quic_write_multiple(http3->quic, streams, 4);
+}
+
 /**
  * \param [in] http3 A `wget_http_connection` connection.
  * \param [in] req A `wget_http_request` structure which stores the information necessary to send request.
@@ -345,11 +358,17 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 			wget_quic_set_is_fin_packet(http3->quic, true);
 		}
 
-		ret = wget_quic_write(http3->quic, wget_quic_stream_find(http3->quic, stream_id));
-		if (ret < 0)
-			goto bail;
+		/* ret = wget_quic_write(http3->quic, wget_quic_stream_find(http3->quic, stream_id)); */
+		/* if (ret < 0) */
+		/* 	goto bail; */
 
 	} while (finish == 0);
+
+	ret = http3_write_streams(http3);
+	if (ret < 0) {
+		error_printf("Error in http3_write_streams\n");
+		return -1;
+	}
 
 	wget_quic_ack(http3->quic);
 
