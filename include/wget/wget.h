@@ -2104,6 +2104,10 @@ WGETAPI int
 WGETAPI ssize_t
 	wget_quic_write(wget_quic *quic, wget_quic_stream *stream);
 
+WGETAPI ssize_t
+	wget_quic_write_multiple(wget_quic *quic,
+				 wget_quic_stream **streams, size_t num_streams);
+
 WGETAPI int 
 	wget_quic_read(wget_quic *quic);
 
