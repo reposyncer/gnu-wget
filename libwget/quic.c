@@ -909,11 +909,9 @@ ssize_t recv_packet(int fd, uint8_t *data, size_t data_size,
  * \return int
 */
 static int 
-write_stream(wget_quic *quic, wget_quic_stream *stream)
+write_stream(wget_quic *quic, wget_quic_stream *stream, uint8_t *buf, size_t buflen, uint32_t flags)
 {
 	int ret;
-	bool sent = false;
-	uint8_t buf[BUF_SIZE];
 
 	ngtcp2_path_storage ps;
 	ngtcp2_path_storage_zero(&ps);
@@ -921,8 +919,6 @@ write_stream(wget_quic *quic, wget_quic_stream *stream)
 	ngtcp2_pkt_info pi;
 	memset(&pi, 0, sizeof(pi));
 	uint64_t ts = timestamp();
-
-	uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_NONE;
 
 	if (wget_quic_stream_is_fin_set(stream)){
 		flags |= NGTCP2_WRITE_STREAM_FLAG_FIN;
@@ -944,7 +940,7 @@ write_stream(wget_quic *quic, wget_quic_stream *stream)
 		stream_id = wget_quic_stream_get_stream_id(stream);
 
 		n_written = ngtcp2_conn_writev_stream(quic->conn, &ps.path, &pi,
-							buf, sizeof(buf),
+							buf, buflen,
 							&n_read,
 							flags,
 							stream_id,
@@ -957,74 +953,12 @@ write_stream(wget_quic *quic, wget_quic_stream *stream)
 		}
 
 		wget_byte_set_transmitted(byte);
-		sent = true;
 
 		if (n_written == 0)
 			return 0;
 
 		if (n_read > 0)
 			quic_stream_mark_sent(stream, n_read);
-	}
-
-	if (sent){
-		ret = send_packet(quic->sockfd, buf, n_written,
-				&quic->remote.addr,
-				quic->remote.size);
-		if (ret < 0) {
-			error_printf("ERROR: send_packet: %s\n", strerror(errno));
-			return -1;
-		}
-		sent = false;
-	}
-
-	return n_written;
-}
-
-static int write_stream_2(wget_quic *quic, wget_quic_stream *stream, uint8_t *buf, size_t buflen)
-{
-	ngtcp2_pkt_info pi;
-	ngtcp2_path_storage ps;
-	ngtcp2_vec datav;
-	int64_t stream_id;
-	wget_byte *byte;
-	uint64_t ts = timestamp();
-	uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_MORE;
-	ngtcp2_ssize n_read, n_written = 0;
-
-	memset(&pi, 0, sizeof(pi));
-	ngtcp2_path_storage_zero(&ps);
-
-	if (wget_quic_stream_is_fin_set(stream))
-		flags |= NGTCP2_WRITE_STREAM_FLAG_FIN;
-
-	while (1) {
-		byte = quic_stream_peek_data(stream);
-		if (!byte)
-			break;
-
-		datav.base = wget_byte_get_data(byte);
-		datav.len = wget_byte_get_size(byte);
-		stream_id = wget_quic_stream_get_stream_id(stream);
-
-		n_written = ngtcp2_conn_writev_stream(quic->conn, &ps.path, &pi,
-						      buf, buflen,
-						      &n_read,
-						      flags,
-						      stream_id,
-						      &datav, 1,
-						      ts);
-		if (n_written < 0) {
-			error_printf("ERROR: ngtcp2_conn_writev_stream: %s\n",
-				ngtcp2_strerror((int) n_written));
-			return n_written;
-		}
-
-		wget_byte_set_transmitted(byte);
-
-		if (n_read > 0)
-			quic_stream_mark_sent(stream, n_read);
-		if (n_written >= 0)
-			break;
 	}
 
 	return n_written;
@@ -1081,6 +1015,7 @@ wget_quic_write(wget_quic *quic, wget_quic_stream *stream)
 	ngtcp2_tstamp now = timestamp ();
 	struct itimerspec it;
 	int ret, n_write;
+	uint8_t buf[BUF_SIZE];
 
 	if (!handshake_completed(quic)) {
 		return WGET_E_HANDSHAKE;
@@ -1092,11 +1027,21 @@ wget_quic_write(wget_quic *quic, wget_quic_stream *stream)
 	}
 
 	do {
-		n_write = write_stream(quic, stream);
+		n_write = write_stream(quic, stream, buf, sizeof(buf), NGTCP2_WRITE_STREAM_FLAG_NONE);
 		if (n_write != NGTCP2_ERR_WRITE_MORE && n_write < 0){
 			return WGET_E_UNKNOWN;
 		}
 	} while (n_write == NGTCP2_ERR_WRITE_MORE);
+
+	if (n_write > 0) {
+		ret = send_packet(quic->sockfd, buf, n_write,
+				  &quic->remote.addr,
+				  quic->remote.size);
+		if (ret < 0) {
+			error_printf("ERROR: send_packet: %s\n", strerror(errno));
+			return -1;
+		}
+	}
 
 	memset (&it, 0, sizeof (it));
 
@@ -1143,7 +1088,7 @@ ssize_t wget_quic_write_multiple(wget_quic *quic,
 	for (size_t i = 0; i < num_streams; i++) {
 		stream = streams[i];
 
-		n_written = write_stream_2(quic, stream, p, buflen);
+		n_written = write_stream(quic, stream, p, buflen, NGTCP2_WRITE_STREAM_FLAG_MORE);
 		if (n_written != NGTCP2_ERR_WRITE_MORE && n_written < 0)
 			return WGET_E_UNKNOWN;
 
