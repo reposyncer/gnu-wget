@@ -193,22 +193,6 @@ wget_quic_get_is_closed(wget_quic *quic)
 #endif
 
 #ifdef WITH_LIBNGTCP2
-void
-wget_quic_set_is_fin_packet(wget_quic* quic, bool is_fin_packet)
-{
-	if (quic)
-		quic->is_fin_packet = is_fin_packet;
-	return;
-}
-#else
-void
-wget_quic_set_is_fin_packet(wget_quic* quic, bool is_fin_packet)
-{
-	return;
-}
-#endif
-
-#ifdef WITH_LIBNGTCP2
 wget_quic_stream**
 wget_quic_get_streams(wget_quic *quic)
 {
@@ -940,9 +924,9 @@ write_stream(wget_quic *quic, wget_quic_stream *stream)
 
 	uint32_t flags = NGTCP2_WRITE_STREAM_FLAG_NONE;
 
-	if (quic->is_fin_packet){
+	if (wget_quic_stream_is_fin_set(stream)){
 		flags |= NGTCP2_WRITE_STREAM_FLAG_FIN;
-		quic->is_fin_packet = false;
+		stream->fin = 0;
 	}
 
 	ngtcp2_ssize n_read, n_written = 0;
@@ -1010,8 +994,7 @@ static int write_stream_2(wget_quic *quic, wget_quic_stream *stream, uint8_t *bu
 	memset(&pi, 0, sizeof(pi));
 	ngtcp2_path_storage_zero(&ps);
 
-	// FIXME very ugly hack - undo!!!
-	if (wget_quic_stream_get_stream_id(stream) == 0)
+	if (wget_quic_stream_is_fin_set(stream))
 		flags |= NGTCP2_WRITE_STREAM_FLAG_FIN;
 
 	while (1) {

@@ -2059,6 +2059,12 @@ WGETAPI wget_quic_stream *
 WGETAPI int 
 	wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen, uint8_t type);
 
+WGETAPI void
+	wget_quic_stream_set_fin(wget_quic_stream *stream);
+
+WGETAPI bool
+	wget_quic_stream_is_fin_set(wget_quic_stream *stream);
+
 void
 wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s);
 
