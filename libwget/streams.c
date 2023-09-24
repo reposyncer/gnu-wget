@@ -14,6 +14,19 @@ wget_quic_stream *quic_stream_init(wget_quic *quic, int unidirectional);
 void quic_stream_unset(wget_quic *quic, wget_quic_stream *stream);
 
 #ifdef WITH_LIBNGTCP2
+void wget_quic_stream_set_fin(wget_quic_stream *stream)
+{
+	if (stream)
+		stream->fin = 1;
+}
+
+bool wget_quic_stream_is_fin_set(wget_quic_stream *stream)
+{
+	if (stream)
+		return (stream->fin == 1);
+	return false;
+}
+
 /**
  * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
  * \param [in] id Integer specifying the id of the stream to be created
@@ -34,6 +47,7 @@ wget_quic_set_stream(wget_quic *quic, int64_t id)
 	if (!stream)
 		return NULL;
 	stream->id  = id;
+	stream->fin = 0;
 	stream->buffer = wget_queue_init();
 	stream->ack_offset = 0;
 	stream->sent_offset = 0;
