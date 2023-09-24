@@ -251,6 +251,13 @@ static void init_nv(nghttp3_nv *nv, const char *name, const char *value)
 	nv->flags = NGHTTP3_NV_FLAG_NONE;
 }
 
+static void mark_stream_as_fin(wget_quic *quic, int64_t stream_id)
+{
+	wget_quic_stream *stream = wget_quic_stream_find(quic, stream_id);
+	if (stream)
+		wget_quic_stream_set_fin(stream);
+}
+
 static int _call_data_sender(int64_t stream_id, const nghttp3_vec *vec, size_t veccnt,
 			     int (*_cb_func)(int64_t, const void *, void *), void *userdata)
 {
@@ -355,7 +362,7 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 		}
 
 		if (finish == 1){
-			wget_quic_set_is_fin_packet(http3->quic, true);
+			mark_stream_as_fin(http3->quic, stream_id);
 		}
 
 		/* ret = wget_quic_write(http3->quic, wget_quic_stream_find(http3->quic, stream_id)); */
