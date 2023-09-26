@@ -358,10 +358,17 @@ static int
 stream_open_cb (ngtcp2_conn *conn __attribute__((unused)),
 		int64_t stream_id, void *user_data)
 {
-  wget_quic *connection = user_data;
-  wget_quic_stream *stream = wget_quic_set_stream (connection, stream_id);
-  if (stream)
-	return 0;
+  wget_quic *quic = user_data;
+  wget_quic_stream *stream = wget_quic_set_stream (stream_id);
+  if (stream) {
+	for (int i = 0 ; i < MAX_STREAMS ; i++) {
+		if (!quic->streams[i]) {
+			quic->streams[i] = stream;
+			quic->n_streams++;
+			return 0;
+		}
+	}
+  }
   return -1;
 }
 

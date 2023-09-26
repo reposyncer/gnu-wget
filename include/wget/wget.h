@@ -2071,6 +2071,18 @@ WGETAPI int64_t
 WGETAPI wget_queue *
 	wget_quic_stream_get_buffer(wget_quic_stream *stream);
 
+WGETAPI size_t
+	wget_quic_stream_get_ack_offset(wget_quic_stream *stream);
+
+WGETAPI void
+	wget_quic_stream_set_ack_offset(wget_quic_stream *stream, size_t offset);
+
+WGETAPI size_t
+	wget_quic_stream_get_sent_offset(wget_quic_stream *stream);
+
+WGETAPI void
+	wget_quic_stream_set_sent_offset(wget_quic_stream *stream, size_t offset);
+
 WGETAPI wget_quic_stream** 
 	wget_quic_get_streams(wget_quic *quic);
 
@@ -2090,7 +2102,7 @@ WGETAPI void
 	wget_quic_set_is_fin_packet(wget_quic* quic, bool is_fin_packet);
 
 WGETAPI wget_quic_stream*
-	wget_quic_set_stream(wget_quic *quic, int64_t id);
+	wget_quic_set_stream(int64_t id);
 
 WGETAPI int
 	wget_quic_connect(wget_quic *quic, const char *host, uint16_t port);

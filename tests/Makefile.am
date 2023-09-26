@@ -58,7 +58,7 @@ test_stats_site_SOURCES = test-stats-site.c stats-test-util.h
 test_stats_tls_SOURCES = test-stats-tls.c stats-test-util.h
 
 noinst_LTLIBRARIES = libtest.la
-libtest_la_SOURCES = libtest.c libtest.h
+libtest_la_SOURCES = libtest.c libtest.h quic_test_util.c quic_test_util.h
 libtest_la_CPPFLAGS = -I$(srcdir) -I$(top_srcdir)/include/wget -I$(top_builddir)/lib -I$(top_srcdir)/lib $(CFLAG_VISIBILITY) -DBUILDING_LIBWGET \
  -DWGETVER_FILE=\"$(top_builddir)/include/wget/wgetver.h\"
 libtest_la_LIBADD = ../src/libtest-utils.la ../lib/libgnu.la ../libwget/libwget.la $(MYLIBS)
