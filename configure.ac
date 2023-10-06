@@ -665,13 +665,20 @@ AS_IF([test "$with_libngtcp2" != "no" && (test "$with_ssl" = "gnutls" || test "$
 
 
 
-AS_IF([test "$with_libngtcp2" != "no" && (test "$with_ssl" = "gnutls" || test "$with_ssl" = "yes")],[
+AS_IF([test "$with_libngtcp2" != "no" && (test "$with_ssl" = "gnutls" || test "$with_ssl" = "yes")], [
   PKG_CHECK_MODULES([LIBNGTCP2_CRYPTO_GNUTLS], [libngtcp2_crypto_gnutls], [
       LIBS="$LIBNGTCP2_CRYPTO_GNUTLS_LIBS $LIBS"
       CFLAGS="$LIBNGTCP2_CRYPTO_GNUTLS_CFLAGS $CFLAGS"
       AC_DEFINE([WITH_QUIC_CRYPTO_GNUTLS], [1], [Enable QUIC with GnuTLS support])
   ])
+], [
+  AS_IF([test "$with_libngtcp2" != "no" && test "$with_ssl" != "gnutls"], [
+    AC_MSG_WARN(*** QUIC can only be enabled with GnuTLS. QUIC support disabled.)
+    with_libngtcp2=no
+  ], [])
 ])
+
+AM_CONDITIONAL([WITH_LIBNGTCP2], [test "$with_libngtcp2" = "yes"])
 
 AM_CONDITIONAL([WITH_LIBNETTLE], [test "$with_libnettle" = "yes"])
 AM_CONDITIONAL([WITH_CRYPT], [test "$with_gcrypt" = "yes"])
@@ -755,6 +762,10 @@ AS_IF([test "$with_libnghttp2" != "no"], [
 AM_CONDITIONAL([WITH_LIBNGHTTP2], [test "$with_libnghttp2" = "yes"])
 
 AC_ARG_WITH(libnghttp3, AS_HELP_STRING([--with-libnghttp3], [enable support for libnghttp3]), with_libnghttp3=$withval, with_libnghttp3=no)
+AS_IF([test "$with_libnghttp3" != "no" && test "$with_libngtcp2" != "yes"], [
+  AC_MSG_WARN(HTTP/3 support requires QUIC. HTTP/3 support disabled.)
+  with_libnghttp3=no
+], [])
 AS_IF([test "$with_libnghttp3" != "no"], [
   PKG_CHECK_MODULES([LIBNGHTTP3], libnghttp3, [
     with_libnghttp3=yes
@@ -765,7 +776,7 @@ AS_IF([test "$with_libnghttp3" != "no"], [
     OLD_LIBS="$LIBS"
     LIBS=
     AC_SEARCH_LIBS(nghttp3_conn_client_new, nghttp3,
-      [with_libnghttp3=yes; AC_DEFINE([WITH_LIBNGHTTP3], [1], [HTTP/2.0 support enabled via libnghttp3])],
+      [with_libnghttp3=yes; AC_DEFINE([WITH_LIBNGHTTP3], [1], [HTTP/3.0 support enabled via libnghttp3])],
       [with_libnghttp3=no;  AC_MSG_WARN(*** libnghttp3 was not found. HTTP/2.0 support disabled.)])
     LIBNGHTTP3_LIBS="$LIBS"
     LIBS="$LIBS $OLD_LIBS"

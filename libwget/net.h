@@ -78,12 +78,13 @@ struct wget_tcp_st {
 		first_send : 1; // TCP_FASTOPEN's first packet is sent different
 };
 
-typedef struct{
+#ifdef WITH_LIBNGTCP2
+typedef struct {
 	struct sockaddr addr;
 	size_t size;
-}info_addr;
+} info_addr;
 
-struct wget_quic_stream_st{
+struct wget_quic_stream_st {
 	char fin;
 	int64_t id;
 	wget_queue *buffer;
@@ -91,13 +92,15 @@ struct wget_quic_stream_st{
 	size_t ack_offset;
 };
 
-struct wget_quic_st{
+struct wget_quic_st {
 	void
 		*ssl_session;
 	ngtcp2_conn
 		*conn;
+#ifdef WITH_LIBNGHTTP3
 	nghttp3_conn
 	 	*http3_conn;
+#endif
 	int
 		sockfd,
 		timerfd,
@@ -138,5 +141,6 @@ struct wget_quic_st{
 	size_t coalesce_count; /* Number of lines currently coalesced */
 	
 };
+#endif /* WITH_LIBNGTCP2 */
 
 #endif /* LIBWGET_NET_H */
