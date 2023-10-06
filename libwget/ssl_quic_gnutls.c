@@ -225,8 +225,7 @@ int wget_ssl_open_quic(wget_quic *quic)
 	*/
 
 #if GNUTLS_VERSION_NUMBER >= 0x030200
-	debug_printf("Forcing ALPN to: 'h3'\n");
-	wget_ssl_set_alpn(session, "h3");
+	wget_ssl_set_alpn(session, NULL);
 #endif
 	quic->ssl_session = (void *)session;
 
