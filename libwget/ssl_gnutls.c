@@ -96,8 +96,10 @@ struct config config = {
 	.secure_protocol = "AUTO",
 	.ca_directory = "system",
 	.ca_file = "system",
-#ifdef WITH_LIBNGHTTP2
-	.alpn = "h2,http/1.1",
+#if defined(WITH_LIBNGHTTP2) && defined(WITH_LIBNGHTTP3)
+	.alpn = "h3,h2,http/1.1",
+#elif defined(WITH_LIBNGHTTP2)
+	.alpn = "h2,http/1.1"
 #endif
 };
 
