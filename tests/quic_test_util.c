@@ -20,6 +20,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <netinet/in.h>
+#include <signal.h>
+#include <sys/wait.h>
 
 #include <wget.h> 
 /**
@@ -78,18 +80,18 @@ resolve_and_bind (const char *host, const char *port,
     return fd;
 }
 
-gnutls_certificate_credentials_t *
+gnutls_certificate_credentials_t
 create_tls_server_credentials (const char *key_file, const char *cert_file)
 {
-    gnutls_certificate_credentials_t *cred = NULL;
+    gnutls_certificate_credentials_t cred = NULL;
     int ret;
 
-    ret = gnutls_certificate_allocate_credentials (cred);
+    ret = gnutls_certificate_allocate_credentials (&cred);
     if (ret < 0) {
         return NULL;
     }
 
-    ret = gnutls_certificate_set_x509_key_file (*cred, cert_file, key_file,
+    ret = gnutls_certificate_set_x509_key_file (cred, cert_file, key_file,
                                               GNUTLS_X509_FMT_PEM);
     if (ret < 0) {
         return NULL;
@@ -173,7 +175,7 @@ find_connection(wget_quic_test_server *server, const uint8_t *dcid, size_t dcid_
 }
 
 gnutls_session_t *
-create_tls_server_session (gnutls_certificate_credentials_t *cred)
+create_tls_server_session (gnutls_certificate_credentials_t cred)
 {
     gnutls_session_t *session = NULL;
     int ret;
@@ -197,7 +199,7 @@ create_tls_server_session (gnutls_certificate_credentials_t *cred)
 
     ret = gnutls_credentials_set (*session,
                                 GNUTLS_CRD_CERTIFICATE,
-                                cred);
+                                &cred);
     if (ret < 0) {
         wget_error_printf("gnutls_credentials_set: %s",
                     gnutls_strerror (ret));
@@ -633,7 +635,7 @@ handle_incoming(wget_quic_test_server *server)
 		{
 			if (n_read != EAGAIN && n_read != EWOULDBLOCK)
 				return 0;
-			wget_error_printf("recv_packet: %s\n", wget_strerror(errno));
+			wget_error_printf("recv_packet: %s\n", strerror(errno));
 			return -1;
 		}
 
@@ -868,7 +870,6 @@ connection_write (wget_quic_test_connection *connection)
     return 0;
 }
 
-
 /* Actual function to start the QUIC server. */
 void start_quic_server(const char *key_file, const char *cert_file)
 {
@@ -886,30 +887,30 @@ void start_quic_server(const char *key_file, const char *cert_file)
     const char *hostname = "localhost";
     const char *portname = "5556";
     fd = resolve_and_bind(hostname, portname, (struct sockaddr *)&server->local_addr, &server->local_addrlen);
-
     if (fd < 0) {
-        /* Some return value will have to be given to this function */
+        wget_error_printf("resolve_and_bind error\n");
         return;
     }
 
     server->socket_fd = fd;
-    gnutls_certificate_credentials_t *cred = NULL;
+    gnutls_certificate_credentials_t cred = NULL;
     cred = create_tls_server_credentials (key_file, cert_file);
     if (!cred) {
-        /* Some return value will have to be given to this function */
+        wget_error_printf("create_tls_server_credentials error\n");
         return;
     }
 
     server->cred = cred;
     ngtcp2_settings_default(&server->settings);
     server->settings.initial_ts = timestamp();
-    // server->settings.log_printf = log_printf();
+    // server->settings.log_printf = log_printf(); //Error of incorrect signature.
 
     /* Starting the server. */
     /* This part below will go inside the fork if statement.*/
     server->epoll_fd = epoll_create1 (0);
     if (server->epoll_fd < 0) {
-        /* Some return value will have to be given to this function */        /* Some return value will have to be given to this function */
+        /* Some return value will have to be given to this function */
+        wget_error_printf("epoll_create1: %s", wget_strerror(errno));
         return;
     }
 
@@ -918,7 +919,7 @@ void start_quic_server(const char *key_file, const char *cert_file)
     ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
     ev.data.fd = server->socket_fd;
     if (epoll_ctl (server->epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev) < 0) {
-        /* Some return value will have to be given to this function */
+        wget_error_printf("epoll_ctl: %s", wget_strerror(errno));
         return;
     }
 
@@ -929,42 +930,60 @@ void start_quic_server(const char *key_file, const char *cert_file)
         nfds = epoll_wait (server->epoll_fd, events, MAX_EVENTS, -1);
         if (nfds < 0) {
             /* Some return value will have to be given to this function */
+            wget_error_printf("epoll_wait: %s", wget_strerror(errno));
             return;
         }
 
         for (int n = 0 ; n < nfds ; n++) {
 
             int ret;
-			if (events[n].data.fd == server->socket_fd) {
-				if (events[n].events & EPOLLIN) {
-					(void)handle_incoming(server);
+            if (events[n].data.fd == server->socket_fd) {
+                if (events[n].events & EPOLLIN) {
+                    (void)handle_incoming(server);
                 }
 
-				if (events[n].events & EPOLLOUT) {
-					for (int i = 0 ; i < MAX_SERVER_CONNECTIONS ; i++)
-					{
-						wget_quic_test_connection *connection = server->connections[i];
-						(void)connection_write(connection);
-					}
+                if (events[n].events & EPOLLOUT) {
+                    for (int i = 0 ; i < MAX_SERVER_CONNECTIONS ; i++)
+                    {
+                        wget_quic_test_connection *connection = server->connections[i];
+                        if (connection)
+                            (void)connection_write(connection);
+                    }
                 }
-			} else {
-				for (int i = 0 ; i < MAX_SERVER_CONNECTIONS ; i++) {
+            } else {
+                for (int i = 0 ; i < MAX_SERVER_CONNECTIONS ; i++) {
                     wget_quic_test_connection *connection = server->connections[i];
-					if (events[n].data.fd == connection->timer_fd) {
-						ngtcp2_conn *conn = connection->conn;
-						ret = ngtcp2_conn_handle_expiry(conn, timestamp());
-						if (ret < 0)
-						{
-							wget_error_printf("ngtcp2_conn_handle_expiry: %s",
-									ngtcp2_strerror(ret));
-							continue;
-						}
+                    if (connection && events[n].data.fd == connection->timer_fd) {
+                        ngtcp2_conn *conn = connection->conn;
+                        ret = ngtcp2_conn_handle_expiry(conn, timestamp());
+                        if (ret < 0)
+                        {
+                            wget_error_printf("ngtcp2_conn_handle_expiry: %s",
+                                    ngtcp2_strerror(ret));
+                            continue;
+                        }
 
-						(void)connection_write(connection);
-					}
-				}
+                        (void)connection_write(connection);
+                    }
+                }
             }
         }
     }
+}
 
+void start_quic_test_server(const char *key_file, const char *cert_file) {
+    pid_t child_pid;
+
+    child_pid = fork();
+    if (child_pid < 0) { 
+        wget_error_printf("fork failed\n");
+        return;
+    }
+    else if (child_pid == 0) {
+        start_quic_server(key_file, cert_file);
+        exit(1);
+    }
+    else {
+        return;
+    }
 }

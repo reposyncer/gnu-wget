@@ -30,9 +30,11 @@ typedef struct wget_quic_test_server_t {
     struct sockaddr_storage local_addr;
     size_t local_addrlen;
     wget_quic_test_connection *connections[MAX_SERVER_CONNECTIONS];
-    gnutls_certificate_credentials_t *cred;
+    gnutls_certificate_credentials_t cred;
     ngtcp2_settings settings;
     ngtcp2_cid scid;
 }wget_quic_test_server;
+
+void start_quic_test_server(const char *key_file, const char *cert_file);
 
 #endif //WGETQUIC_TEST_UTIL_H

@@ -17,7 +17,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/include/wget -I$(srcdir) -I$(top_builddir)/lib -I$
 LDADD = ../src/utils.o libtest.la $(MYLIBS) $(TEST_LIBS)
 
 # test-iri-disabled removed since Wget2 always uses IRIs
-WGET_TESTS = test-wget-1$(EXEEXT) test-c-r$(EXEEXT) test-restrict-ascii$(EXEEXT) test-i-http$(EXEEXT) test-i-https$(EXEEXT)\
+WGET_TESTS = test-wget-1$(EXEEXT) test-c-r$(EXEEXT) test-restrict-ascii$(EXEEXT) test-i-http$(EXEEXT) test-i-quic$(EXEEXT) test-i-https$(EXEEXT)\
  test-np$(EXEEXT) test-spider-r$(EXEEXT) test-meta-robots$(EXEEXT) test-idn-robots$(EXEEXT) test-idn-meta$(EXEEXT)\
  test-idn-cmd$(EXEEXT) test-iri$(EXEEXT) test-iri-percent$(EXEEXT) test-iri-list$(EXEEXT) test-iri-forced-remote$(EXEEXT)\
  test-auth-basic$(EXEEXT) test-parse-rss$(EXEEXT) test-page-requisites$(EXEEXT) test-p-nc$(EXEEXT)\
