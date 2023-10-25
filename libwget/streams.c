@@ -37,8 +37,7 @@ bool wget_quic_stream_is_fin_set(wget_quic_stream *stream)
  * 
  * \return wget_quic_stream *
 */
-wget_quic_stream *
-wget_quic_set_stream(wget_quic *quic, int64_t id)
+wget_quic_stream *wget_quic_set_stream(wget_quic *quic, int64_t id)
 {
 	if (!quic)
 		return NULL;
@@ -46,6 +45,7 @@ wget_quic_set_stream(wget_quic *quic, int64_t id)
 	wget_quic_stream *stream = wget_malloc(sizeof(wget_quic_stream));
 	if (!stream)
 		return NULL;
+
 	stream->id  = id;
 	stream->fin = 0;
 	stream->buffer = wget_queue_init();
@@ -62,15 +62,13 @@ wget_quic_set_stream(wget_quic *quic, int64_t id)
 	return NULL;
 }
 #else
-wget_quic_stream *
-wget_quic_set_stream(wget_quic *quic, int64_t id)
+wget_quic_stream *wget_quic_set_stream(wget_quic *quic, int64_t id)
 {
 	return NULL;
 }
 #endif
 
-void
-quic_stream_unset(wget_quic *quic, wget_quic_stream *stream)
+void quic_stream_unset(wget_quic *quic, wget_quic_stream *stream)
 {
 	if (!quic || !stream)
 		return;
@@ -82,6 +80,7 @@ quic_stream_unset(wget_quic *quic, wget_quic_stream *stream)
 			break;
 		}
 	}
+
 	return;
 }
 
@@ -94,14 +93,12 @@ quic_stream_unset(wget_quic *quic, wget_quic_stream *stream)
  * 
  * \return wget_quic_stream *
 */
-wget_quic_stream *
-wget_quic_stream_init_unidirectional(wget_quic *quic)
+wget_quic_stream *wget_quic_stream_init_unidirectional(wget_quic *quic)
 {
 	return quic_stream_init(quic, 1);
 }
 #else
-wget_quic_stream *
-wget_quic_stream_init_unidirectional(wget_quic *quic)
+wget_quic_stream *wget_quic_stream_init_unidirectional(wget_quic *quic)
 {
 	return NULL;
 }
@@ -116,13 +113,12 @@ wget_quic_stream_init_unidirectional(wget_quic *quic)
  * 
  * \return wget_quic_stream *
 */
-wget_quic_stream *
-wget_quic_stream_init_bidirectional(wget_quic *quic)
+wget_quic_stream *wget_quic_stream_init_bidirectional(wget_quic *quic)
 {
 	return quic_stream_init(quic, 0);
 }
 #else
-wget_quic_stream_init_bidirectional(wget_quic *quic)
+wget_quic_stream *wget_quic_stream_init_bidirectional(wget_quic *quic)
 {
 	return NULL;
 }
@@ -138,14 +134,14 @@ wget_quic_stream_init_bidirectional(wget_quic *quic)
  * 
  * \return wget_quic_stream *
 */
-wget_quic_stream *
-quic_stream_init(wget_quic *quic, int unidirectional)
+wget_quic_stream *quic_stream_init(wget_quic *quic, int unidirectional)
 {
 	int retval;
 	int64_t stream_id;
 	
 	if (!quic)
 		return NULL;
+
 	ngtcp2_conn *conn = quic->conn;
 
 	uint64_t (*stream_check_func)(ngtcp2_conn *);
@@ -173,8 +169,7 @@ quic_stream_init(wget_quic *quic, int unidirectional)
 	return stream;
 }
 #else
-wget_quic_stream *
-quic_stream_init(wget_quic *quic, int unidirectional)
+wget_quic_stream *quic_stream_init(wget_quic *quic, int unidirectional)
 {
 	return NULL;
 }
@@ -188,8 +183,7 @@ quic_stream_init(wget_quic *quic, int unidirectional)
  * This function deinitialises the queue in the stream and deletes the queue
  * as well as stream.
 */
-void
-wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s)
+void wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s)
 {
 	wget_quic_stream *stream = *s;
 	if (!stream)
@@ -200,8 +194,7 @@ wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s)
 	return;
 }
 #else
-void
-wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s)
+void wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s)
 {
 	return;
 }
@@ -217,8 +210,7 @@ wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s)
  * 
  * \return int  
 */
-int 
-wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen, uint8_t type)
+int wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen, uint8_t type)
 {
 	wget_byte *buf;
 	if (stream->buffer == NULL) {
@@ -253,36 +245,32 @@ wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen
  * 
  * \return wget_quic_stream *
 */
-wget_quic_stream *
-wget_quic_stream_find(wget_quic *quic, int64_t stream_id)
+wget_quic_stream *wget_quic_stream_find(wget_quic *quic, int64_t stream_id)
 {
 	int id;
-  	for (int i = 0 ; i < MAX_STREAMS ; i++) {
-      	wget_quic_stream *stream = quic->streams[i];
-		id = wget_quic_stream_get_stream_id (stream);
+	for (int i = 0 ; i < MAX_STREAMS ; i++) {
+		wget_quic_stream *stream = quic->streams[i];
+		id = wget_quic_stream_get_stream_id(stream);
 		if (id >= 0 && id == stream_id)
 			return stream;
-    }
+	}
   	return NULL;
 }
 #else
-wget_quic_stream *
-wget_quic_stream_find(wget_quic *quic, int64_t stream_id)
+wget_quic_stream *wget_quic_stream_find(wget_quic *quic, int64_t stream_id)
 {
 	return NULL;
 }
 #endif
 
-int64_t 
-wget_quic_stream_get_stream_id(wget_quic_stream *stream)
+int64_t wget_quic_stream_get_stream_id(wget_quic_stream *stream)
 {
 	if (stream)
 		return stream->id;
 	return -1;
 }
 
-wget_queue *
-wget_quic_stream_get_buffer(wget_quic_stream *stream)
+wget_queue *wget_quic_stream_get_buffer(wget_quic_stream *stream)
 {
 	if (stream)
 		return stream->buffer;
