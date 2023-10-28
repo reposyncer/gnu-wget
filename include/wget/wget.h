@@ -2170,10 +2170,6 @@ WGETAPI int
 	wget_ssl_open_quic(wget_quic *quic);
 WGETAPI void
 	wget_ssl_close(void **session);
-WGETAPI void 
-	wget_ssl_quic_set_config_int(int key, int value);
-WGETAPI void 
-	wget_ssl_quic_set_config_string(int key, const char *value);
 WGETAPI void
 	wget_ssl_set_check_certificate(char value);
 WGETAPI ssize_t
