@@ -919,8 +919,6 @@ ssize_t recv_packet(int fd, uint8_t *data, size_t data_size,
 static int 
 write_stream(wget_quic *quic, wget_quic_stream *stream, uint8_t *buf, size_t buflen, uint32_t flags)
 {
-	int ret;
-
 	ngtcp2_path_storage ps;
 	ngtcp2_path_storage_zero(&ps);
 

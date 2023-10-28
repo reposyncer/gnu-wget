@@ -1282,7 +1282,7 @@ static void set_credentials(gnutls_certificate_credentials_t creds)
 
 int wget_ssl_load_credentials(gnutls_certificate_credentials_t credentials)
 {
-	int rc, ncerts;
+	int rc, ncerts = 0;
 
 	if (config.ca_directory && *config.ca_directory && config.check_certificate) {
 #if GNUTLS_VERSION_NUMBER >= 0x03000d

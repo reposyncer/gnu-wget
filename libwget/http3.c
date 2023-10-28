@@ -46,6 +46,15 @@ static int _call_data_sender(int64_t stream_id, const nghttp3_vec *vec, size_t v
 void http3_stream_mark_acked (wget_quic_stream *stream, size_t offset);
 int http3_stream_push(int64_t stream_id, const void* vector,  void *userdata);
 
+/* Name of the struct does not make a lot of sense as of now.
+   It will be changed
+*/
+struct http3_stream_context {
+	wget_http_response
+		*resp;
+};
+
+struct http3_stream_context *http3_ctx = NULL;
 
 void
 http3_stream_mark_acked (wget_quic_stream *stream, size_t datalen)
@@ -123,14 +132,27 @@ static int recv_header_cb(nghttp3_conn *h3conn __attribute__((unused)),
 			    nghttp3_rcbuf *name, nghttp3_rcbuf *value, 
 				uint8_t flags __attribute__((unused)),
 			    void *conn_user_data __attribute__((unused)), 
-				void *stream_user_data __attribute__((unused)))
+				void *stream_user_data)
 {
 	nghttp3_vec namevec, valuevec;
 	namevec = nghttp3_rcbuf_get_buf(name);
 	valuevec = nghttp3_rcbuf_get_buf(value);
 	debug_printf("Received header: %.*s: %.*s\n",
 		(int)namevec.len, namevec.base, (int)valuevec.len, valuevec.base);
+	struct http3_stream_context *ctx = (struct http3_stream_context *)stream_user_data;
+	if (!ctx || !ctx->resp){
+		return 0;
+	}
 
+	if (ctx->resp->req->response_keepheader || ctx->resp->req->header_callback) {
+		if (!ctx->resp->header)
+			ctx->resp->header = wget_buffer_alloc(1024);
+	}
+
+	if (ctx->resp->header)
+		wget_buffer_printf_append(ctx->resp->header, "%.*s: %.*s\n", (int)namevec.len, (char *) namevec.base, (int)valuevec.len, (char *) valuevec.base);
+
+	wget_http_parse_header_line(ctx->resp, (char *) namevec.base, (int)namevec.len, (char *) valuevec.base, (int)valuevec.len);
 	return 0;
 }
 
@@ -340,10 +362,15 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 		init_nv(nvp++, param->name, param->value);
 	}
 
+	struct http3_stream_context *ctx = wget_calloc(1, sizeof(struct http3_stream_context));
+	ctx->resp = wget_calloc(1, sizeof(wget_http_response));
+	ctx->resp->req = req;
+	ctx->resp->major = 3;
+	http3_ctx = ctx;
 
 	if ((ret = nghttp3_conn_submit_request(http3->conn,
 						  wget_quic_stream_get_stream_id(http3->client_stream),
-						  nv_headers, nv_len, NULL, NULL)) < 0) {
+						  nv_headers, nv_len, NULL, ctx)) < 0) {
 		error_printf("ERROR: nghttp3_conn_submit_request: %s\n",
 			nghttp3_strerror(ret));
 		goto bail;
@@ -534,7 +561,13 @@ int wget_http3_open(wget_http_connection **h3, const wget_iri *iri)
 */
 wget_http_response *wget_http3_get_response(wget_http_connection *http3)
 {
-	wget_http_response *resp = wget_calloc(1, sizeof(wget_http_response));
+	if (!http3_ctx) {
+		return NULL;
+	}
+	wget_http_response *resp = http3_ctx->resp;
+	if (!resp) {
+		return NULL;
+	}
 	wget_byte *byte = (wget_byte *)wget_queue_dequeue_data_node(wget_quic_stream_get_buffer(http3->client_stream));
 	char *data = NULL;
 	size_t offset = 0;

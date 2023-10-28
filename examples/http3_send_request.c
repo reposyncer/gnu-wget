@@ -8,20 +8,13 @@
 
 int main(void){
     const char *hostname = "quic.nginx.org";
-    char *data = NULL;
     wget_iri *uri;
     wget_http_request *req;
     wget_http_connection *http3 = NULL;
 
-<<<<<<< HEAD
-	wget_logger_set_stream(wget_get_logger(WGET_LOGGER_DEBUG), stderr);
-	wget_logger_set_stream(wget_get_logger(WGET_LOGGER_ERROR), stderr);
-	wget_logger_set_stream(wget_get_logger(WGET_LOGGER_INFO), stdout);
-=======
-wget_logger_set_stream(wget_get_logger(WGET_LOGGER_DEBUG), stderr);
-wget_logger_set_stream(wget_get_logger(WGET_LOGGER_ERROR), stderr);
-wget_logger_set_stream(wget_get_logger(WGET_LOGGER_INFO), stdout);
->>>>>>> 831ec624 (Remove unused wget_ssl_init_quic)
+    // wget_logger_set_stream(wget_get_logger(WGET_LOGGER_DEBUG), stderr);
+    // wget_logger_set_stream(wget_get_logger(WGET_LOGGER_ERROR), stderr);
+    // wget_logger_set_stream(wget_get_logger(WGET_LOGGER_INFO), stdout);
 
     uri = wget_iri_parse(hostname, NULL);
 

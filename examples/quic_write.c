@@ -17,7 +17,7 @@ int main(void){
 	}
 
 	const char *key_path = "/home/hmk/wget2/examples/credentials/ca.pem";
-    wget_ssl_quic_set_config_string(WGET_SSL_CA_FILE, key_path);
+    wget_ssl_set_config_string(WGET_SSL_CA_FILE, key_path);
     wget_quic_set_ssl_hostname(quic, hostname);
 
 
