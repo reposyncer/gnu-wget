@@ -52,20 +52,22 @@ struct wget_http_connection_st {
 #endif
 #ifdef WITH_LIBNGHTTP3
 	nghttp3_conn *
-        conn;
-    const nghttp3_mem *
-        mem;
-    nghttp3_settings
-        settings;
+		conn;
+	const nghttp3_mem *
+		mem;
+	nghttp3_settings
+		settings;
 	wget_quic_stream
-        * control_stream,
-        * qpac_encoder_stream,
-        * qpac_decoder_stream,
-        * client_stream;
+		* control_stream,
+		* qpac_encoder_stream,
+		* qpac_decoder_stream,
+		* client_stream;
+	void
+		*http3_ctx;
 #endif
 #ifdef WITH_LIBNGTCP2
 	wget_quic *
-        quic;
+		quic;
 #endif
 	wget_vector
 		*pending_requests; // List of unresponsed requests (HTTP1 only)
