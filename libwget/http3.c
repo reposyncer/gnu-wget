@@ -349,13 +349,9 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 
 	for (int it = 0; it < wget_vector_size(req->headers); it++) {
 		wget_http_header_param *param = wget_vector_get(req->headers, it);
-		if (!wget_strcasecmp_ascii(param->name, "Connection"))
+
+		if (!wget_strcasecmp_ascii(param->name, "Host"))
 			continue;
-		if (!wget_strcasecmp_ascii(param->name, "Transfer-Encoding"))
-			continue;
-		if (!wget_strcasecmp_ascii(param->name, "Host")) {
-			continue;
-		}
 
 		init_nv(nvp++, param->name, param->value);
 	}
