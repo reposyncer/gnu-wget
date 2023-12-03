@@ -400,10 +400,6 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 
 	wget_quic_ack(http3->quic);
 
-	while (wget_quic_read(http3->quic) >= 0 && !wget_quic_get_is_closed(http3->quic)) {
-		wget_quic_ack(http3->quic);
-	}
-
 	return WGET_E_SUCCESS;
 
 bail:
@@ -559,6 +555,11 @@ wget_http_response *wget_http3_get_response(wget_http_connection *http3)
 	wget_http_response *resp;
 	if (!http3 || !http3->http3_ctx)
 		return NULL;
+
+	while (wget_quic_read(http3->quic) >= 0 && !wget_quic_get_is_closed(http3->quic)) {
+		wget_quic_ack(http3->quic);
+	}
+
 	resp = ((struct http3_stream_context *) http3->http3_ctx)->resp;
 	wget_byte *byte = (wget_byte *)wget_queue_dequeue_data_node(wget_quic_stream_get_buffer(http3->client_stream));
 	char *data = NULL;
