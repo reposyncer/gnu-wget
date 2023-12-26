@@ -154,6 +154,21 @@ static int recv_header_cb(nghttp3_conn *h3conn __attribute__((unused)),
 	return 0;
 }
 
+static int end_headers_cb(nghttp3_conn *h3conn, int64_t stream_id, int fin,
+			  void *conn_user_data, void *stream_user_data)
+{
+	struct http3_stream_context *ctx = (struct http3_stream_context *) stream_user_data;
+
+	if (!ctx || !ctx->resp)
+		return 0;
+
+	debug_printf("End headers\n");
+	if (ctx->resp->req->header_callback)
+		ctx->resp->req->header_callback(ctx->resp, ctx->resp->req->header_user_data);
+
+	return 0;
+}
+
 static int deferred_consume_cb(nghttp3_conn *http3 __attribute__((unused)), 
                             int64_t stream_id, size_t consumed,
                             void *conn_user_data, 
@@ -236,12 +251,13 @@ static int reset_stream_cb(nghttp3_conn *conn __attribute__((unused)),
 }
 
 static const nghttp3_callbacks callbacks = {
-    .acked_stream_data = acked_stream_data_cb,
-    .recv_data = recv_data_cb,
-    .deferred_consume = deferred_consume_cb,
-    .recv_header = recv_header_cb,
-    .stop_sending = stop_sending_cb,
-    .reset_stream = reset_stream_cb,
+	.acked_stream_data = acked_stream_data_cb,
+	.recv_data = recv_data_cb,
+	.deferred_consume = deferred_consume_cb,
+	.recv_header = recv_header_cb,
+	.end_headers = end_headers_cb,
+	.stop_sending = stop_sending_cb,
+	.reset_stream = reset_stream_cb
 };
 
 int http3_stream_push(int64_t stream_id, const void* vector, 
