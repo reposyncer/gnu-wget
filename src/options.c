@@ -1827,6 +1827,11 @@ static const struct optionw options[] = {
                   "connection. (default: 30)\n"
 		}
 	},
+	{ "http3-only", &config.http3_only, parse_bool, -1, 0,
+		SECTION_SSL,
+		{ "Use only the HTTP/3 protocol. Error out if the server doesn't support it (default: off)\n"
+		}
+	},
 	{ "https-enforce", &config.https_enforce, parse_https_enforce, 1, 0,
 		SECTION_SSL,
 		{ "Use secure HTTPS instead of HTTP. Legal types are\n",

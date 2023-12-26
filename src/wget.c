@@ -1566,6 +1566,7 @@ static int try_connection(DOWNLOADER *downloader, const wget_iri *iri)
 {
 	wget_http_connection *conn;
 	int rc;
+	int (*http_open)(wget_http_connection *, const wget_iri *);
 
 	if ((conn = downloader->conn)) {
 		if (!wget_strcmp(wget_http_get_host(conn), iri->host) &&
@@ -1580,7 +1581,9 @@ static int try_connection(DOWNLOADER *downloader, const wget_iri *iri)
 		wget_http_close(&downloader->conn);
 	}
 
-	if ((rc = wget_http_open(&downloader->conn, iri)) == WGET_E_SUCCESS) {
+	http_open = config.http3_only ? wget_http3_open : wget_http_open;
+
+	if ((rc = http_open(&downloader->conn, iri)) == WGET_E_SUCCESS) {
 		debug_printf("established connection %s\n",
 			wget_http_get_host(downloader->conn));
 	} else {
