@@ -3781,7 +3781,7 @@ int init(int argc, const char **argv)
 	if (config.http2_only)
 		wget_ssl_set_config_string(WGET_SSL_ALPN, config.http2 ? "h2" : NULL);
 	else
-		wget_ssl_set_config_string(WGET_SSL_ALPN, config.http2 ? "h2,http/1.1" : NULL);
+		wget_ssl_set_config_string(WGET_SSL_ALPN, config.http2 ? "h3,h2,http/1.1" : NULL);
 #endif
 	wget_ssl_set_config_object(WGET_SSL_SESSION_CACHE, config.tls_session_db);
 	wget_ssl_set_config_object(WGET_SSL_HPKP_CACHE, config.hpkp_db);
