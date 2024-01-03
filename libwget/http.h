@@ -125,4 +125,6 @@ int wget_http2_send_request(wget_http_connection *conn, wget_http_request *req);
 wget_http_response *wget_http2_get_response_cb(wget_http_connection *conn,
 					       wget_server_stats_callback *server_stats_callback);
 
+wget_http_response *wget_http3_get_response_cb(wget_http_connection *conn);
+
 #endif /* LIBWGET_HTTP_H */

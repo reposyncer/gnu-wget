@@ -27,19 +27,6 @@
 #include <ngtcp2/ngtcp2_crypto.h>
 #include <ngtcp2/ngtcp2_crypto_gnutls.h>
 
-struct session_context {
-	const char *
-		hostname;
-	wget_hpkp_stats_result
-		stats_hpkp;
-	uint16_t
-		port;
-	bool
-		ocsp_stapling : 1,
-		valid : 1,
-		delayed_session_data : 1;
-};
-
 static gnutls_certificate_credentials_t
 	credentials;
 static gnutls_priority_t
@@ -215,10 +202,6 @@ int wget_ssl_open_quic(wget_quic *quic)
 		}
 	}
 	
-	struct session_context *ctx = wget_calloc(1, sizeof(struct session_context));
-	ctx->hostname = wget_strdup(hostname);
-	ctx->port = quic->remote_port;
-
 	/*
 		OCSP is not configured as of now.
 		Not sure whether to confirm it or not.

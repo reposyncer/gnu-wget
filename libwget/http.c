@@ -768,16 +768,7 @@ wget_http_response *wget_http_get_response_cb(wget_http_connection *conn)
 
 #ifdef WITH_LIBNGHTTP3
 	if (conn->quic) {
-		resp = wget_http3_get_response(conn);
-		if (!resp)
-			goto cleanup;
-		/* if (resp->req->header_callback) */
-		/* 	resp->req->header_callback(resp, resp->req->header_user_data); */
-		dc = wget_decompress_open(resp->content_encoding, http_get_body_cb, resp);
-		wget_decompress_set_error_handler(dc, http_decompress_error_handler_cb);
-		wget_decompress(dc, resp->body->data, resp->body->length);
-		/* int retval = http_get_body_cb(resp, resp->body->data, resp->body->length); */
-		return resp;
+		return wget_http3_get_response_cb(conn);
 	}
 #endif
 

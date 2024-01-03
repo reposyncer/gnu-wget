@@ -442,11 +442,18 @@ void wget_http3_close(wget_http_connection **h3)
 {
 	wget_http_connection *http3 = *h3;
 	if (http3) {
-		/* nghttp3_conn_del(http3->conn); */
-		/* wget_quic_close(http3->quic); */
-		/* wget_quic_deinit(&http3->quic); */
+		if (http3->conn) {
+			nghttp3_conn_del(http3->conn);
+			http3->conn = NULL;
+		}
+
+		if (http3->quic) {
+			wget_quic_close(http3->quic);
+			wget_quic_deinit(&http3->quic);
+			http3->quic = NULL;
+		}
+
 		xfree(http3->http3_ctx);
-		/* xfree(http3); */
 	}
 }
 #else
@@ -601,6 +608,33 @@ wget_http_response *wget_http3_get_response(wget_http_connection *http3)
 }
 #else
 wget_http_response *wget_http3_get_response(wget_http_connection *http3)
+{
+	return NULL;
+}
+#endif
+
+#ifdef WITH_LIBNGHTTP3
+wget_http_response *wget_http3_get_response_cb(wget_http_connection *conn)
+{
+	wget_decompressor *dc = NULL;
+	wget_http_response *resp = NULL;
+
+	resp = wget_http3_get_response(conn);
+	if (!resp)
+		goto cleanup;
+
+	dc = wget_decompress_open(resp->content_encoding, http_get_body_cb, resp);
+	wget_decompress_set_error_handler(dc, http_decompress_error_handler_cb);
+	wget_decompress(dc, resp->body->data, resp->body->length);
+
+	return resp;
+
+cleanup:
+	wget_decompress_close(dc);
+	return NULL;
+}
+#else
+wget_http_response *wget_http3_get_response_cb(wget_http_connection *conn)
 {
 	return NULL;
 }
