@@ -482,6 +482,8 @@ WGETAPI wget_byte *
 	wget_queue_peek(wget_queue *queue); 
 WGETAPI void 
 	wget_queue_free(wget_queue *queue);
+WGETAPI void
+	wget_queue_free_node(wget_queue_node *, void (*)(void *));
 WGETAPI wget_byte *
 	wget_queue_peek_untransmitted_node (wget_queue *queue);
 WGETAPI wget_byte *

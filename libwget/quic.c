@@ -828,7 +828,6 @@ quic_stream_peek_data(wget_quic_stream *stream)
 void
 quic_stream_mark_acked (wget_quic_stream *stream, size_t offset)
 {
-	wget_byte *byte;
 	wget_queue_node *node;
   	while (stream && stream->ack_offset < offset) {
 		wget_byte *head  = (wget_byte *)wget_queue_peek_transmitted_node(stream->buffer);
@@ -837,13 +836,9 @@ quic_stream_mark_acked (wget_quic_stream *stream, size_t offset)
 			break;
 
 		stream->ack_offset += wget_byte_get_size (head);
-		if ((node = wget_queue_dequeue_transmitted_node(stream->buffer))) {
-			byte = (wget_byte *) node->data;
-			if (byte) {
-				wget_byte_free(byte);
-			}
-			xfree(node);
-		}
+
+		node = wget_queue_dequeue_transmitted_node(stream->buffer);
+		wget_queue_free_node(node, (void (*)(void *)) wget_byte_free);
     }
 }
 

@@ -213,3 +213,13 @@ wget_queue_peek_untransmitted_node(wget_queue *queue)
 
     return NULL;
 }
+
+void wget_queue_free_node(wget_queue_node *node,
+			  void (*data_free_func)(void *))
+{
+	if (node) {
+		if (node->data && data_free_func)
+			data_free_func(node->data);
+		xfree(node);
+	}
+}
