@@ -186,16 +186,6 @@ wget_queue_dequeue_data_node(wget_queue *queue)
     return NULL;
 }
 
-void 
-wget_queue_free(wget_queue *queue) 
-{
-    while (!wget_queue_is_empty(queue)) {
-        struct wget_queue_node *node = wget_queue_dequeue(queue);
-        xfree(node);
-    }
-    xfree(queue);
-}
-
 wget_byte *
 wget_queue_peek_untransmitted_node(wget_queue *queue)
 {
