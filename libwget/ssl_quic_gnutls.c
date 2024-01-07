@@ -247,3 +247,9 @@ int wget_ssl_open_quic(wget_quic *quic)
 
 	return ret < 0 ? WGET_E_UNKNOWN : WGET_E_SUCCESS;
 }
+
+void wget_ssl_close_quic(wget_quic *quic)
+{
+	if (quic && quic->ssl_session)
+		gnutls_deinit((gnutls_session_t) quic->ssl_session);
+}

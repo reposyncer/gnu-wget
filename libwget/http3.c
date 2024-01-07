@@ -408,6 +408,8 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 
 	} while (finish == 0);
 
+	xfree(vec);
+
 	ret = http3_write_streams(http3);
 	if (ret < 0) {
 		error_printf("Error in http3_write_streams\n");
@@ -568,7 +570,10 @@ int wget_http3_open(wget_http_connection **h3, const wget_iri *iri)
 */
 wget_http_response *wget_http3_get_response(wget_http_connection *http3)
 {
+	char *data = NULL;
+	size_t offset = 0;
 	wget_http_response *resp;
+
 	if (!http3 || !http3->http3_ctx)
 		return NULL;
 
@@ -577,17 +582,26 @@ wget_http_response *wget_http3_get_response(wget_http_connection *http3)
 	}
 
 	resp = ((struct http3_stream_context *) http3->http3_ctx)->resp;
-	wget_byte *byte = (wget_byte *)wget_queue_dequeue_data_node(wget_quic_stream_get_buffer(http3->client_stream));
-	char *data = NULL;
-	size_t offset = 0;
-	while (byte){
+
+	wget_queue_node *node = wget_queue_dequeue_data_node(
+					wget_quic_stream_get_buffer(http3->client_stream));
+	wget_byte *byte = (wget_byte *) node->data;
+	while (byte) {
 		data = wget_realloc(data, offset + wget_byte_get_size(byte));
 		memcpy(data + offset, wget_byte_get_data(byte), wget_byte_get_size(byte));
 		offset += wget_byte_get_size(byte);
-		byte = (wget_byte *)wget_queue_dequeue_data_node(wget_quic_stream_get_buffer(http3->client_stream));
+
+		wget_queue_free_node(node, (void (*)(void *)) wget_byte_free);
+
+		node = wget_queue_dequeue_data_node(wget_quic_stream_get_buffer(http3->client_stream));
+		if (!node)
+			break;
+
+		byte = (wget_byte *) node->data;
 	}
+
 	wget_buffer *buff = wget_calloc(1, sizeof(wget_buffer));
-	if (!buff){
+	if (!buff) {
 		xfree(resp);
 		return NULL;
 	}
@@ -601,6 +615,34 @@ wget_http_response *wget_http3_get_response(wget_http_connection *http3)
 }
 #else
 wget_http_response *wget_http3_get_response(wget_http_connection *http3)
+{
+	return NULL;
+}
+#endif
+
+#ifdef WITH_LIBNGHTTP3
+wget_http_response *wget_http3_get_response_cb(wget_http_connection *conn)
+{
+	wget_decompressor *dc = NULL;
+	wget_http_response *resp = NULL;
+
+	resp = wget_http3_get_response(conn);
+	if (!resp)
+		goto cleanup;
+
+	dc = wget_decompress_open(resp->content_encoding, http_get_body_cb, resp);
+	wget_decompress_set_error_handler(dc, http_decompress_error_handler_cb);
+	wget_decompress(dc, resp->body->data, resp->body->length);
+	wget_decompress_close(dc);
+
+	return resp;
+
+cleanup:
+	wget_decompress_close(dc);
+	return NULL;
+}
+#else
+wget_http_response *wget_http3_get_response_cb(wget_http_connection *conn)
 {
 	return NULL;
 }

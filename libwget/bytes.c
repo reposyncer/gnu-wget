@@ -55,7 +55,7 @@ wget_byte_new(const char *data, size_t size, int8_t type)
 		bytes->info.type = type;
 		bytes->data = wget_malloc(size);
 		if (!bytes->data){
-			xfree(bytes->data);
+			xfree(bytes);
 			return NULL;
 		}
 		memcpy((void *)bytes->data, data, size);
