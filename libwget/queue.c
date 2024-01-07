@@ -136,7 +136,7 @@ wget_queue_peek_transmitted_node(wget_queue *queue)
     return NULL;
 }
 
-void
+wget_queue_node *
 wget_queue_dequeue_transmitted_node(wget_queue *queue)
 {
     if (wget_queue_is_empty(queue)) 
@@ -154,13 +154,15 @@ wget_queue_dequeue_transmitted_node(wget_queue *queue)
                 temp->next->prev = temp->prev;
             else
                 queue->tail = temp->prev;
+
+	    return temp;
         }
         temp = temp->next;
     }
     return;
 }
 
-wget_byte *
+wget_queue_node *
 wget_queue_dequeue_data_node(wget_queue *queue)
 {
     if (wget_queue_is_empty(queue)) 
@@ -178,7 +180,7 @@ wget_queue_dequeue_data_node(wget_queue *queue)
                 temp->next->prev = temp->prev;
             else
                 queue->tail = temp->prev;
-            return data;
+            return temp;
         }
         temp = temp->next;
     }

@@ -133,7 +133,8 @@ void wget_quic_deinit (wget_quic **_quic)
 				wget_quic_stream_deinit(q, &(q->streams[i]));
 			}
 		}
-		
+
+		wget_ssl_close_quic(q);
 		xfree(q);
 	}
 }
@@ -827,6 +828,8 @@ quic_stream_peek_data(wget_quic_stream *stream)
 void
 quic_stream_mark_acked (wget_quic_stream *stream, size_t offset)
 {
+	wget_byte *byte;
+	wget_queue_node *node;
   	while (stream && stream->ack_offset < offset) {
 		wget_byte *head  = (wget_byte *)wget_queue_peek_transmitted_node(stream->buffer);
 
@@ -834,7 +837,13 @@ quic_stream_mark_acked (wget_quic_stream *stream, size_t offset)
 			break;
 
 		stream->ack_offset += wget_byte_get_size (head);
-		wget_queue_dequeue_transmitted_node(stream->buffer);
+		if ((node = wget_queue_dequeue_transmitted_node(stream->buffer))) {
+			byte = (wget_byte *) node->data;
+			if (byte) {
+				wget_byte_free(byte);
+			}
+			xfree(node);
+		}
     }
 }
 
@@ -952,7 +961,7 @@ write_stream(wget_quic *quic, wget_quic_stream *stream, uint8_t *buf, size_t buf
 							stream_id,
 							&datav, 1,
 							ts);
-		if (n_written < 0) {
+		if (n_written < 0 && n_written != NGTCP2_ERR_WRITE_MORE) {
 			error_printf("ERROR: ngtcp2_conn_writev_stream: %s\n",
 				ngtcp2_strerror((int) n_written));
 			return n_written;

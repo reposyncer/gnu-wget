@@ -486,9 +486,9 @@ WGETAPI wget_byte *
 	wget_queue_peek_untransmitted_node (wget_queue *queue);
 WGETAPI wget_byte *
 	wget_queue_peek_transmitted_node(wget_queue *queue);
-WGETAPI void
+WGETAPI wget_queue_node *
 	wget_queue_dequeue_transmitted_node(wget_queue *queue);
-WGETAPI wget_byte *
+WGETAPI wget_queue_node *
 	wget_queue_dequeue_data_node(wget_queue *queue);
 
 /**
@@ -2168,6 +2168,8 @@ WGETAPI int
 	wget_ssl_open(wget_tcp *tcp);
 WGETAPI int
 	wget_ssl_open_quic(wget_quic *quic);
+WGETAPI void
+	wget_ssl_close_quic(wget_quic *quic);
 WGETAPI void
 	wget_ssl_close(void **session);
 WGETAPI void
