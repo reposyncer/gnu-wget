@@ -837,8 +837,8 @@ quic_stream_mark_acked (wget_quic_stream *stream, size_t offset)
 
 		stream->ack_offset += wget_byte_get_size (head);
 
-		node = wget_queue_dequeue_transmitted_node(stream->buffer);
-		wget_queue_free_node(node, (void (*)(void *)) wget_byte_free);
+		wget_queue_free_node(wget_queue_dequeue_transmitted_node(stream->buffer),
+				     (void (*)(void *)) wget_byte_free);
     }
 }
 
