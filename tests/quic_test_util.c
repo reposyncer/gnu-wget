@@ -80,18 +80,18 @@ resolve_and_bind (const char *host, const char *port,
     return fd;
 }
 
-gnutls_certificate_credentials_t
+gnutls_certificate_credentials_t *
 create_tls_server_credentials (const char *key_file, const char *cert_file)
 {
-    gnutls_certificate_credentials_t cred = NULL;
+    gnutls_certificate_credentials_t *cred = wget_malloc(sizeof(gnutls_certificate_credentials_t));
     int ret;
 
-    ret = gnutls_certificate_allocate_credentials (&cred);
+    ret = gnutls_certificate_allocate_credentials (cred);
     if (ret < 0) {
         return NULL;
     }
 
-    ret = gnutls_certificate_set_x509_key_file (cred, cert_file, key_file,
+    ret = gnutls_certificate_set_x509_key_file (*cred, cert_file, key_file,
                                               GNUTLS_X509_FMT_PEM);
     if (ret < 0) {
         return NULL;
@@ -153,60 +153,77 @@ find_connection(wget_quic_test_server *server, const uint8_t *dcid, size_t dcid_
     for (int i = 0 ; i < MAX_SERVER_CONNECTIONS ; i++)
 	{
 		wget_quic_test_connection *connection = server->connections[i];
-		ngtcp2_conn *conn = connection->conn;
-		size_t n_scids = ngtcp2_conn_get_num_scid(conn);
-		ngtcp2_cid *scids = NULL;
+        if (connection) {
+            ngtcp2_conn *conn = connection->conn;
+            size_t n_scids = ngtcp2_conn_get_num_scid(conn);
+            ngtcp2_cid *scids = NULL;
 
-		scids = wget_malloc(sizeof(ngtcp2_cid)*n_scids);
-		if (!scids) {
-			return NULL;
-        }
-
-		n_scids = ngtcp2_conn_get_scid(conn, scids);
-		for (size_t i = 0; i < n_scids; i++)
-		{
-			if (dcid_size == scids[i].datalen &&
-				memcmp(dcid, scids[i].data, dcid_size) == 0) {
-				return connection;
+            scids = wget_malloc(sizeof(ngtcp2_cid)*n_scids);
+            if (!scids) {
+                return NULL;
             }
-		}
+
+            n_scids = ngtcp2_conn_get_scid(conn, scids);
+            for (size_t i = 0; i < n_scids; i++)
+            {
+                if (dcid_size == scids[i].datalen &&
+                    memcmp(dcid, scids[i].data, dcid_size) == 0) {
+                    return connection;
+                }
+            }
+        }
 	}
 	return NULL;
 }
 
-gnutls_session_t *
-create_tls_server_session (gnutls_certificate_credentials_t cred)
+int
+create_tls_server_session (wget_quic_test_server **server ,wget_quic_test_connection **connection ,const char *key_file, const char *cert_file)
 {
-    gnutls_session_t *session = NULL;
+    gnutls_session_t session;
+    gnutls_certificate_credentials_t cred = wget_malloc(sizeof(gnutls_certificate_credentials_t));
+    wget_quic_test_server *serv = *server;
+    wget_quic_test_connection *conn = *connection;
     int ret;
 
-    ret = gnutls_init (session,
+    gnutls_global_init();
+
+    ret = gnutls_init (&session,
                         GNUTLS_SERVER |
                         GNUTLS_ENABLE_EARLY_DATA |
                         GNUTLS_NO_END_OF_EARLY_DATA);
     if (ret < 0) {
         wget_error_printf("gnutls_init: %s",
                     gnutls_strerror (ret));
-        return NULL;
+        return -1;
     }
 
-    ret = gnutls_priority_set_direct (*session, PRIO, NULL);
-    if (ret < 0) {
+    if (serv->cred == NULL) {
+        gnutls_certificate_allocate_credentials(&cred);
+        gnutls_certificate_set_x509_system_trust(cred);
+        ret = gnutls_certificate_set_x509_key_file (cred, cert_file, key_file,
+                                                GNUTLS_X509_FMT_PEM);
+
+        ret = gnutls_credentials_set (session,
+                                    GNUTLS_CRD_CERTIFICATE,
+                                    cred);
+        if (ret < 0) {
+            wget_error_printf("gnutls_credentials_set: %s",
+                        gnutls_strerror (ret));
+            return -1;
+        }
+        serv->cred = &cred;
+    }
+
+    ret = gnutls_priority_set_direct (session, PRIO, NULL);
+    if (ret < 0 && session) {
         wget_error_printf("gnutls_priority_set_direct: %s",
                     gnutls_strerror (ret));
-        return NULL;
+        return -1;
     }
 
-    ret = gnutls_credentials_set (*session,
-                                GNUTLS_CRD_CERTIFICATE,
-                                &cred);
-    if (ret < 0) {
-        wget_error_printf("gnutls_credentials_set: %s",
-                    gnutls_strerror (ret));
-        return NULL;
-    }
-
-    return session;
+    
+    memcpy(conn->session,session,sizeof(gnutls_session_t));
+    return 0;
 }
 
 wget_quic_stream *
@@ -306,16 +323,21 @@ rand_cb(uint8_t *dest, size_t destlen,
 int
 get_random_cid (ngtcp2_cid *cid)
 {
-    uint8_t buf[NGTCP2_MAX_CIDLEN];
+    const uint8_t *buf = wget_malloc(sizeof(uint8_t)*NGTCP2_MAX_CIDLEN);
+    if (!buf) {
+        wget_error_printf ("wget_malloc\n");
+        return -1;
+    }
+    size_t buff_size = sizeof(buf);
     int ret;
 
-    ret = gnutls_rnd (GNUTLS_RND_RANDOM, buf, sizeof(buf));
+    ret = gnutls_rnd (GNUTLS_RND_RANDOM, (void *)buf, buff_size);
     if (ret < 0)
     {
         wget_error_printf ("gnutls_rnd: %s\n", gnutls_strerror (ret));
         return -1;
     }
-    ngtcp2_cid_init (cid, buf, sizeof(buf));
+    ngtcp2_cid_init (cid, buf, buff_size);
     return 0;
 }
 
@@ -382,7 +404,7 @@ connection_set_remote_addr (wget_quic_test_connection *connection,
 static wget_quic_test_connection *
 accept_connection(wget_quic_test_server *server,
 				  struct sockaddr *remote_addr, size_t remote_addrlen,
-				  const uint8_t *data, size_t data_size)
+				  const uint8_t *data, size_t data_size, const char *key_file, const char *cert_file)
 {
 	ngtcp2_pkt_hd header;
 	int ret;
@@ -391,40 +413,44 @@ accept_connection(wget_quic_test_server *server,
 	if (ret < 0)
 		return NULL;
 
-	gnutls_session_t *session = NULL;
-
-	session = create_tls_server_session(server->cred);
-	if (!session) {
-		return NULL;
-    }
-
 	wget_quic_test_connection *connection = wget_malloc(sizeof(wget_quic_test_connection));
     if (!connection)
 		return NULL;
 
-    connection->session = session;
+    // connection->session = session;
     connection->socket_fd = server->socket_fd;
+
+    ret = create_tls_server_session(&server, &connection, key_file, cert_file);
+	if (ret < 0) {
+        wget_error_printf("Error in create_tls_server_session\n");
+		return NULL;
+    }
+
+    ngtcp2_cid scid;
+	if (get_random_cid(&scid) < 0) {
+		return NULL;
+    }
 
 	ngtcp2_path path =
     {
         .local = {
             .addrlen = server->local_addrlen,
-            .addr = (struct sockaddr *)&server->local_addr},
-        .remote = {.addrlen = remote_addrlen, .addr = (struct sockaddr *)remote_addr}
+            .addr = (struct sockaddr *)&server->local_addr
+        },
+        .remote = {
+            .addrlen = remote_addrlen, 
+            .addr = (struct sockaddr *)remote_addr
+        }
     };
 
-	ngtcp2_transport_params params;
-	ngtcp2_transport_params_default(&params);
-	params.initial_max_streams_uni = 3;
-	params.initial_max_streams_bidi = 3;
-	params.initial_max_stream_data_bidi_local = 128 * 1024;
-	params.initial_max_stream_data_bidi_remote = 128 * 1024;
-	params.initial_max_data = 1024 * 1024;
-	memcpy(&params.original_dcid, &header.dcid, sizeof(params.original_dcid));
-
-	ngtcp2_cid scid;
-	if (get_random_cid(&scid) < 0)
-		return NULL;
+	ngtcp2_transport_params *params = wget_malloc(sizeof(ngtcp2_transport_params));
+	ngtcp2_transport_params_default(params);
+	params->initial_max_streams_uni = 3;
+	params->initial_max_streams_bidi = 3;
+	params->initial_max_stream_data_bidi_local = 128 * 1024;
+	params->initial_max_stream_data_bidi_remote = 128 * 1024;
+	params->initial_max_data = 1024 * 1024;
+	memcpy(&params->original_dcid, &header.dcid, sizeof(params->original_dcid));
 
 	ngtcp2_conn *conn = NULL;
 
@@ -435,7 +461,7 @@ accept_connection(wget_quic_test_server *server,
 								 header.version,
 								 &callbacks,
 								 &server->settings,
-								 &params,
+								 params,
 								 NULL,
 								 connection);
 	if (ret < 0)
@@ -453,14 +479,8 @@ accept_connection(wget_quic_test_server *server,
 							   (struct sockaddr *)remote_addr,
 							   remote_addrlen);
 
-	for (int i = 0 ; i < MAX_SERVER_CONNECTIONS ; i++) {
-        if (!server->connections[i]) {
-            server->connections[i] = connection;
-            return connection;
-        }
-    }
     /* But the connection here is not freed. Keep this in mind :) */
-	return NULL;
+	return connection;
 }
 
 static int
@@ -604,7 +624,7 @@ connection_start (wget_quic_test_connection *connection)
         return -1;
     }
 
-    setup_gnutls_for_quic (*connection->session, connection->conn);
+    setup_gnutls_for_quic (connection->session, connection->conn);
 
     connection->timer_fd =  timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
     if (connection->timer_fd < 0)
@@ -617,7 +637,7 @@ connection_start (wget_quic_test_connection *connection)
 }
 
 static int
-handle_incoming(wget_quic_test_server *server)
+handle_incoming(wget_quic_test_server *server, const char *key_file, const char *cert_file)
 {
 	uint8_t buf[BUF_SIZE];
 
@@ -640,8 +660,6 @@ handle_incoming(wget_quic_test_server *server)
 		}
 
 		ngtcp2_version_cid version;
-		const uint8_t *dcid, *scid;
-		size_t dcidlen, scidlen;
 
 		ret = ngtcp2_pkt_decode_version_cid(&version,
 											buf, n_read,
@@ -654,15 +672,27 @@ handle_incoming(wget_quic_test_server *server)
 		}
 
 		/* Find any existing connection by DCID */
-		wget_quic_test_connection *connection = find_connection(server, dcid, dcidlen);
+		wget_quic_test_connection *connection = find_connection(server, version.dcid, version.dcidlen);
 		if (!connection)
 		{
 			connection = accept_connection(server,
 										   (struct sockaddr *)&remote_addr,
 										   remote_addrlen,
-										   buf, n_read);
+										   buf, n_read, key_file, cert_file);
 			if (!connection)
 				return -1;
+
+            bool server_connection_availabe = false;
+            for (int i = 0 ; i < MAX_SERVER_CONNECTIONS ; i++) {
+                if (server->connections[i] == NULL) {
+                    server->connections[i] = connection;
+                    server_connection_availabe = true;
+                }
+            }
+
+            if (!server_connection_availabe) {
+                return -1;
+            }
 
 			ret = connection_start(connection);
 			if (ret < 0)
@@ -893,14 +923,15 @@ void start_quic_server(const char *key_file, const char *cert_file)
     }
 
     server->socket_fd = fd;
-    gnutls_certificate_credentials_t cred = NULL;
-    cred = create_tls_server_credentials (key_file, cert_file);
-    if (!cred) {
-        wget_error_printf("create_tls_server_credentials error\n");
-        return;
-    }
+    // gnutls_certificate_credentials_t *cred = NULL;
+    // cred = create_tls_server_credentials (key_file, cert_file);
+    // if (!cred) {
+    //     wget_error_printf("create_tls_server_credentials error\n");
+    //     return;
+    // }
 
-    server->cred = cred;
+    // server->cred = cred;
+    server->cred = NULL;
     ngtcp2_settings_default(&server->settings);
     server->settings.initial_ts = timestamp();
     // server->settings.log_printf = log_printf(); //Error of incorrect signature.
@@ -939,7 +970,7 @@ void start_quic_server(const char *key_file, const char *cert_file)
             int ret;
             if (events[n].data.fd == server->socket_fd) {
                 if (events[n].events & EPOLLIN) {
-                    (void)handle_incoming(server);
+                    (void)handle_incoming(server, key_file, cert_file);
                 }
 
                 if (events[n].events & EPOLLOUT) {
