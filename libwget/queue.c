@@ -74,6 +74,10 @@ wget_queue_enqueue(wget_queue *queue, const void *data, size_t size)
     struct wget_queue_node *node = wget_malloc(sizeof(struct wget_queue_node));
     if (!node)
 		return NULL;
+    if (!data) {
+	    xfree(node);
+	    return NULL;
+    }
     node->data = data;
     node->next = NULL;
     if (wget_queue_is_empty(queue)) {
