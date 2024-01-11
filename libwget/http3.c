@@ -347,8 +347,8 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 
 	nghttp3_nv nv_headers[n], *nvp;
 	nghttp3_ssize n_sent;
-	nghttp3_vec *vec = wget_malloc(sizeof(nghttp3_vec)*(n-1));
-	size_t veccnt = n-1;
+	nghttp3_vec *vec = wget_malloc(sizeof(nghttp3_vec) * n);
+	size_t veccnt = n;
 	char resource[req->esc_resource.length + 2];
 
 	resource[0] = '/';
@@ -360,14 +360,20 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 	init_nv(&nv_headers[2],":authority", req->esc_host.data);
 	init_nv(&nv_headers[3],":path", resource);
 
-	nv_len = n-1;
+	nv_len = n;
 	nvp = &nv_headers[4];
 
 	for (int it = 0; it < wget_vector_size(req->headers); it++) {
 		wget_http_header_param *param = wget_vector_get(req->headers, it);
 
-		if (!wget_strcasecmp_ascii(param->name, "Host"))
+		if (!wget_strcasecmp_ascii(param->name, "Host")) {
+			nv_len--;
 			continue;
+		}
+		if (!wget_strcasecmp_ascii(param->name, "Connection")) {
+			nv_len--;
+			continue;
+		}
 
 		init_nv(nvp++, param->name, param->value);
 	}
@@ -376,6 +382,8 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 	ctx->resp = wget_calloc(1, sizeof(wget_http_response));
 	ctx->resp->req = req;
 	ctx->resp->major = 3;
+	// we do not get a Keep-Alive header in HTTP2 - let's assume the connection stays open
+	ctx->resp->keep_alive = 1;
 	http3->http3_ctx = ctx;
 
 	if ((ret = nghttp3_conn_submit_request(http3->conn,
@@ -398,7 +406,7 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 				goto bail;
 		}
 
-		if (finish == 1){
+		if (finish == 1) {
 			mark_stream_as_fin(http3->quic, stream_id);
 		}
 
