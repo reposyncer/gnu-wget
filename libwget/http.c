@@ -637,6 +637,13 @@ void wget_http_close(wget_http_connection **conn)
 {
 	if (*conn) {
 		debug_printf("closing connection\n");
+#ifdef WITH_LIBNGHTTP3
+		if ((*conn)->quic) {
+			wget_http3_close(conn);
+			return;
+		}
+#endif
+
 #ifdef WITH_LIBNGHTTP2
 		wget_http2_close(conn);
 #endif
@@ -655,6 +662,14 @@ void wget_http_close(wget_http_connection **conn)
 int wget_http_send_request(wget_http_connection *conn, wget_http_request *req)
 {
 	ssize_t nbytes;
+
+#ifdef WITH_LIBNGHTTP3
+	if (conn->quic && conn->conn) {
+		if (wget_http3_send_request(conn, req))
+			return -1;
+		return 0;
+	}
+#endif
 
 #ifdef WITH_LIBNGHTTP2
 	if (wget_tcp_get_protocol(conn->tcp) == WGET_PROTOCOL_HTTP_2_0) {
@@ -749,6 +764,19 @@ wget_http_response *wget_http_get_response_cb(wget_http_connection *conn)
 	ssize_t nbytes, nread = 0;
 	char *buf, *p = NULL;
 	wget_http_response *resp = NULL;
+	wget_decompressor *dc = NULL;
+
+#ifdef WITH_LIBNGHTTP3
+	if (conn->quic) {
+		resp = wget_http3_get_response(conn);
+		if (!resp)
+			goto cleanup;
+		dc = wget_decompress_open(resp->content_encoding, http_get_body_cb, resp);
+		wget_decompress_set_error_handler(dc, http_decompress_error_handler_cb);
+		wget_decompress(dc, resp->body->data, resp->body->length);
+		return resp;
+	}
+#endif
 
 #ifdef WITH_LIBNGHTTP2
 	if (conn->protocol == WGET_PROTOCOL_HTTP_2_0) {
@@ -756,7 +784,6 @@ wget_http_response *wget_http_get_response_cb(wget_http_connection *conn)
 	}
 #endif
 
-	wget_decompressor *dc = NULL;
 	wget_http_request *req = wget_vector_get(conn->pending_requests, 0); // TODO: should use double linked lists here
 
 	debug_printf("### req %p pending requests = %d\n", (void *) req, wget_vector_size(conn->pending_requests));
