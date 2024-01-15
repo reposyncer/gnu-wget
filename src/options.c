@@ -1827,6 +1827,11 @@ static const struct optionw options[] = {
                   "connection. (default: 30)\n"
 		}
 	},
+	{ "http3-only", &config.http3_only, parse_bool, -1, 0,
+		SECTION_SSL,
+		{ "Use only the HTTP/3 protocol. Error out if the server doesn't support it (default: off)\n"
+		}
+	},
 	{ "https-enforce", &config.https_enforce, parse_https_enforce, 1, 0,
 		SECTION_SSL,
 		{ "Use secure HTTPS instead of HTTP. Legal types are\n",
@@ -3777,12 +3782,18 @@ int init(int argc, const char **argv)
 	wget_ssl_set_config_string(WGET_SSL_KEY_FILE, config.private_key);
 	wget_ssl_set_config_string(WGET_SSL_CRL_FILE, config.crl_file);
 	wget_ssl_set_config_object(WGET_SSL_OCSP_CACHE, config.ocsp_db);
+
 #ifdef WITH_LIBNGHTTP2
 	if (config.http2_only)
 		wget_ssl_set_config_string(WGET_SSL_ALPN, config.http2 ? "h2" : NULL);
-	else
-		wget_ssl_set_config_string(WGET_SSL_ALPN, config.http2 ? "h2,http/1.1" : NULL);
 #endif
+#ifdef WITH_LIBNGHTTP3
+	if (config.http3_only)
+		wget_ssl_set_config_string(WGET_SSL_ALPN, "h3");
+#endif
+	if (!config.http2_only && !config.http3_only)
+		wget_ssl_set_config_string(WGET_SSL_ALPN, config.http2 ? "h3,h2,http/1.1" : NULL);
+
 	wget_ssl_set_config_object(WGET_SSL_SESSION_CACHE, config.tls_session_db);
 	wget_ssl_set_config_object(WGET_SSL_HPKP_CACHE, config.hpkp_db);
 
