@@ -150,7 +150,7 @@ quic_stream_init(wget_quic *quic, int unidirectional)
 			if (!quic->streams[i]) {
 				quic->streams[i] = stream;
 				quic->n_streams++;
-				return 0;
+				return stream;
 			}
 		}
 	}

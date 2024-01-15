@@ -197,22 +197,10 @@ create_tls_server_session (wget_quic_test_server **server ,wget_quic_test_connec
         return -1;
     }
 
-    if (serv->cred == NULL) {
-        gnutls_certificate_allocate_credentials(&cred);
-        gnutls_certificate_set_x509_system_trust(cred);
-        ret = gnutls_certificate_set_x509_key_file (cred, cert_file, key_file,
-                                                GNUTLS_X509_FMT_PEM);
-
-        ret = gnutls_credentials_set (session,
-                                    GNUTLS_CRD_CERTIFICATE,
-                                    cred);
-        if (ret < 0) {
-            wget_error_printf("gnutls_credentials_set: %s",
-                        gnutls_strerror (ret));
-            return -1;
-        }
-        serv->cred = &cred;
-    }
+    gnutls_certificate_allocate_credentials(&cred);
+    gnutls_certificate_set_x509_system_trust(cred);
+    ret = gnutls_certificate_set_x509_key_file (cred, cert_file, key_file,
+                                            GNUTLS_X509_FMT_PEM);
 
     ret = gnutls_priority_set_direct (session, PRIO, NULL);
     if (ret < 0 && session) {
@@ -221,8 +209,17 @@ create_tls_server_session (wget_quic_test_server **server ,wget_quic_test_connec
         return -1;
     }
 
+    ret = gnutls_credentials_set (session,
+                                GNUTLS_CRD_CERTIFICATE,
+                                cred);
+    if (ret < 0) {
+        wget_error_printf("gnutls_credentials_set: %s",
+                    gnutls_strerror (ret));
+        return -1;
+    }
+    serv->cred = &cred;
     
-    memcpy(conn->session,session,sizeof(gnutls_session_t));
+    conn->session = session;
     return 0;
 }
 
@@ -323,21 +320,22 @@ rand_cb(uint8_t *dest, size_t destlen,
 int
 get_random_cid (ngtcp2_cid *cid)
 {
-    const uint8_t *buf = wget_malloc(sizeof(uint8_t)*NGTCP2_MAX_CIDLEN);
-    if (!buf) {
-        wget_error_printf ("wget_malloc\n");
-        return -1;
-    }
-    size_t buff_size = sizeof(buf);
+    // const uint8_t *buf = wget_malloc(sizeof(uint8_t)*NGTCP2_MAX_CIDLEN);
+    // if (!buf) {
+    //     wget_error_printf ("wget_malloc\n");
+    //     return -1;
+    // }
+    // size_t buff_size = sizeof(buf);
+    uint8_t buf[NGTCP2_MAX_CIDLEN];
     int ret;
 
-    ret = gnutls_rnd (GNUTLS_RND_RANDOM, (void *)buf, buff_size);
+    ret = gnutls_rnd (GNUTLS_RND_RANDOM, buf, sizeof(buf));
     if (ret < 0)
     {
         wget_error_printf ("gnutls_rnd: %s\n", gnutls_strerror (ret));
         return -1;
     }
-    ngtcp2_cid_init (cid, buf, buff_size);
+    ngtcp2_cid_init (cid, buf, sizeof(buf));
     return 0;
 }
 
@@ -426,11 +424,6 @@ accept_connection(wget_quic_test_server *server,
 		return NULL;
     }
 
-    ngtcp2_cid scid;
-	if (get_random_cid(&scid) < 0) {
-		return NULL;
-    }
-
 	ngtcp2_path path =
     {
         .local = {
@@ -443,16 +436,21 @@ accept_connection(wget_quic_test_server *server,
         }
     };
 
-	ngtcp2_transport_params *params = wget_malloc(sizeof(ngtcp2_transport_params));
-	ngtcp2_transport_params_default(params);
-	params->initial_max_streams_uni = 3;
-	params->initial_max_streams_bidi = 3;
-	params->initial_max_stream_data_bidi_local = 128 * 1024;
-	params->initial_max_stream_data_bidi_remote = 128 * 1024;
-	params->initial_max_data = 1024 * 1024;
-	memcpy(&params->original_dcid, &header.dcid, sizeof(params->original_dcid));
+	ngtcp2_transport_params params;
+	ngtcp2_transport_params_default(&params);
+	params.initial_max_streams_uni = 3;
+	params.initial_max_streams_bidi = 3;
+	params.initial_max_stream_data_bidi_local = 128 * 1024;
+	params.initial_max_stream_data_bidi_remote = 128 * 1024;
+	params.initial_max_data = 1024 * 1024;
+	memcpy(&params.original_dcid, &header.dcid, sizeof(params.original_dcid));
+    params.original_dcid_present = 1;
 
 	ngtcp2_conn *conn = NULL;
+    ngtcp2_cid scid;
+	if (get_random_cid(&scid) < 0) {
+		return NULL;
+    }
 
 	ret = ngtcp2_conn_server_new(&conn,
 								 &header.scid,
@@ -461,7 +459,7 @@ accept_connection(wget_quic_test_server *server,
 								 header.version,
 								 &callbacks,
 								 &server->settings,
-								 params,
+								 &params,
 								 NULL,
 								 connection);
 	if (ret < 0)
