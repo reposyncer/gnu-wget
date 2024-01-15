@@ -224,9 +224,7 @@ int wget_ssl_open_quic(wget_quic *quic)
 		Not sure whether to confirm it or not.
 	*/
 
-#if GNUTLS_VERSION_NUMBER >= 0x030200
 	wget_ssl_set_alpn(session, NULL);
-#endif
 	quic->ssl_session = (void *)session;
 
 #ifdef _WIN32
