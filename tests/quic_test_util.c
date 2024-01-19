@@ -75,7 +75,7 @@ resolve_and_bind (const char *host, const char *port,
     freeaddrinfo(result);
 
     if (rp == NULL)
-    return -1;
+        return -1;
 
     return fd;
 }
@@ -281,12 +281,13 @@ recv_stream_data_cb(ngtcp2_conn *conn __attribute__((unused)),
 	wget_quic_stream *stream = connection_find_stream(connection, stream_id);
 
 	if (stream) {
-		int ret = wget_quic_stream_push(stream, (const char *)data, datalen, RESPONSE_DATA_BYTE);
+		int ret = wget_quic_stream_push(stream, (const char *)data, datalen, REQUEST_BYTE);
 		if (ret < 0)
 			return ret;
+        return 0;
 	}
 
-	return 0;
+	return -1;
 }
 
 static int
