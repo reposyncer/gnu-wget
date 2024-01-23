@@ -803,6 +803,7 @@ write_to_stream (wget_quic_test_connection *connection, wget_quic_stream *stream
             else {
                 stream_id = wget_quic_stream_get_stream_id(stream);
             }
+            wget_byte_set_transmitted(byte);
         }
         else {
             datav.base = NULL;
