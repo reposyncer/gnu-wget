@@ -250,6 +250,17 @@ static int reset_stream_cb(nghttp3_conn *conn __attribute__((unused)),
 	return 0;
 }
 
+static int stream_close_cb(nghttp3_conn *conn, int64_t stream_id, uint64_t app_error_code,
+			   void *conn_user_data, void *stream_user_data)
+{
+	wget_http_connection *http3 = (wget_http_connection *) conn_user_data;
+	if (stream_id == http3->client_stream->id) {
+		debug_printf("Control stream closed by server. Closing connection.\n");
+		http3->quic->is_closed = 1;
+	}
+	return 0;
+}
+
 static const nghttp3_callbacks callbacks = {
 	.acked_stream_data = acked_stream_data_cb,
 	.recv_data = recv_data_cb,
@@ -257,7 +268,8 @@ static const nghttp3_callbacks callbacks = {
 	.recv_header = recv_header_cb,
 	.end_headers = end_headers_cb,
 	.stop_sending = stop_sending_cb,
-	.reset_stream = reset_stream_cb
+	.reset_stream = reset_stream_cb,
+	.stream_close = stream_close_cb
 };
 
 int http3_stream_push(int64_t stream_id, const void* vector, 
@@ -453,7 +465,7 @@ void wget_http3_close(wget_http_connection **h3)
 	wget_http_connection *http3 = *h3;
 	if (http3) {
 		/* nghttp3_conn_del(http3->conn); */
-		/* wget_quic_close(http3->quic); */
+		wget_quic_close(http3->quic);
 		/* wget_quic_deinit(&http3->quic); */
 		xfree(http3->http3_ctx);
 		/* xfree(http3); */
@@ -593,6 +605,9 @@ wget_http_response *wget_http3_get_response(wget_http_connection *http3)
 
 	wget_queue_node *node = wget_queue_dequeue_data_node(
 					wget_quic_stream_get_buffer(http3->client_stream));
+	if (!node)
+		goto end;
+
 	wget_byte *byte = (wget_byte *) node->data;
 	while (byte) {
 		data = wget_realloc(data, offset + wget_byte_get_size(byte));
@@ -608,6 +623,7 @@ wget_http_response *wget_http3_get_response(wget_http_connection *http3)
 		byte = (wget_byte *) node->data;
 	}
 
+end:
 	wget_buffer *buff = wget_calloc(1, sizeof(wget_buffer));
 	if (!buff) {
 		xfree(resp);
