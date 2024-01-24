@@ -177,11 +177,11 @@ wget_quic_set_http3_conn(wget_quic *quic, void *http3_conn)
 bool
 wget_quic_get_is_closed(wget_quic *quic)
 {
-	if (quic){
-		if (quic->is_closed){
+	if (quic) {
+		if (quic->is_closed) {
 			quic->is_closed = false;
 			return true;
-		}else{
+		} else {
 			return false;
 		}
 	}
@@ -305,14 +305,16 @@ recv_stream_data_cb (ngtcp2_conn *conn __attribute__((unused)),
 
 	if (datalen == 0) {
 		debug_printf("closing stream #%zd\n", stream_id);
-		connection->is_closed = true;
+		wget_quic_stream_set_fin(
+			wget_quic_stream_find(connection, stream_id));
 		return 0;
 	}
+
 #ifdef WITH_LIBNGHTTP3
 	if (connection->http3_conn) {
 		int nconsumed = nghttp3_conn_read_stream(connection->http3_conn, stream_id, data, datalen, flags);
 		if (nconsumed < 0) {
-			error_printf("ERROR: recv_stream_data_cb: %s\n", nghttp3_strerror(nconsumed));
+			debug_printf("ERROR: recv_stream_data_cb: %s\n", nghttp3_strerror(nconsumed));
 			return -1;
 		}
 	} else {
@@ -328,7 +330,8 @@ recv_stream_data_cb (ngtcp2_conn *conn __attribute__((unused)),
 
 	if ((flags & NGTCP2_STREAM_DATA_FLAG_FIN) != 0) {
 		debug_printf("closing stream [fin=1] #%zd\n", stream_id);
-		connection->is_closed = true;
+		wget_quic_stream_set_fin(
+			wget_quic_stream_find(connection, stream_id));
 	}
 
 	return 0;
@@ -803,7 +806,8 @@ quic_handshake(wget_quic *quic)
 		return ret;
 	}
 
-	ret = wget_quic_ack(quic);
+	if ((ret = wget_quic_ack(quic)) < 0)
+		return ret;
 	return WGET_E_SUCCESS;
 }
 

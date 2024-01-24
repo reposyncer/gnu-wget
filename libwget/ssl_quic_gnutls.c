@@ -215,10 +215,6 @@ int wget_ssl_open_quic(wget_quic *quic)
 		}
 	}
 	
-	struct session_context *ctx = wget_calloc(1, sizeof(struct session_context));
-	ctx->hostname = wget_strdup(hostname);
-	ctx->port = quic->remote_port;
-
 	/*
 		OCSP is not configured as of now.
 		Not sure whether to confirm it or not.
