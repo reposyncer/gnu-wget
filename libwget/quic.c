@@ -555,8 +555,7 @@ handshake_read(wget_quic *quic)
 		}
 
 		memcpy(&path, ngtcp2_conn_get_path(conn), sizeof(path));
-		path.remote.addrlen = remote_addrlen;
-		path.remote.addr = (struct sockaddr *) &remote_addr;
+		memset(&pi, 0, sizeof(pi));
 
 		ret = ngtcp2_conn_read_pkt(conn,
 					   &path, &pi, buf, ret, timestamp());
