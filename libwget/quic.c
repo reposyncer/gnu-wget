@@ -771,9 +771,12 @@ quic_handshake(wget_quic *quic)
 
 	ngtcp2_transport_params params;
 	ngtcp2_transport_params_default (&params);
-	params.initial_max_streams_uni = 3;
-	params.initial_max_stream_data_bidi_local = 128 * 1024;
-	params.initial_max_data = 1024 * 1024;
+	params.initial_max_streams_uni = 30;
+	params.initial_max_streams_bidi = 30;
+	params.initial_max_stream_data_bidi_local = 4096 * 4096;
+	params.initial_max_stream_data_uni = 1024 * 1024;
+	params.initial_max_data = 4096 * 4096;
+	params.max_datagram_frame_size = 1200;
 
 	ngtcp2_cid scid, dcid;
 	if (get_random_cid (&scid) < 0 || get_random_cid (&dcid) < 0)
