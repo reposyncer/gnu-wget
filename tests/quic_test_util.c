@@ -321,12 +321,6 @@ rand_cb(uint8_t *dest, size_t destlen,
 int
 get_random_cid (ngtcp2_cid *cid)
 {
-    // const uint8_t *buf = wget_malloc(sizeof(uint8_t)*NGTCP2_MAX_CIDLEN);
-    // if (!buf) {
-    //     wget_error_printf ("wget_malloc\n");
-    //     return -1;
-    // }
-    // size_t buff_size = sizeof(buf);
     uint8_t buf[NGTCP2_MAX_CIDLEN];
     int ret;
 
@@ -790,11 +784,13 @@ write_to_stream (wget_quic_test_connection *connection, wget_quic_stream *stream
 
         if (stream) {
             wget_byte *byte = wget_queue_peek_untransmitted_node(wget_quic_stream_get_buffer(stream));
-            if (!byte)
-			    break;
-            datav.base = wget_byte_get_data(byte);
-            datav.len = wget_byte_get_size(byte);
-            stream_id = wget_quic_stream_get_stream_id(stream);
+            if (byte) {
+                datav.base = wget_byte_get_data(byte);
+                datav.len = wget_byte_get_size(byte);
+            } else {
+                datav.base = NULL;
+                datav.len = 0;
+            }
             if (datav.len == 0) {
                 /* No stream data to be sent */
                 stream_id = -1;
@@ -923,12 +919,6 @@ void start_quic_server(const char *key_file, const char *cert_file)
     }
 
     server->socket_fd = fd;
-    // gnutls_certificate_credentials_t *cred = NULL;
-    // cred = create_tls_server_credentials (key_file, cert_file);
-    // if (!cred) {
-    //     wget_error_printf("create_tls_server_credentials error\n");
-    //     return;
-    // }
 
     // server->cred = cred;
     server->cred = NULL;
