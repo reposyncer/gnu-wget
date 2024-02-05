@@ -1169,7 +1169,7 @@ wget_quic_read(wget_quic *quic)
  * \return int
 */
 int
-wget_quic_rw_once(wget_quic *quic, wget_quic_stream *stream)
+wget_quic_rw_once(wget_quic *quic, wget_quic_stream *stream, const char *data)
 {
 	int ret = -1;
 	ret = wget_quic_write(quic, stream);
@@ -1184,6 +1184,10 @@ wget_quic_rw_once(wget_quic *quic, wget_quic_stream *stream)
 	if (byte){
 		debug_printf("Data recorded : %s\n", (char *)wget_byte_get_data(byte));
 		debug_printf("Data recorded Type : %d\n", wget_byte_get_type(byte));
+		if (strcmp(data, (const char *)wget_byte_get_data(byte)) == 0) {
+			ret = wget_quic_ack(quic);
+			return -1;
+		}
 	}
 
 	ret = wget_quic_ack(quic);
@@ -1192,7 +1196,7 @@ wget_quic_rw_once(wget_quic *quic, wget_quic_stream *stream)
 }
 #else
 int
-wget_quic_rw_once(wget_quic *quic, wget_quic_stream *stream)
+wget_quic_rw_once(wget_quic *quic, wget_quic_stream *stream, const char *data)
 {
 	return WGET_E_UNSUPPORTED;
 }

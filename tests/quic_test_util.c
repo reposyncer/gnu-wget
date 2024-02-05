@@ -992,19 +992,19 @@ void start_quic_server(const char *key_file, const char *cert_file)
     }
 }
 
-void start_quic_test_server(const char *key_file, const char *cert_file) {
+int start_quic_test_server(const char *key_file, const char *cert_file) {
     pid_t child_pid;
 
     child_pid = fork();
     if (child_pid < 0) { 
         wget_error_printf("fork failed\n");
-        return;
+        return -1;
     }
     else if (child_pid == 0) {
         start_quic_server(key_file, cert_file);
         exit(1);
     }
     else {
-        return;
+        return child_pid;
     }
 }

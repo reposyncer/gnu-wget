@@ -35,6 +35,6 @@ typedef struct wget_quic_test_server_t {
     ngtcp2_cid scid;
 }wget_quic_test_server;
 
-void start_quic_test_server(const char *key_file, const char *cert_file);
+int start_quic_test_server(const char *key_file, const char *cert_file);
 void start_quic_server(const char *key_file, const char *cert_file);
 #endif //WGETQUIC_TEST_UTIL_H

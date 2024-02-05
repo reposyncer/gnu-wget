@@ -47,7 +47,7 @@ int main(void){
     }
 
     while (1) {
-	    ret = wget_quic_rw_once(quic, stream);
+	    ret = wget_quic_rw_once(quic, stream, data);
         if (ret < 0) {
             break;
         }
