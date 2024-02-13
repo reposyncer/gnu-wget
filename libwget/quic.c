@@ -69,7 +69,7 @@ int quic_handshake(wget_quic *quic);
 
 static inline void print_error_host(const char *msg, const char *host)
 {
-	error_printf("%s (hostname='%s', errno=%d)\n",
+	error_printf(_("%s (hostname='%s', errno=%d)\n"),
 		msg, host, errno);
 }
 
@@ -321,7 +321,7 @@ recv_stream_data_cb (ngtcp2_conn *conn __attribute__((unused)),
 #endif
 		int ret = quic_write_data(connection, stream_id, data, datalen, RESPONSE_DATA_BYTE);
 		if (ret < 0) {
-			error_printf("ERROR: recv_stream_data_cb\n");
+			error_printf(_("ERROR: recv_stream_data_cb\n"));
 			return -1;
 		}
 #ifdef WITH_LIBNGHTTP3
@@ -460,7 +460,7 @@ wget_quic_ack(wget_quic *quic)
 					      &datav, 1,
 					      ts);
 	if (n_written < 0) {
-		error_printf("ERROR: ngtcp2_conn_writev_stream : %s\n",
+		error_printf(_("ERROR: ngtcp2_conn_writev_stream : %s\n"),
 			ngtcp2_strerror((int) n_written));
 		return WGET_E_INVALID;
 	}
@@ -471,7 +471,7 @@ wget_quic_ack(wget_quic *quic)
 	ret = send_packet(quic->sockfd, buf, n_written,
 			  NULL, 0);
 	if (ret < 0) {
-		error_printf("ERROR: send_packet: %s\n", strerror(errno));
+		error_printf(_("ERROR: send_packet: %s\n"), strerror(errno));
 		return WGET_E_INVALID;
 	}
 
@@ -512,7 +512,7 @@ handshake_write(wget_quic *quic)
 					      &datav, 1,
 					      ts);
 	if (n_written < 0) {
-		error_printf("ERROR: ngtcp2_conn_writev_stream: %s\n",
+		error_printf(_("ERROR: ngtcp2_conn_writev_stream: %s\n"),
 			ngtcp2_strerror((int) n_written));
 		return WGET_E_INVALID;
 	}
@@ -523,7 +523,7 @@ handshake_write(wget_quic *quic)
 	ret = send_packet(quic->sockfd, buf, n_written,
 			  NULL, 0);
 	if (ret < 0) {
-		error_printf("ERROR: send_packet: %s\n", strerror(errno));
+		error_printf(_("ERROR: send_packet: %s\n"), strerror(errno));
 		return WGET_E_INVALID;
 	}
 
@@ -550,7 +550,7 @@ handshake_read(wget_quic *quic)
 		if (ret < 0) {
 			if (errno == EAGAIN)
 				break;
-			error_printf("ERROR: recv_packet: %s\n", strerror(errno));
+			error_printf(_("ERROR: recv_packet: %s\n"), strerror(errno));
 			return WGET_E_UNKNOWN;
 		}
 
@@ -560,7 +560,7 @@ handshake_read(wget_quic *quic)
 		ret = ngtcp2_conn_read_pkt(conn,
 					   &path, &pi, buf, ret, timestamp());
 		if (ret < 0) {
-			error_printf("ERROR: ngtcp2_conn_read_pkt: %s\n",
+			error_printf(_("ERROR: ngtcp2_conn_read_pkt: %s\n"),
 				ngtcp2_strerror(ret));
 			return WGET_E_UNKNOWN;
 		}
@@ -579,7 +579,7 @@ make_handshake(wget_quic* quic){
 
 	while (!ngtcp2_conn_get_handshake_completed(conn)) {
 		if ((ret = handshake_write(quic)) < 0){
-			error_printf("ERROR: handshake_write: %s", strerror(errno));
+			error_printf(_("ERROR: handshake_write: %s"), strerror(errno));
 			return ret;
 		}
 		memset(&it, 0 , sizeof(it));
@@ -588,7 +588,7 @@ make_handshake(wget_quic* quic){
 		now = timestamp();
 		ret = timerfd_settime(timer_fd, 0, &it, NULL);
 		if (ret < 0) {
-			error_printf("ERROR: timerfd_settime: %s", strerror(errno));
+			error_printf(_("ERROR: timerfd_settime: %s"), strerror(errno));
 			return WGET_E_TIMEOUT;
 		}
 		if (expiry < now) {
@@ -601,11 +601,11 @@ make_handshake(wget_quic* quic){
 
 		ret = timerfd_settime(timer_fd, 0, &it, NULL);
 		if (ret < 0) {
-			error_printf("ERROR: timerfd_settime: %s", strerror(errno));
+			error_printf(_("ERROR: timerfd_settime: %s"), strerror(errno));
 			return WGET_E_TIMEOUT;
 		}
 		if ((ret = handshake_read(quic)) < 0){
-			error_printf("ERROR: handshake_read: %s", strerror(errno));
+			error_printf(_("ERROR: handshake_read: %s"), strerror(errno));
 			return ret;
 		}
 	}
@@ -659,7 +659,7 @@ wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 				quic->sockfd = sockfd;
 				ret = wget_ssl_open_quic(quic);
 				if (ret < 0) {
-					error_printf("ERROR: wget_ssl_open_quic: %s\n", strerror(errno));
+					error_printf(_("ERROR: wget_ssl_open_quic: %s\n"), strerror(errno));
 					close(sockfd);
 					break;
 				}
@@ -673,7 +673,7 @@ wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 				quic->remote.size = ai_rp->ai_addrlen;
 				ret = quic_handshake(quic);
 				if (ret < 0){
-					error_printf("Error in quic_handshake()\n");
+					error_printf(_("Error in quic_handshake()\n"));
 					ret = WGET_E_HANDSHAKE;
 				}
 				break;
@@ -721,7 +721,7 @@ int wget_quic_close(wget_quic *quic)
 		retval = send_packet(quic->sockfd, buf, written,
 				     &quic->remote.addr, quic->remote.size);
 		if (retval < 0) {
-			error_printf("ERROR: send_packet: %s\n", strerror(errno));
+			error_printf(_("ERROR: send_packet: %s\n"), strerror(errno));
 			return -1;
 		}
 	}
@@ -963,7 +963,7 @@ write_stream(wget_quic *quic, wget_quic_stream *stream, uint8_t *buf, size_t buf
 							&datav, 1,
 							ts);
 		if (n_written < 0 && n_written != NGTCP2_ERR_WRITE_MORE) {
-			error_printf("ERROR: ngtcp2_conn_writev_stream: %s\n",
+			error_printf(_("ERROR: ngtcp2_conn_writev_stream: %s\n"),
 				ngtcp2_strerror((int) n_written));
 			return n_written;
 		}
@@ -1054,7 +1054,7 @@ wget_quic_write(wget_quic *quic, wget_quic_stream *stream)
 				  &quic->remote.addr,
 				  quic->remote.size);
 		if (ret < 0) {
-			error_printf("ERROR: send_packet: %s\n", strerror(errno));
+			error_printf(_("ERROR: send_packet: %s\n"), strerror(errno));
 			return -1;
 		}
 	}
@@ -1063,7 +1063,7 @@ wget_quic_write(wget_quic *quic, wget_quic_stream *stream)
 
 	ret = timerfd_settime(quic->timerfd, 0, &it, NULL);
 	if (ret < 0) {
-		error_printf("ERROR: timerfd_settime: %s", strerror(errno));
+		error_printf(_("ERROR: timerfd_settime: %s"), strerror(errno));
 		return -1;
 	}
 	if (expiry < now) {
@@ -1076,7 +1076,7 @@ wget_quic_write(wget_quic *quic, wget_quic_stream *stream)
 
 	ret = timerfd_settime(quic->timerfd, 0, &it, NULL);
 	if (ret < 0) {
-		error_printf("ERROR: timerfd_settime: %s", strerror(errno));
+		error_printf(_("ERROR: timerfd_settime: %s"), strerror(errno));
 		return -1;
 	}
 
@@ -1113,7 +1113,7 @@ ssize_t wget_quic_write_multiple(wget_quic *quic,
 			n_written = (p - buf);
 			if (send_packet(quic->sockfd, buf, n_written,
 					&quic->remote.addr, quic->remote.size) < 0) {
-				error_printf("ERROR: send_packet: %s\n", strerror(errno));
+				error_printf(_("ERROR: send_packet: %s\n"), strerror(errno));
 				return -1;
 			}
 
@@ -1126,7 +1126,7 @@ ssize_t wget_quic_write_multiple(wget_quic *quic,
 
 	if (send_packet(quic->sockfd, buf, n_written,
 			&quic->remote.addr, quic->remote.size) < 0) {
-		error_printf("ERROR: send_packet: %s\n", strerror(errno));
+		error_printf(_("ERROR: send_packet: %s\n"), strerror(errno));
 		return -1;
 	}
 
@@ -1164,7 +1164,7 @@ read_stream(wget_quic *quic)
 		if (ret < 0) {
 			if (errno == EAGAIN)
 				break;
-			error_printf("ERROR: recv_packet: %s\n", strerror(errno));
+			error_printf(_("ERROR: recv_packet: %s\n"), strerror(errno));
 			return -1;
 		}
 
@@ -1176,7 +1176,7 @@ read_stream(wget_quic *quic)
 
 		ret = ngtcp2_conn_read_pkt(quic->conn, &path, &pi, (const uint8_t *)buf, ret, ts);
 		if (ret < 0) {
-			error_printf("ERROR: ngtcp2_conn_read_pkt: %s\n",
+			error_printf(_("ERROR: ngtcp2_conn_read_pkt: %s\n"),
 				ngtcp2_strerror(ret));
 			return -1;
 		}
@@ -1220,7 +1220,7 @@ wget_quic_read(wget_quic *quic)
 
 	ret = timerfd_settime (quic->timerfd, 0, &it, NULL);
 	if (ret < 0) {
-		error_printf("ERROR: timerfd_settime: %s", strerror(errno));
+		error_printf(_("ERROR: timerfd_settime: %s"), strerror(errno));
 		return -1;
 	}
 	if (expiry < now) {
@@ -1233,7 +1233,7 @@ wget_quic_read(wget_quic *quic)
 
 	ret = timerfd_settime (quic->timerfd, 0, &it, NULL);
 	if (ret < 0) {
-		error_printf("ERROR: timerfd_settime: %s", strerror(errno));
+		error_printf(_("ERROR: timerfd_settime: %s"), strerror(errno));
 		return -1;
 	}
 
