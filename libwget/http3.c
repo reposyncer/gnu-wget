@@ -76,7 +76,7 @@ static int _stop_sending(ngtcp2_conn *conn,
 	int ret = ngtcp2_conn_shutdown_stream_read(conn, 0,
 						      stream_id, app_error_code);
 	if (ret < 0) {
-		error_printf("ERROR: ngtcp2_conn_shutdown_stream_read: %s\n",
+		error_printf(_("ERROR: ngtcp2_conn_shutdown_stream_read: %s\n"),
 			ngtcp2_strerror(ret));
 		return -1;
 	}
@@ -91,7 +91,7 @@ static int _reset_stream(ngtcp2_conn *conn,
 	int ret = ngtcp2_conn_shutdown_stream_write(conn, 0,
 						       stream_id, app_error_code);
 	if (ret < 0) {
-		error_printf("ERROR: ngtcp2_conn_shutdown_stream_write: %s\n",
+		error_printf(_("ERROR: ngtcp2_conn_shutdown_stream_write: %s\n"),
 			ngtcp2_strerror(ret));
 		return -1;
 	}
@@ -178,7 +178,7 @@ static int deferred_consume_cb(nghttp3_conn *http3 __attribute__((unused)),
     ngtcp2_conn *conn = (ngtcp2_conn *)conn_user_data;
     int ret = _http3_consume(conn, stream_id, consumed);
 	if (ret < 0){
-		error_printf("ERROR: deferred_consume_cb\n");
+		error_printf(_("ERROR: deferred_consume_cb\n"));
 		return ret;
 	}
     return 0;
@@ -194,7 +194,7 @@ static int recv_data_cb(nghttp3_conn *conn __attribute__((unused)),
 	wget_http_connection *http3 = (wget_http_connection *)conn_user_data;
 	int ret = _http3_write_data(http3->quic, stream_id, data, datalen, RESPONSE_DATA_BYTE);
 	if (ret < 0){
-		error_printf("ERROR: recv_data_cb : %d\n", ret);
+		error_printf(_("ERROR: recv_data_cb : %d\n"), ret);
 		return ret;
 	}
     return 0;
@@ -227,7 +227,7 @@ static int stop_sending_cb(nghttp3_conn *conn __attribute__((unused)),
 			     void *conn_user_data, void *stream_user_data __attribute__((unused)))
 {
 	if (_stop_sending((ngtcp2_conn *)conn_user_data, stream_id, app_error_code) < 0){
-		error_printf("ERROR: stop_sending_cb\n");
+		error_printf(_("ERROR: stop_sending_cb\n"));
 		return NGHTTP3_ERR_CALLBACK_FAILURE;
 	}
 	return 0;
@@ -244,7 +244,7 @@ static int reset_stream_cb(nghttp3_conn *conn __attribute__((unused)),
 				 void *stream_user_data __attribute__((unused)))
 {
 	if (_reset_stream((ngtcp2_conn *)conn_user_data, stream_id, app_error_code) < 0){
-		error_printf("ERROR: reset_stream_cb\n");
+		error_printf(_("ERROR: reset_stream_cb\n"));
 		return NGHTTP3_ERR_CALLBACK_FAILURE;
 	}
 	return 0;
@@ -401,7 +401,7 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 	if ((ret = nghttp3_conn_submit_request(http3->conn,
 						  wget_quic_stream_get_stream_id(http3->client_stream),
 						  nv_headers, nv_len, NULL, ctx)) < 0) {
-		error_printf("ERROR: nghttp3_conn_submit_request: %s\n",
+		error_printf(_("ERROR: nghttp3_conn_submit_request: %s\n"),
 			nghttp3_strerror(ret));
 		goto bail;
 	}
@@ -432,7 +432,7 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 
 	ret = http3_write_streams(http3);
 	if (ret < 0) {
-		error_printf("Error in http3_write_streams\n");
+		error_printf(_("Error in http3_write_streams\n"));
 		return -1;
 	}
 
@@ -441,7 +441,7 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 	return WGET_E_SUCCESS;
 
 bail:
-	error_printf("ERROR: Sender callback failed: %d\n", ret);
+	error_printf(_("ERROR: Sender callback failed: %d\n"), ret);
 	return WGET_E_UNKNOWN;
 }
 #else 
@@ -528,7 +528,7 @@ int wget_http3_open(wget_http_connection **h3, const wget_iri *iri)
 	ret = nghttp3_conn_client_new(
 			&http3->conn, &callbacks, &http3->settings, http3->mem, http3);
 	if (ret < 0) {
-        error_printf("Error in nghttp3_conn_client_new\n");
+        error_printf(_("Error in nghttp3_conn_client_new\n"));
         wget_http3_close(&http3);
 		return WGET_E_UNKNOWN;
 	}
@@ -537,7 +537,7 @@ int wget_http3_open(wget_http_connection **h3, const wget_iri *iri)
 
     ret = wget_quic_connect(http3->quic, hostname, port);
 	if (ret < 0) {
-		error_printf("Error in wget_quic_connect()\n");
+		error_printf(_("Error in wget_quic_connect()\n"));
 		wget_http3_close(&http3);
         return WGET_E_CONNECT;
 	}
@@ -556,14 +556,14 @@ int wget_http3_open(wget_http_connection **h3, const wget_iri *iri)
 	}
 
 	if ((ret = nghttp3_conn_bind_control_stream(http3->conn, wget_quic_stream_get_stream_id(http3->control_stream))) < 0) {
-		error_printf("ERROR: nghttp3_conn_bind_control_stream: %s\n",
+		error_printf(_("ERROR: nghttp3_conn_bind_control_stream: %s\n"),
 			nghttp3_strerror(ret));
 		wget_http3_close(&http3);
 		return WGET_E_UNKNOWN;
 	}
 	if ((ret = nghttp3_conn_bind_qpack_streams(http3->conn,
 						      wget_quic_stream_get_stream_id(http3->qpac_encoder_stream), wget_quic_stream_get_stream_id(http3->qpac_decoder_stream))) < 0) {
-		error_printf("ERROR: nghttp3_conn_bind_qpack_streams: %s\n",
+		error_printf(_("ERROR: nghttp3_conn_bind_qpack_streams: %s\n"),
 			nghttp3_strerror(ret));
 		wget_http3_close(&http3);
 		return WGET_E_UNKNOWN;
