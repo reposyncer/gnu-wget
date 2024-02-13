@@ -438,11 +438,11 @@ typedef struct wget_byte_st wget_byte;
 
 WGETAPI wget_byte *
 	wget_byte_new(const char *data, size_t size, int8_t type);
-WGETAPI size_t 
+WGETAPI size_t
 	wget_byte_get_size(const wget_byte *bytes);
 WGETAPI unsigned char *
 	wget_byte_get_data(const wget_byte* bytes);
-WGETAPI void 
+WGETAPI void
 	wget_byte_free(wget_byte *bytes);
 WGETAPI bool
 	wget_byte_get_transmitted(wget_byte *bytes);
@@ -468,18 +468,18 @@ typedef struct wget_queue_node {
 
 typedef struct wget_queue_st wget_queue;
 
-WGETAPI wget_queue* 
+WGETAPI wget_queue*
 	wget_queue_init(void);
 WGETAPI void
 	wget_queue_deinit(wget_queue *queue);
-WGETAPI int 
+WGETAPI int
 	wget_queue_is_empty(wget_queue *queue);
-WGETAPI void* 
+WGETAPI void*
 	wget_queue_enqueue(wget_queue *queue, const void *data, size_t size);
-WGETAPI void* 
+WGETAPI void*
 	wget_queue_dequeue(wget_queue *queue);
 WGETAPI wget_byte *
-	wget_queue_peek(wget_queue *queue); 
+	wget_queue_peek(wget_queue *queue);
 WGETAPI void
 	wget_queue_free_node(wget_queue_node *, void (*)(void *));
 WGETAPI wget_byte *
@@ -2042,7 +2042,7 @@ WGETAPI bool
 
 typedef struct wget_quic_st wget_quic;
 
-WGETAPI wget_quic * 
+WGETAPI wget_quic *
 	wget_quic_init(void);
 
 WGETAPI void
@@ -2056,7 +2056,7 @@ WGETAPI wget_quic_stream *
 WGETAPI wget_quic_stream *
 	wget_quic_stream_init_unidirectional(wget_quic *quic);
 
-WGETAPI int 
+WGETAPI int
 	wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen, uint8_t type);
 
 WGETAPI void
@@ -2071,13 +2071,13 @@ wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s);
 WGETAPI wget_quic_stream *
 	wget_quic_stream_find(wget_quic *quic, int64_t stream_id);
 
-WGETAPI int64_t 
+WGETAPI int64_t
 	wget_quic_stream_get_stream_id(wget_quic_stream *stream);
 
 WGETAPI wget_queue *
 	wget_quic_stream_get_buffer(wget_quic_stream *stream);
 
-WGETAPI wget_quic_stream** 
+WGETAPI wget_quic_stream**
 	wget_quic_get_streams(wget_quic *quic);
 
 WGETAPI void
@@ -2086,10 +2086,10 @@ WGETAPI void
 WGETAPI bool
 	wget_quic_get_is_closed(wget_quic *quic);
 
-WGETAPI void 
+WGETAPI void
 	wget_quic_set_connect_timeout(wget_quic *quic, int timeout);
 
-WGETAPI void 
+WGETAPI void
 	wget_quic_set_http3_conn(wget_quic *quic, void *http3_conn);
 
 WGETAPI void
@@ -2114,10 +2114,10 @@ WGETAPI ssize_t
 	wget_quic_write_multiple(wget_quic *quic,
 				 wget_quic_stream **streams, size_t num_streams);
 
-WGETAPI int 
+WGETAPI int
 	wget_quic_read(wget_quic *quic);
 
-WGETAPI int 
+WGETAPI int
 	wget_quic_rw_once(wget_quic *quic, wget_quic_stream *stream);
 
 /*
@@ -2520,17 +2520,17 @@ WGETAPI wget_http_response *
 	HTTP/3 routines
 */
 
-WGETAPI void 
+WGETAPI void
 	wget_http3_close(wget_http_connection **http3);
 
 WGETAPI int
 	wget_http3_send_request(wget_http_connection *http3,
 		       wget_http_request *req);
 
-WGETAPI int 
+WGETAPI int
 	wget_http3_open(wget_http_connection **h3, const wget_iri *iri);
 
-WGETAPI wget_http_response * 
+WGETAPI wget_http_response *
 	wget_http3_get_response(wget_http_connection *http3);
 
 /*

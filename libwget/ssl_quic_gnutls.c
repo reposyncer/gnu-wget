@@ -163,20 +163,20 @@ int wget_ssl_open_quic(wget_quic *quic)
 
 	if (!quic)
 		return WGET_E_INVALID;
-    
+
 	gnutls_global_init();
-	
+
 	/*
-	 	This is to be decided whether to keep this or not.
-		If this is there then a local host GNUTLS_NAME_DNS 
-		will be declared in the global quic struct.
-	*/
+	 * This is to be decided whether to keep this or not.
+	 * If this is there then a local host GNUTLS_NAME_DNS
+	 * will be declared in the global quic struct.
+	 */
 	hostname = quic->ssl_hostname;
-	
+
 	/*
 		As of now used same flags as used by Daiki in his repo.
 		But Still to confirm are these flags available in all the
-		versions of GNUTLS. 
+		versions of GNUTLS.
 		Also to confirm how should I integrate the already available
 		flag setting login in this.
 	*/
@@ -198,7 +198,7 @@ int wget_ssl_open_quic(wget_quic *quic)
 	const char *priorities = "NORMAL:-VERS-ALL:+VERS-TLS1.3:" \
   "-CIPHER-ALL:+AES-128-GCM:+AES-256-GCM:+CHACHA20-POLY1305:+AES-128-CCM:" \
   "-GROUP-ALL:+GROUP-SECP256R1:+GROUP-X25519:+GROUP-SECP384R1:+GROUP-SECP521R1:" \
-  "%DISABLE_TLS13_COMPAT_MODE";	
+  "%DISABLE_TLS13_COMPAT_MODE";
 	rc = gnutls_priority_init(&priority_cache, priorities, NULL);
 	if (rc != GNUTLS_E_SUCCESS)
 		error_printf(_("GnuTLS: Unsupported priority string '%s': %s\n"), priorities ? priorities : "(null)", gnutls_strerror(rc));
@@ -213,7 +213,7 @@ int wget_ssl_open_quic(wget_quic *quic)
 			gnutls_session_set_verify_cert(session, NULL, 0);
 		}
 	}
-	
+
 	/*
 		OCSP is not configured as of now.
 		Not sure whether to confirm it or not.

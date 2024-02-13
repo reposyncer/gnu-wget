@@ -420,7 +420,7 @@ int wget_tcp_get_timeout(wget_tcp *tcp)
  * The hostname can explicitly set the port after a colon (':').
  *
  * This is mainly relevant to wget_tcp_connect().
- * 
+ *
  * Can be generelised for TCP and QUIC. Pending.
  */
 void wget_tcp_set_bind_address(wget_tcp *tcp, const char *bind_address)
@@ -1073,4 +1073,3 @@ void wget_tcp_close(wget_tcp *tcp)
 	}
 }
 /** @} */
-

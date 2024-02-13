@@ -69,7 +69,7 @@ wget_byte_get_struct_size(void)
 	return sizeof(wget_byte);
 }
 
-size_t 
+size_t
 wget_byte_get_size(const wget_byte *bytes)
 {
 	if (bytes)
@@ -85,7 +85,7 @@ wget_byte_get_data(const wget_byte* bytes)
 	return NULL;
 }
 
-void 
+void
 wget_byte_free(wget_byte *bytes)
 {
 	xfree(bytes->data);
