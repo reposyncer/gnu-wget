@@ -56,7 +56,7 @@ static int tp_recv_func(gnutls_session_t session, const uint8_t *data, size_t da
 
 	ret = ngtcp2_conn_decode_and_set_remote_transport_params(conn, data, data_size);
 	if (ret < 0) {
-		wget_info_printf("ngtcp2_decode_transport_params: %s\n", ngtcp2_strerror (ret));
+		wget_info_printf(_("ngtcp2_decode_transport_params: %s\n"), ngtcp2_strerror (ret));
 		return -1;
 	}
 
