@@ -42,7 +42,7 @@ if WITH_LIBNGTCP2
 endif
 
 if WITH_LIBNGHTTP3
-  libwget_la_SOURCES += http3.c http3.h
+  libwget_la_SOURCES += http3.c
 endif
 
 libwget_la_CPPFLAGS =\
