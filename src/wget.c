@@ -1581,7 +1581,11 @@ static int try_connection(DOWNLOADER *downloader, const wget_iri *iri)
 		wget_http_close(&downloader->conn);
 	}
 
+#ifdef WITH_LIBNGHTTP3
 	http_open = config.http3_only ? wget_http3_open : wget_http_open;
+#else
+	http_open = wget_http_open;
+#endif
 
 	if ((rc = http_open(&downloader->conn, iri)) == WGET_E_SUCCESS) {
 		debug_printf("established connection %s\n",
