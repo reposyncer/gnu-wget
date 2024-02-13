@@ -20,6 +20,7 @@ libwget/hpkp_db.c
 libwget/hsts.c
 libwget/http.c
 libwget/http2.c
+libwget/http3.c
 libwget/http_highlevel.c
 libwget/http_parse.c
 libwget/init.c
@@ -29,9 +30,11 @@ libwget/net.c
 libwget/metalink.c
 libwget/ocsp.c
 libwget/pipe.c
+libwget/quic.c
 libwget/ssl_gnutls.c
 libwget/ssl_wolfssl.c
 libwget/ssl_openssl.c
+libwget/ssl_quic_gnutls.c
 libwget/tls_session.c
 libwget/xml.c
 src/bar.c
