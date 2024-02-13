@@ -99,7 +99,7 @@ struct wget_quic_st {
 		*conn;
 #ifdef WITH_LIBNGHTTP3
 	nghttp3_conn
-	 	*http3_conn;
+		*http3_conn;
 #endif
 	int
 		sockfd,
@@ -108,13 +108,9 @@ struct wget_quic_st {
 		preferred_family,
 		protocol,
 		connect_timeout;
-	info_addr 
+	info_addr
 		local,
 		remote;
-	/* 
-		Added this so as to accomodate with existing DNS function.
-		Planning to go with this. Will replace the info_addr struct as and when the further code is edited.
-	*/
 	struct addrinfo
 		*addrinfo,
 		/*
@@ -139,7 +135,6 @@ struct wget_quic_st {
 	size_t stream_index; /* Current Stream Index */
 	size_t n_coalescing; /* Number of lines coalesced into single packet */
 	size_t coalesce_count; /* Number of lines currently coalesced */
-	
 };
 #endif /* WITH_LIBNGTCP2 */
 

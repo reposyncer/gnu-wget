@@ -35,10 +35,10 @@ static int _stop_sending(ngtcp2_conn *conn,
 			 int64_t stream_id, uint64_t app_error_code);
 static int _reset_stream(ngtcp2_conn *conn,
 			 int64_t stream_id, uint64_t app_error_code);
-static int _http3_consume(ngtcp2_conn *conn, uint64_t 
-			 stream_id, size_t nconsumed);
-static int _http3_write_data(wget_quic* quic, int64_t stream_id, const uint8_t *data, 
-				 				size_t datalen, uint8_t type);
+static int _http3_consume(ngtcp2_conn *conn, uint64_t
+			  stream_id, size_t nconsumed);
+static int _http3_write_data(wget_quic* quic, int64_t stream_id, const uint8_t *data,
+			     size_t datalen, uint8_t type);
 static void init_nv(nghttp3_nv *nv, const char *name, const char *value);
 static int _call_data_sender(int64_t stream_id, const nghttp3_vec *vec, size_t veccnt,
 			     int (*_cb_func)(int64_t, const void*, void *), void *userdata);
@@ -56,8 +56,8 @@ struct http3_stream_context {
 void
 http3_stream_mark_acked (wget_quic_stream *stream, size_t datalen)
 {
-  	while (stream) {
-		wget_byte *head  = (wget_byte *)wget_queue_peek_transmitted_node(stream->buffer);
+	while (stream) {
+		wget_byte *head = (wget_byte *) wget_queue_peek_transmitted_node(stream->buffer);
 		if (wget_byte_get_size (head) > datalen)
 			break;
 
@@ -65,7 +65,7 @@ http3_stream_mark_acked (wget_quic_stream *stream, size_t datalen)
 		datalen -= wget_byte_get_size (head);
 		wget_queue_dequeue_transmitted_node(stream->buffer);
 		return;
-    }
+	}
 }
 
 /* Close read side of a stream abruptly */
@@ -107,8 +107,8 @@ static int _http3_consume(ngtcp2_conn *conn, uint64_t stream_id, size_t nconsume
 	return 0;
 }
 
-static int _http3_write_data(wget_quic* quic, int64_t stream_id, const uint8_t *data, 
-				 				size_t datalen, uint8_t type)
+static int _http3_write_data(wget_quic* quic, int64_t stream_id, const uint8_t *data,
+			     size_t datalen, uint8_t type)
 {
 	if (!quic){
 		return -1;
@@ -123,12 +123,12 @@ static int _http3_write_data(wget_quic* quic, int64_t stream_id, const uint8_t *
 	return -1;
 }
 
-static int recv_header_cb(nghttp3_conn *h3conn __attribute__((unused)), 
+static int recv_header_cb(nghttp3_conn *h3conn __attribute__((unused)),
 				int64_t stream_id __attribute__((unused)),
 			    int32_t token __attribute__((unused)),
-			    nghttp3_rcbuf *name, nghttp3_rcbuf *value, 
+			    nghttp3_rcbuf *name, nghttp3_rcbuf *value,
 				uint8_t flags __attribute__((unused)),
-			    void *conn_user_data __attribute__((unused)), 
+			    void *conn_user_data __attribute__((unused)),
 				void *stream_user_data)
 {
 	nghttp3_vec namevec, valuevec;
@@ -168,9 +168,9 @@ static int end_headers_cb(nghttp3_conn *h3conn, int64_t stream_id, int fin,
 	return 0;
 }
 
-static int deferred_consume_cb(nghttp3_conn *http3 __attribute__((unused)), 
+static int deferred_consume_cb(nghttp3_conn *http3 __attribute__((unused)),
                             int64_t stream_id, size_t consumed,
-                            void *conn_user_data, 
+                            void *conn_user_data,
                             void *stream_user_data __attribute__((unused)))
 
 {
@@ -184,9 +184,9 @@ static int deferred_consume_cb(nghttp3_conn *http3 __attribute__((unused)),
 }
 
 static int recv_data_cb(nghttp3_conn *conn __attribute__((unused)),
-                        int64_t stream_id, const uint8_t *data, 
+                        int64_t stream_id, const uint8_t *data,
                         size_t datalen,
-                        void *conn_user_data , 
+                        void *conn_user_data,
                         void *stream_user_data __attribute__((unused)))
 {
     debug_printf("Recieving data | %s | from stream : %ld\n", data, stream_id);
@@ -199,10 +199,10 @@ static int recv_data_cb(nghttp3_conn *conn __attribute__((unused)),
     return 0;
 }
 
-static int acked_stream_data_cb(nghttp3_conn *conn __attribute__((unused)), 
-						int64_t stream_id, 
-                        uint64_t datalen, 
-						void *conn_user_data __attribute__((unused)), 
+static int acked_stream_data_cb(nghttp3_conn *conn __attribute__((unused)),
+						int64_t stream_id,
+                        uint64_t datalen,
+						void *conn_user_data __attribute__((unused)),
                         void *stream_user_data)
 {
 	wget_quic *connection = (wget_quic *)stream_user_data;
@@ -211,8 +211,8 @@ static int acked_stream_data_cb(nghttp3_conn *conn __attribute__((unused)),
 	if (stream) {
 		http3_stream_mark_acked (stream, datalen);
 		debug_printf("acked %zu bytes on stream #%zd\n", datalen, stream_id);
-	} else 
-		debug_printf("acked %zu bytes on no stream\n", datalen);	
+	} else
+		debug_printf("acked %zu bytes on no stream\n", datalen);
     return 0;
 }
 
@@ -221,7 +221,7 @@ static int acked_stream_data_cb(nghttp3_conn *conn __attribute__((unused)),
 * for a particular stream. Application has to tell QUIC stack
 * to send this frame.
 */
-static int stop_sending_cb(nghttp3_conn *conn __attribute__((unused)), 
+static int stop_sending_cb(nghttp3_conn *conn __attribute__((unused)),
 				 int64_t stream_id, uint64_t app_error_code,
 			     void *conn_user_data, void *stream_user_data __attribute__((unused)))
 {
@@ -239,7 +239,7 @@ static int stop_sending_cb(nghttp3_conn *conn __attribute__((unused)),
 */
 static int reset_stream_cb(nghttp3_conn *conn __attribute__((unused)),
 			     int64_t stream_id, uint64_t app_error_code,
-			     void *conn_user_data, 
+			     void *conn_user_data,
 				 void *stream_user_data __attribute__((unused)))
 {
 	if (_reset_stream((ngtcp2_conn *)conn_user_data, stream_id, app_error_code) < 0){
@@ -271,7 +271,7 @@ static const nghttp3_callbacks callbacks = {
 	.stream_close = stream_close_cb
 };
 
-int http3_stream_push(int64_t stream_id, const void* vector, 
+int http3_stream_push(int64_t stream_id, const void* vector,
 							void *userdata)
 {
 	int ret;
@@ -341,12 +341,12 @@ static int http3_write_streams(wget_http_connection *http3)
 /**
  * \param [in] http3 A `wget_http_connection` connection.
  * \param [in] req A `wget_http_request` structure which stores the information necessary to send request.
- * 
- * This function extracts necessary from the `wget_http_request` structure and writes the data over streams using the 
- * underlying QUIC connection after subimitting the request. This function also reads all the streams in the 
+ *
+ * This function extracts necessary from the `wget_http_request` structure and writes the data over streams using the
+ * underlying QUIC connection after subimitting the request. This function also reads all the streams in the
  * QUIC stack to receive the data.
  * Returns error values or WGET_E_SUCCESS.
- * 
+ *
  * \return int
 */
 int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
@@ -364,7 +364,7 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 
 	resource[0] = '/';
 	memcpy(resource + 1, req->esc_resource.data, req->esc_resource.length + 1);
-	
+
 
 	init_nv(&nv_headers[0],":method", req->method);
 	init_nv(&nv_headers[1],":scheme", "https");
@@ -423,7 +423,7 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 
 		/* ret = wget_quic_write(http3->quic, wget_quic_stream_find(http3->quic, stream_id)); */
 		/* if (ret < 0) */
-		/* 	goto bail; */
+		/* goto bail; */
 
 	} while (finish == 0);
 
@@ -443,7 +443,7 @@ bail:
 	error_printf(_("ERROR: Sender callback failed: %d\n"), ret);
 	return WGET_E_UNKNOWN;
 }
-#else 
+#else
 int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 {
 	return 0;
@@ -453,11 +453,11 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 #ifdef WITH_LIBNGHTTP3
 /**
  * \param [in] h3 A initialised `wget_http_connection` double pointer.
- * 
- * This function deletes the the nghttp3_conn and destroys the underlying 
+ *
+ * This function deletes the nghttp3_conn and destroys the underlying
  * `wget_quic` structure as well as the `wget_http_connection`
  * structure.
- * 
+ *
 */
 void wget_http3_close(wget_http_connection **h3)
 {
@@ -482,11 +482,11 @@ void wget_http3_close(wget_http_connection **h3)
 /**
  * \param [in] h3 A `wget_http_connection` double pointer.
  * \param [in] iri Internal representation of URI/IRI
- * 
+ *
  * This function initialises the `wget_http_connection` structure, creates
- * a HTTP3 client, creates a QUIC connection over socket and creates all the 
+ * a HTTP3 client, creates a QUIC connection over socket and creates all the
  * streams necessary over QUIC to support working of HTTP3 as per NGHTTP3 library.
- * 
+ *
  * \return int
 */
 int wget_http3_open(wget_http_connection **h3, const wget_iri *iri)
@@ -579,12 +579,12 @@ int wget_http3_open(wget_http_connection **h3, const wget_iri *iri)
 
 #ifdef WITH_LIBNGHTTP3
 /**
- * \param [in] http3 A 	`wget_http_connection` structure representing HTTP3 connection
- * 
+ * \param [in] http3 A `wget_http_connection` structure representing HTTP3 connection
+ *
  * Data incoming from server is stored in the `client_stream` using `wget_byte` struct.
- * This function iteratively dequeue's all the bytes with type data and 
+ * This function iteratively dequeue's all the bytes with type data and
  * returns it using a `wegt_http_response` structure.
- * 
+ *
  * \return wget_http_response *
 */
 wget_http_response *wget_http3_get_response(wget_http_connection *http3)
@@ -628,7 +628,7 @@ end:
 		xfree(resp);
 		return NULL;
 	}
-	
+
 	buff->data = data;
 	buff->length = offset;
 	buff->size = offset;

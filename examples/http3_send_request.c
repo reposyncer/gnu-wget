@@ -1,5 +1,5 @@
 /**
- * Demonstrate sending of a HTTP3 request and printing its 
+ * Demonstrate sending of a HTTP3 request and printing its
  * response.
 */
 

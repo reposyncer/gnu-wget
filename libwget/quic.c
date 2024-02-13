@@ -62,8 +62,8 @@ wget_byte *quic_stream_peek_data(wget_quic_stream *stream);
 void log_printf(void *user_data, const char *fmt, ...);
 wget_quic_stream *stream_new(int64_t id);
 static int handshake_completed(wget_quic *quic);
-static int quic_write_data(wget_quic* quic, int64_t stream_id, const uint8_t *data, 
-				 				size_t datalen, uint8_t type);
+static int quic_write_data(wget_quic* quic, int64_t stream_id, const uint8_t *data,
+			   size_t datalen, uint8_t type);
 int quic_handshake(wget_quic *quic);
 
 static inline void print_error_host(const char *msg, const char *host)
@@ -86,7 +86,7 @@ void log_printf(void *user_data, const char *fmt, ...)
 #ifdef WITH_LIBNGTCP2
 /**
  * Initialises the `wget_quic` structure.
- * 
+ *
  * \return wget_quic*
 */
 wget_quic *wget_quic_init(void)
@@ -110,7 +110,7 @@ wget_quic *wget_quic_init(void)
 #ifdef WITH_LIBNGTCP2
 /**
  * \param [in] quic A intialised `wget_quic` structure
- * 
+ *
  * This functions deinitialises the `wget_quic` structure
  * and also deinitialise all the streams intialised to use
  * the QUIC stack.
@@ -145,27 +145,27 @@ void wget_quic_deinit (wget_quic **_quic)
 #endif
 
 #ifdef WITH_LIBNGTCP2
-void 
+void
 wget_quic_set_connect_timeout(wget_quic *quic, int timeout)
 {
 	(quic ? quic : &global_quic)->connect_timeout = timeout;
 }
 #else
-void 
+void
 wget_quic_set_connect_timeout(wget_quic *quic, int timeout)
 {
 	return;
 }
 #endif
 
-#if defined(WITH_LIBNGTCP2) && defined(WITH_LIBNGHTTP3)
-void 
+#if defined WITH_LIBNGTCP2 && defined WITH_LIBNGHTTP3
+void
 wget_quic_set_http3_conn(wget_quic *quic, void *http3_conn)
 {
 	(quic ? quic : &global_quic)->http3_conn = http3_conn;
 }
 #else
-void 
+void
 wget_quic_set_http3_conn(wget_quic *quic, void *http3_conn)
 {
 	return;
@@ -219,7 +219,7 @@ wget_quic_set_ssl_hostname(wget_quic *quic, const char *hostname)
 	quic->ssl_hostname = wget_strdup(hostname);
 }
 #else
-void 
+void
 wget_quic_set_ssl_hostname(wget_quic *quic, const char *hostname)
 {
 	return;
@@ -238,8 +238,8 @@ timestamp (void)
   return (uint64_t)tp.tv_sec * NGTCP2_SECONDS + (uint64_t)tp.tv_nsec;
 }
 
-static int quic_write_data(wget_quic* quic, int64_t stream_id, const uint8_t *data, 
-				 				size_t datalen, uint8_t type)
+static int quic_write_data(wget_quic* quic, int64_t stream_id, const uint8_t *data,
+			   size_t datalen, uint8_t type)
 {
 	if (!quic){
 		return -1;
@@ -348,7 +348,7 @@ acked_stream_data_offset_cb (ngtcp2_conn *conn __attribute__((unused)),
 	if (stream) {
 		quic_stream_mark_acked (stream, offset + datalen);
 		debug_printf("acked %zu bytes on stream #%zd\n", datalen, stream_id);
-	} else 
+	} else
 		debug_printf("acked %zu bytes on no stream\n", datalen);
 
 	return 0;
@@ -366,11 +366,11 @@ stream_open_cb (ngtcp2_conn *conn __attribute__((unused)),
 }
 
 static int
-stream_close_cb(ngtcp2_conn *conn __attribute__((unused)), 
+stream_close_cb(ngtcp2_conn *conn __attribute__((unused)),
 					uint32_t flags __attribute__((unused)),
-					int64_t stream_id __attribute__((unused)), 
+					int64_t stream_id __attribute__((unused)),
 					uint64_t app_error_code __attribute__((unused)),
-					void *user_data __attribute__((unused)), 
+					void *user_data __attribute__((unused)),
 					void *stream_user_data __attribute__((unused)))
 {
 #ifdef WITH_LIBNGHTTP3
@@ -382,8 +382,8 @@ stream_close_cb(ngtcp2_conn *conn __attribute__((unused)),
 	return 0;
 }
 
-static const 
-ngtcp2_callbacks callbacks = 
+static const
+ngtcp2_callbacks callbacks =
 {
     /* default implementation from ngtcp2_crypto */
     .client_initial = ngtcp2_crypto_client_initial_cb,
@@ -423,13 +423,13 @@ get_random_cid (ngtcp2_cid *cid)
 #ifdef WITH_LIBNGTCP2
 /**
  * \param [out] quic A initialised `wget_quic` structure representing QUIC connection.
- * 
- * This function sends acknowledgement to server by setting the stream_id as -1 and 
+ *
+ * This function sends acknowledgement to server by setting the stream_id as -1 and
  * length of the data as 0 and data as NULL.
- * 
+ *
  * \return int
 */
-int 
+int
 wget_quic_ack(wget_quic *quic)
 {
 	if (!handshake_completed(quic))
@@ -477,14 +477,14 @@ wget_quic_ack(wget_quic *quic)
 	return WGET_E_SUCCESS;
 }
 #else
-int 
+int
 wget_quic_ack(wget_quic *quic)
 {
 	return WGET_E_UNSUPPORTED;
 }
 #endif
 
-static int 
+static int
 handshake_write(wget_quic *quic)
 {
 	int ret;
@@ -529,7 +529,7 @@ handshake_write(wget_quic *quic)
 	return WGET_E_SUCCESS;
 }
 
-static int 
+static int
 handshake_read(wget_quic *quic)
 {
 	uint8_t buf[BUF_SIZE];
@@ -568,7 +568,7 @@ handshake_read(wget_quic *quic)
 	return WGET_E_SUCCESS;
 }
 
-int 
+int
 make_handshake(wget_quic* quic){
 	int ret,
 	timer_fd = quic->timerfd;
@@ -615,17 +615,17 @@ make_handshake(wget_quic* quic){
  * \param[in] quic A `wget_quic` structure representing a QUIC.
  * \param[in] host Hostname or IP to connect to.
  * \param[in] port Port Number.
- * 
+ *
  * This function is called after `wget_quic_init` is called.
- * This function resolves the hostname and creates a socket to 
- * establish a QUIC connection over it after setting a GnuTLS 
+ * This function resolves the hostname and creates a socket to
+ * establish a QUIC connection over it after setting a GnuTLS
  * SSL for QUIC stack.
- * 
+ *
  * \return int
 */
 
 #ifdef WITH_LIBNGTCP2
-int 
+int
 wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 {
 	struct addrinfo *ai_rp;
@@ -647,7 +647,7 @@ wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 	for (ai_rp = quic->addrinfo ; ai_rp != NULL ; ai_rp = ai_rp->ai_next) {
 		if (ai_rp->ai_socktype != SOCK_DGRAM)
 			continue;
-		if ((sockfd = socket(ai_rp->ai_family, ai_rp->ai_socktype | SOCK_NONBLOCK, 
+		if ((sockfd = socket(ai_rp->ai_family, ai_rp->ai_socktype | SOCK_NONBLOCK,
 				ai_rp->ai_protocol)) != -1) {
 			rc = connect(sockfd, ai_rp->ai_addr, ai_rp->ai_addrlen);
 			if (rc < 0 && errno != EAGAIN && errno != EINPROGRESS) {
@@ -666,7 +666,7 @@ wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 				quic->local.size = sizeof(quic->local.addr);
 				len = (socklen_t) quic->local.size;
 				getsockname(sockfd, &quic->local.addr, &len);
-				quic->local.size = len;	
+				quic->local.size = len;
 
 				memcpy(&quic->remote.addr, ai_rp->ai_addr, sizeof(struct sockaddr));
 				quic->remote.size = ai_rp->ai_addrlen;
@@ -685,7 +685,7 @@ wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 	return ret;
 }
 #else
-int 
+int
 wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 {
 	return WGET_E_UNSUPPORTED;
@@ -730,25 +730,25 @@ int wget_quic_close(wget_quic *quic)
 
 /**
  * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
- * 
+ *
  * This function is called internally by `wget_quic_connect`.
- * This function used the \p quic structure to get all the necessary information to create 
+ * This function used the \p quic structure to get all the necessary information to create
  * a new ngtcp2 client and set the `ngtcp2_conn`.
- * It also calls the `make_handshake` function to perform handshake with the server and create 
+ * It also calls the `make_handshake` function to perform handshake with the server and create
  * a connection using QUIC protocol.
- * 
+ *
  * Returns WGET_E_SUCCESS if runs successfully or returns error codes.
- * 
+ *
  * \return int
 */
-int 
+int
 quic_handshake(wget_quic *quic)
 {
 	int ret = WGET_E_INVALID;
 	if (unlikely(!quic))
 		return WGET_E_INVALID;
 
-	int sockfd = quic->sockfd;			
+	int sockfd = quic->sockfd;
 
 	ngtcp2_path path =
 	{
@@ -791,8 +791,8 @@ quic_handshake(wget_quic *quic)
 		ret = WGET_E_CONNECT;
 		close(sockfd);
 	}
-	
-	quic->conn = conn;	
+
+	quic->conn = conn;
 	ngtcp2_conn_set_tls_native_handle (quic->conn, quic->ssl_session);
 	gnutls_session_set_ptr(quic->ssl_session, (void *)conn);
 	int timerfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
@@ -802,7 +802,7 @@ quic_handshake(wget_quic *quic)
 		close(sockfd);
 	}
 
-	quic->timerfd = timerfd;	
+	quic->timerfd = timerfd;
 	if ((ret = make_handshake(quic)) < 0) {
 		return ret;
 	}
@@ -814,7 +814,7 @@ quic_handshake(wget_quic *quic)
 
 /* Stream Struct Getter and Setter functions present [As Required] */
 
-void 
+void
 quic_stream_mark_sent(wget_quic_stream *stream, ngtcp2_ssize offset)
 {
 	stream->sent_offset += offset;
@@ -834,8 +834,8 @@ void
 quic_stream_mark_acked (wget_quic_stream *stream, size_t offset)
 {
 	wget_queue_node *node;
-  	while (stream && stream->ack_offset < offset) {
-		wget_byte *head  = (wget_byte *)wget_queue_peek_transmitted_node(stream->buffer);
+	while (stream && stream->ack_offset < offset) {
+		wget_byte *head = (wget_byte *) wget_queue_peek_transmitted_node(stream->buffer);
 
 		if (stream->ack_offset + wget_byte_get_size (head) > offset)
 			break;
@@ -844,7 +844,7 @@ quic_stream_mark_acked (wget_quic_stream *stream, size_t offset)
 
 		wget_queue_free_node(wget_queue_dequeue_transmitted_node(stream->buffer),
 				     (void (*)(void *)) wget_byte_free);
-    }
+	}
 }
 
 ssize_t send_packet(int fd, const uint8_t *data, size_t data_size,
@@ -914,18 +914,18 @@ ssize_t recv_packet(int fd, uint8_t *data, size_t data_size,
  * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
  * \param [in] stream A `wget_quic_stream` structure which represents stream from where
  * the data is to be writen on the QUIC stack.
- * 
+ *
  * This function is internally called by `wget_quic_write`.
  * This function peaks untransmitted data from the stream and till the untransmitted data
  * is present, it writes it over the QUIC stack.
- * 
+ *
  * It calls send_packet function to actually send the data over socket.
- * 
+ *
  * Returns the size of the data written.
- * 
+ *
  * \return int
 */
-static int 
+static int
 write_stream(wget_quic *quic, wget_quic_stream *stream, uint8_t *buf, size_t buflen, uint32_t flags)
 {
 	ngtcp2_path_storage ps;
@@ -1002,9 +1002,9 @@ static ngtcp2_ssize _quic_write(wget_quic *quic, uint8_t *buf, size_t buflen, in
 	As of now the function signature kept is such that,
 	the user has to initially push the data into a stream.
 	using functions related to stream and then call this
-	function to write the data in the stream using the 
+	function to write the data in the stream using the
 	active QUIC connection.
-	As the logic of which stream to be selected from the 
+	As the logic of which stream to be selected from the
 	available MAX_STREAMS is discussed, this function will
 	be updated.
 */
@@ -1014,12 +1014,12 @@ static ngtcp2_ssize _quic_write(wget_quic *quic, uint8_t *buf, size_t buflen, in
  * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
  * \param [in] stream A `wget_quic_stream` structure which represents stream from where
  * the data is to be writen on the QUIC stack.
- * 
+ *
  * This function writes the data enqueued in the stream over QUIC connection.
  * The user has to push the data in the stream before calling this function.
- * 
+ *
  * Returns the size of the data written.
- * 
+ *
  * \return int
 */
 ssize_t
@@ -1035,7 +1035,7 @@ wget_quic_write(wget_quic *quic, wget_quic_stream *stream)
 	if (!handshake_completed(quic)) {
 		return WGET_E_HANDSHAKE;
 	}
-	
+
 	ret = wget_ready_2_transfer(quic->sockfd, quic->timerfd, WGET_IO_WRITABLE);
 	if (ret < 0) {
 		return WGET_E_TIMEOUT;
@@ -1134,13 +1134,13 @@ ssize_t wget_quic_write_multiple(wget_quic *quic,
 
 /**
  * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
- * 
+ *
  * This function is internally called by `wget_quic_read` and it actully calls `ngtcp2_conn_read_pkt`.
  * It calls rev_packet function which calls the system call recvmsg. This function call reads the data
  * from the socket.
- * 
+ *
  * Returns WGET_E_SUCCESS if runs successfully or returns error codes.
- * 
+ *
  * \return int
 */
 static int
@@ -1186,15 +1186,15 @@ read_stream(wget_quic *quic)
 #ifdef WITH_LIBNGTCP2
 /**
  * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
- * 
- * Reads the data incoming from the socket and functions configured in `ngtcp2_callbacks` 
- * are called for receiving and acknowledging the data. 
- * 
+ *
+ * Reads the data incoming from the socket and functions configured in `ngtcp2_callbacks`
+ * are called for receiving and acknowledging the data.
+ *
  * Returns WGET_E_SUCCESS if runs successfully or returns error codes.
- * 
+ *
  * \return int
 */
-int 
+int
 wget_quic_read(wget_quic *quic)
 {
 	if (!handshake_completed(quic)) {
@@ -1239,7 +1239,7 @@ wget_quic_read(wget_quic *quic)
 	return ret;
 }
 #else
-int 
+int
 wget_quic_read(wget_quic *quic)
 {
 	return WGET_E_UNSUPPORTED;
@@ -1251,12 +1251,12 @@ wget_quic_read(wget_quic *quic)
  * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
  * \param [in] stream A `wget_quic_stream` structure which represents stream from where
  * the data is to be writen on the QUIC stack.
- * 
- * This function completes a cycle of writing of data present in the stream, reading it from the 
- * QUIC stack and making acknowledging the server. 
- * 
+ *
+ * This function completes a cycle of writing of data present in the stream, reading it from the
+ * QUIC stack and making acknowledging the server.
+ *
  * Returns WGET_E_SUCCESS if runs successfully or returns error codes.
- * 
+ *
  * \return int
 */
 int
@@ -1278,7 +1278,7 @@ wget_quic_rw_once(wget_quic *quic, wget_quic_stream *stream)
 	}
 
 	ret = wget_quic_ack(quic);
-		
+
 	return ret;
 }
 #else
