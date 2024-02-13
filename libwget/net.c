@@ -1068,5 +1068,5 @@ void wget_tcp_close(wget_tcp *tcp)
 		xfree(tcp->host);
 	}
 }
-
 /** @} */
+
