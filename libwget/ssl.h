@@ -38,7 +38,4 @@ struct config {
 
 extern struct config config;
 
-int wget_ssl_load_credentials(gnutls_certificate_credentials_t credentials);
-unsigned int wget_ssl_set_alpn(gnutls_session_t session, const char *alpn);
-
 #endif /* LIBWGET_SSL_H */
