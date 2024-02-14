@@ -1566,7 +1566,7 @@ static int try_connection(DOWNLOADER *downloader, const wget_iri *iri)
 {
 	wget_http_connection *conn;
 	int rc;
-	int (*http_open)(wget_http_connection *, const wget_iri *);
+	int (*http_open)(wget_http_connection **, const wget_iri *);
 
 	if ((conn = downloader->conn)) {
 		if (!wget_strcmp(wget_http_get_host(conn), iri->host) &&
