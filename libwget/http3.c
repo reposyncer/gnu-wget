@@ -189,7 +189,7 @@ static int recv_data_cb(nghttp3_conn *conn __attribute__((unused)),
                         void *conn_user_data,
                         void *stream_user_data __attribute__((unused)))
 {
-    debug_printf("Recieving data | %s | from stream : %ld\n", data, stream_id);
+    debug_printf("Receiving data | %s | from stream : %ld\n", data, stream_id);
 	wget_http_connection *http3 = (wget_http_connection *)conn_user_data;
 	int ret = _http3_write_data(http3->quic, stream_id, data, datalen, RESPONSE_DATA_BYTE);
 	if (ret < 0){
