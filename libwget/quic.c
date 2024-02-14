@@ -109,10 +109,10 @@ wget_quic *wget_quic_init(void)
 
 #ifdef WITH_LIBNGTCP2
 /**
- * \param [in] quic A intialised `wget_quic` structure
+ * \param [in] quic A initialised `wget_quic` structure
  *
  * This functions deinitialises the `wget_quic` structure
- * and also deinitialise all the streams intialised to use
+ * and also deinitialise all the streams initialised to use
  * the QUIC stack.
 */
 void wget_quic_deinit (wget_quic **_quic)
@@ -913,7 +913,7 @@ ssize_t recv_packet(int fd, uint8_t *data, size_t data_size,
 /**
  * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
  * \param [in] stream A `wget_quic_stream` structure which represents stream from where
- * the data is to be writen on the QUIC stack.
+ * the data is to be written on the QUIC stack.
  *
  * This function is internally called by `wget_quic_write`.
  * This function peaks untransmitted data from the stream and till the untransmitted data
@@ -1013,7 +1013,7 @@ static ngtcp2_ssize _quic_write(wget_quic *quic, uint8_t *buf, size_t buflen, in
 /**
  * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
  * \param [in] stream A `wget_quic_stream` structure which represents stream from where
- * the data is to be writen on the QUIC stack.
+ * the data is to be written on the QUIC stack.
  *
  * This function writes the data enqueued in the stream over QUIC connection.
  * The user has to push the data in the stream before calling this function.
@@ -1135,7 +1135,7 @@ ssize_t wget_quic_write_multiple(wget_quic *quic,
 /**
  * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
  *
- * This function is internally called by `wget_quic_read` and it actully calls `ngtcp2_conn_read_pkt`.
+ * This function is internally called by `wget_quic_read` and it actually calls `ngtcp2_conn_read_pkt`.
  * It calls rev_packet function which calls the system call recvmsg. This function call reads the data
  * from the socket.
  *
@@ -1250,7 +1250,7 @@ wget_quic_read(wget_quic *quic)
 /**
  * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
  * \param [in] stream A `wget_quic_stream` structure which represents stream from where
- * the data is to be writen on the QUIC stack.
+ * the data is to be written on the QUIC stack.
  *
  * This function completes a cycle of writing of data present in the stream, reading it from the
  * QUIC stack and making acknowledging the server.

@@ -44,8 +44,6 @@ static gnutls_certificate_credentials_t
 static gnutls_priority_t
 	priority_cache;
 
-extern struct config config;
-
 #define MAX_TP_SIZE 128
 
 static int tp_recv_func(gnutls_session_t session, const uint8_t *data, size_t data_size)
