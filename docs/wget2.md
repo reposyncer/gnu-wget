@@ -1621,6 +1621,10 @@ Go to background immediately after startup. If no output file is specified via t
   Resist on using HTTP/2 and error if a server doesn't accept it.
   This is mainly for testing.
 
+### `--http3-only`
+
+  Use HTTP/3+QUIC, and error if the server doesn't accept.
+
 ### `--https-enforce=mode`
 
   Sets how to deal with URLs that are not explicitly HTTPS (where scheme isn't https://) (default: none)
