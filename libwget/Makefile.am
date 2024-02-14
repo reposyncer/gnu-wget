@@ -36,10 +36,10 @@ libwget_libadd = ../lib/libgnu.la $(CODE_COVERAGE_LIBS) \
 lib_LTLIBRARIES = libwget.la
 
 libwget_la_SOURCES = \
- atom_url.c bar.c bitmap.c buffer.c buffer_printf.c base64.c bytes.c console.c cookie.c cookie.h cookie_parse.c css.c css_tokenizer.h css_url.c \
+ atom_url.c bar.c bitmap.c buffer.c buffer_printf.c base64.c console.c cookie.c cookie.h cookie_parse.c css.c css_tokenizer.h css_url.c \
  decompressor.c dns_cache.c encoding.c hash_printf.c hashfile.c hashmap.c io.c hsts.c hpkp.c hpkp.h hpkp_db.c html_url.c http.c http.h \
  http_parse.c init.c ip.c iri.c list.c log.c logger.c logger.h mem.c metalink.c net.c net.h netrc.c ocsp.c pipe.c \
- plugin.c printf.c queue.c random.c robots.c rss_url.c sitemap_url.c stringmap.c strlcpy.c \
+ plugin.c printf.c random.c robots.c rss_url.c sitemap_url.c stringmap.c strlcpy.c \
  strscpy.c thread.c tls_session.c utils.c vector.c xalloc.c xml.c private.h http_highlevel.c error.c dns.c
 
 if WITH_LIBNGHTTP2
@@ -61,7 +61,7 @@ endif
 endif
 
 if WITH_LIBNGTCP2
-  libwget_la_SOURCES += quic.c streams.c ssl_quic_gnutls.c
+  libwget_la_SOURCES += quic.c streams.c ssl_quic_gnutls.c queue.c bytes.c
 endif
 
 if WITH_LIBNGHTTP3
