@@ -5,6 +5,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <dirent.h>
 
 #include <gnutls/gnutls.h>
 #include <gnutls/x509.h>
@@ -144,6 +145,156 @@ static int alert_read_func(gnutls_session_t session __attribute__((unused)),
 	return 0;
 }
 
+static int key_type(int type)
+{
+	if (type == WGET_SSL_X509_FMT_DER)
+		return GNUTLS_X509_FMT_DER;
+
+	return GNUTLS_X509_FMT_PEM;
+}
+
+static void set_credentials(gnutls_certificate_credentials_t creds)
+{
+	if (config.cert_file && !config.key_file) {
+		// Use the private key from the cert file unless otherwise specified.
+		config.key_file = config.cert_file;
+		config.key_type = config.cert_type;
+	}
+	else if (!config.cert_file && config.key_file) {
+		// Use the cert from the private key file unless otherwise specified.
+		config.cert_file = config.key_file;
+		config.cert_type = config.key_type;
+	}
+
+	if (config.cert_file && config.key_file) {
+		if (config.key_type != config.cert_type) {
+			// GnuTLS can't handle this
+			error_printf(_("GnuTLS requires the key and the cert to be of the same type.\n"));
+		}
+
+		if (gnutls_certificate_set_x509_key_file(creds, config.cert_file, config.key_file, key_type(config.key_type)) != GNUTLS_E_SUCCESS)
+			error_printf(_("No certificates or keys were found\n"));
+	}
+
+	if (config.ca_file && !wget_strcmp(config.ca_file, "system"))
+		config.ca_file = wget_ssl_default_ca_bundle_path();
+	if (config.ca_file) {
+		if (gnutls_certificate_set_x509_trust_file(creds, config.ca_file, key_type(config.ca_type)) <= 0)
+			error_printf(_("No CAs were found in '%s'\n"), config.ca_file);
+	}
+}
+
+static int wget_quic_load_credentials(gnutls_certificate_credentials_t creds)
+{
+	int rc, ncerts = 0;
+
+	if (config.ca_directory && *config.ca_directory && config.check_certificate) {
+#if GNUTLS_VERSION_NUMBER >= 0x03000d
+		if (!strcmp(config.ca_directory, "system")) {
+			//Looks for places on the system where the certificates are stored.
+			//Different for different systems.
+			//Gets the file from paths already specified in the lib.
+			//Depending on the option specified on the user.
+			ncerts = gnutls_certificate_set_x509_system_trust(creds);
+			if (ncerts < 0)
+				debug_printf("GnuTLS system certificate store error %d\n", ncerts);
+			else
+				debug_printf("GnuTLS system certificate store is empty\n");
+		}
+#endif
+		/*
+			While initialising the application, we can also give a certificate
+			and so this code should be same for both quic as well as tcp.
+			Also if the certificate used for quic is present in the system files
+			then it is great. To verify this.
+		*/
+		if (ncerts < 0) {
+			DIR *dir;
+
+			ncerts = 0;
+
+			if (!strcmp(config.ca_directory, "system"))
+				config.ca_directory = wget_ssl_default_cert_dir();
+
+			if ((dir = opendir(config.ca_directory))) {
+				struct dirent *dp;
+
+				while ((dp = readdir(dir))) {
+					size_t len = strlen(dp->d_name);
+
+					if (len >= 4 && !wget_strncasecmp_ascii(dp->d_name + len - 4, ".pem", 4)) {
+						char *fname = wget_aprintf("%s/%s", config.ca_directory, dp->d_name);
+
+						if (!fname) {
+							error_printf(_("Failed to allocate file name for cert '%s/%s'\n"), config.ca_directory, dp->d_name);
+							continue;
+						}
+
+						struct stat st;
+						if (stat(fname, &st) == 0 && S_ISREG(st.st_mode)) {
+							debug_printf("GnuTLS loading %s\n", fname);
+							if ((rc = gnutls_certificate_set_x509_trust_file(creds, fname, GNUTLS_X509_FMT_PEM)) <= 0)
+								debug_printf("Failed to load cert '%s': (%d)\n", fname, rc);
+							else
+								ncerts += rc;
+						}
+
+						xfree(fname);
+					}
+				}
+
+				closedir(dir);
+			} else {
+				error_printf(_("Failed to opendir %s\n"), config.ca_directory);
+			}
+		}
+	}
+
+	if (config.crl_file) {
+		if ((rc = gnutls_certificate_set_x509_crl_file(creds, config.crl_file, GNUTLS_X509_FMT_PEM)) <= 0)
+			error_printf(_("Failed to load CRL '%s': (%d)\n"), config.crl_file, rc);
+	}
+
+	set_credentials(creds);
+
+	return ncerts;
+}
+
+static unsigned int wget_quic_set_alpn(gnutls_session_t session, const char *alpn)
+{
+	int rc;
+	unsigned nprot = 0;
+	const char *e, *s;
+
+	// Choose a default value if the caller doesn't force anything
+	if (!alpn)
+		alpn = config.alpn;
+
+	if (!alpn)
+		return 0;
+
+	for (nprot = 0, s = e = alpn; *e; s = e + 1)
+		if ((e = strchrnul(s, ',')) != s)
+			nprot++;
+
+	if (nprot) {
+		gnutls_datum_t data[16];
+
+		for (nprot = 0, s = e = alpn; *e && nprot < countof(data); s = e + 1) {
+			if ((e = strchrnul(s, ',')) != s) {
+				data[nprot].data = (unsigned char *) s;
+				data[nprot].size = (unsigned) (e - s);
+				debug_printf("ALPN offering %.*s\n", (int) data[nprot].size, data[nprot].data);
+				nprot++;
+			}
+		}
+
+		if ((rc = gnutls_alpn_set_protocols(session, data, nprot, 0)))
+			debug_printf("GnuTLS: Set ALPN: %s\n", gnutls_strerror(rc));
+	}
+
+	return nprot;
+}
 
 
 /*
@@ -188,7 +339,7 @@ int wget_ssl_open_quic(wget_quic *quic)
 
 	gnutls_certificate_allocate_credentials(&credentials);
 
-	ncerts = wget_ssl_load_credentials(credentials);
+	ncerts = wget_quic_load_credentials(credentials);
 
 	gnutls_credentials_set(session, GNUTLS_CRD_CERTIFICATE, credentials);
 	debug_printf("Certificates loaded: %d\n", ncerts);
@@ -217,7 +368,7 @@ int wget_ssl_open_quic(wget_quic *quic)
 		Not sure whether to confirm it or not.
 	*/
 
-	wget_ssl_set_alpn(session, NULL);
+	wget_quic_set_alpn(session, NULL);
 	quic->ssl_session = (void *)session;
 
 #ifdef _WIN32

@@ -1280,7 +1280,7 @@ static void set_credentials(gnutls_certificate_credentials_t creds)
 	}
 }
 
-int wget_ssl_load_credentials(gnutls_certificate_credentials_t creds)
+static int wget_ssl_load_credentials(gnutls_certificate_credentials_t creds)
 {
 	int rc, ncerts = 0;
 
@@ -1356,7 +1356,7 @@ int wget_ssl_load_credentials(gnutls_certificate_credentials_t creds)
 	return ncerts;
 }
 
-unsigned int wget_ssl_set_alpn(gnutls_session_t session, const char *alpn)
+static unsigned int wget_ssl_set_alpn(gnutls_session_t session, const char *alpn)
 {
 	int rc;
 	unsigned nprot = 0;

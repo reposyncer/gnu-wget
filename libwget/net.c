@@ -39,7 +39,6 @@
 #include <time.h>
 #include <errno.h>
 #include <sys/socket.h>
-#include <sys/timerfd.h>
 #include <netdb.h>
 #include <netinet/in.h>
 
@@ -421,7 +420,6 @@ int wget_tcp_get_timeout(wget_tcp *tcp)
  *
  * This is mainly relevant to wget_tcp_connect().
  *
- * Can be generelised for TCP and QUIC. Pending.
  */
 void wget_tcp_set_bind_address(wget_tcp *tcp, const char *bind_address)
 {
@@ -770,7 +768,6 @@ int wget_tcp_connect(wget_tcp *tcp, const char *host, uint16_t port)
 			debug_addr("trying", ai->ai_addr, ai->ai_addrlen);
 
 		int sockfd;
-
 		if ((sockfd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol)) != -1) {
 			_set_async(sockfd);
 			set_socket_options(tcp, sockfd);
