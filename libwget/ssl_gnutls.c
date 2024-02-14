@@ -1280,7 +1280,7 @@ static void set_credentials(gnutls_certificate_credentials_t creds)
 	}
 }
 
-int wget_ssl_load_credentials(gnutls_certificate_credentials_t credentials)
+int wget_ssl_load_credentials(gnutls_certificate_credentials_t creds)
 {
 	int rc, ncerts = 0;
 
@@ -1291,7 +1291,7 @@ int wget_ssl_load_credentials(gnutls_certificate_credentials_t credentials)
 			//Different for different systems.
 			//Gets the file from paths already specified in the lib.
 			//Depending on the option specified on the user.
-			ncerts = gnutls_certificate_set_x509_system_trust(credentials);
+			ncerts = gnutls_certificate_set_x509_system_trust(creds);
 			if (ncerts < 0)
 				debug_printf("GnuTLS system certificate store error %d\n", ncerts);
 			else
@@ -1329,7 +1329,7 @@ int wget_ssl_load_credentials(gnutls_certificate_credentials_t credentials)
 						struct stat st;
 						if (stat(fname, &st) == 0 && S_ISREG(st.st_mode)) {
 							debug_printf("GnuTLS loading %s\n", fname);
-							if ((rc = gnutls_certificate_set_x509_trust_file(credentials, fname, GNUTLS_X509_FMT_PEM)) <= 0)
+							if ((rc = gnutls_certificate_set_x509_trust_file(creds, fname, GNUTLS_X509_FMT_PEM)) <= 0)
 								debug_printf("Failed to load cert '%s': (%d)\n", fname, rc);
 							else
 								ncerts += rc;
@@ -1346,18 +1346,12 @@ int wget_ssl_load_credentials(gnutls_certificate_credentials_t credentials)
 		}
 	}
 
-	/*
-		Basically to list all the certificates that have been issued.
-		This isnt seen in any of the repo in usage.
-		But this will also be common with for quic as well as tcp.
-	*/
-
 	if (config.crl_file) {
-		if ((rc = gnutls_certificate_set_x509_crl_file(credentials, config.crl_file, GNUTLS_X509_FMT_PEM)) <= 0)
+		if ((rc = gnutls_certificate_set_x509_crl_file(creds, config.crl_file, GNUTLS_X509_FMT_PEM)) <= 0)
 			error_printf(_("Failed to load CRL '%s': (%d)\n"), config.crl_file, rc);
 	}
 
-	set_credentials(credentials);
+	set_credentials(creds);
 
 	return ncerts;
 }
@@ -1418,7 +1412,7 @@ unsigned int wget_ssl_set_alpn(gnutls_session_t session, const char *alpn)
  * This function may be called several times. Only the first call really
  * takes action.
  */
-void wget_ssl_init()
+void wget_ssl_init(void)
 {
 	tls_init();
 

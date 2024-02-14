@@ -31,8 +31,8 @@ bool wget_quic_stream_is_fin_set(wget_quic_stream *stream)
  * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
  * \param [in] id Integer specifying the id of the stream to be created
  *
- * This functions intialises the `wget_quic_stream` structure.
- * It also intialises underlying  `wget_queue` and sets the stream in the
+ * This functions initialises the `wget_quic_stream` structure.
+ * It also initialises underlying  `wget_queue` and sets the stream in the
  * array of streams present in the `wget_quic` structure.
  *
  * \return wget_quic_stream *
