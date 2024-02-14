@@ -24,13 +24,13 @@ if WITH_LIBNGHTTP2
 endif
 
 if WITH_GNUTLS
-  libwget_la_SOURCES += ssl_gnutls.c ssl.c
+  libwget_la_SOURCES += ssl_gnutls.c ssl.c ssl.h
 else
 if WITH_OPENSSL
-  libwget_la_SOURCES += ssl_openssl.c ssl.c
+  libwget_la_SOURCES += ssl_openssl.c ssl.c ssl.h
 else
 if WITH_WOLFSSL
-  libwget_la_SOURCES += ssl_wolfssl.c ssl.c
+  libwget_la_SOURCES += ssl_wolfssl.c ssl.c ssl.h
 else
   libwget_la_SOURCES += ssl_none.c
 endif
