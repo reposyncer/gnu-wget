@@ -59,7 +59,6 @@ ssize_t recv_packet(int fd, uint8_t *data, size_t data_size,
 int make_handshake(wget_quic* quic);
 void quic_stream_mark_sent(wget_quic_stream *stream, ngtcp2_ssize offset);
 wget_byte *quic_stream_peek_data(wget_quic_stream *stream);
-void log_printf(void *user_data, const char *fmt, ...);
 wget_quic_stream *stream_new(int64_t id);
 static int handshake_completed(wget_quic *quic);
 static int quic_write_data(wget_quic* quic, int64_t stream_id, const uint8_t *data,
@@ -70,17 +69,6 @@ static inline void print_error_host(const char *msg, const char *host)
 {
 	error_printf(_("%s (hostname='%s', errno=%d)\n"),
 		msg, host, errno);
-}
-
-void log_printf(void *user_data, const char *fmt, ...)
-{
-	va_list ap;
-	(void) user_data;
-
-	va_start(ap, fmt);
-	wget_debug_vprintf(fmt, ap);
-	va_end(ap);
-	debug_printf("\n");
 }
 
 #ifdef WITH_LIBNGTCP2
@@ -766,7 +754,7 @@ quic_handshake(wget_quic *quic)
 	ngtcp2_settings_default (&settings);
 	settings.initial_ts = timestamp ();
 
-	settings.log_printf = log_printf;
+	settings.log_printf = NULL;
 
 	ngtcp2_transport_params params;
 	ngtcp2_transport_params_default (&params);
