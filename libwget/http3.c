@@ -31,7 +31,7 @@
 #include "net.h"
 #include "http.h"
 
-static int _stop_sending(ngtcp2_conn *conn,
+static int _stop_sending(wget_quic *quic,
 			 int64_t stream_id, uint64_t app_error_code);
 static int _reset_stream(ngtcp2_conn *conn,
 			 int64_t stream_id, uint64_t app_error_code);
@@ -69,11 +69,20 @@ http3_stream_mark_acked (wget_quic_stream *stream, size_t datalen)
 }
 
 /* Close read side of a stream abruptly */
-static int _stop_sending(ngtcp2_conn *conn,
+static int _stop_sending(wget_quic *quic,
 			 int64_t stream_id, uint64_t app_error_code)
 {
-	int ret = ngtcp2_conn_shutdown_stream_read(conn, 0,
-						      stream_id, app_error_code);
+	int ret;
+	wget_quic_stream *stream = wget_quic_stream_find(quic, stream_id);
+
+	if (!stream) {
+		debug_printf("STOP_SENDING -> stream ID %ld (NOT FOUND!)\n", stream_id);
+	} else {
+		debug_printf("STOP_SENDING -> stream ID %ld\n", stream_id);
+	}
+
+	ret = ngtcp2_conn_shutdown_stream_read(quic->conn, 0,
+					       stream_id, app_error_code);
 	if (ret < 0) {
 		error_printf(_("ERROR: ngtcp2_conn_shutdown_stream_read: %s\n"),
 			ngtcp2_strerror(ret));
@@ -225,7 +234,8 @@ static int stop_sending_cb(nghttp3_conn *conn __attribute__((unused)),
 				 int64_t stream_id, uint64_t app_error_code,
 			     void *conn_user_data, void *stream_user_data __attribute__((unused)))
 {
-	if (_stop_sending((ngtcp2_conn *)conn_user_data, stream_id, app_error_code) < 0){
+	wget_http_connection *http3 = (wget_http_connection *) conn_user_data;
+	if (_stop_sending(http3->quic, stream_id, app_error_code) < 0){
 		error_printf(_("ERROR: stop_sending_cb\n"));
 		return NGHTTP3_ERR_CALLBACK_FAILURE;
 	}
@@ -394,7 +404,7 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 	ctx->resp->req = req;
 	ctx->resp->major = 3;
 	// we do not get a Keep-Alive header in HTTP2 - let's assume the connection stays open
-	ctx->resp->keep_alive = 1;
+	ctx->resp->keep_alive = 0;
 	http3->http3_ctx = ctx;
 
 	if ((ret = nghttp3_conn_submit_request(http3->conn,
