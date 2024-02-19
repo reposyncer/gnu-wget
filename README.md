@@ -137,6 +137,8 @@ The following packages are needed to build the software
 * flex >= 2.5.35
 * libpsl >= 0.5.0
 * libnghttp2 >= 1.3.0 (optional, if you want HTTP/2 support)
+* libngtcp2 >= 0.17.0 (optional, if you want HTTP/3 support)
+* libnghttp3 >= 0.14.0 (optional, if you want HTTP/3 support)
 * libmicrohttpd >= 0.9.51 (optional, if you want to run the test suite)
 * lzip (optional, if you want to build distribution tarballs)
 * lcov (optional, for coverage reports)
