@@ -427,21 +427,18 @@ WGETAPI int
  *
  * Type for stream-byte
  */
-
 typedef struct wget_byte_st wget_byte;
-
 
 #define	REQUEST_BYTE 0
 #define	RESPONSE_HEADER_BYTE 1
 #define	RESPONSE_DATA_BYTE 2
-
 
 WGETAPI wget_byte *
 	wget_byte_new(const char *data, size_t size, int8_t type);
 WGETAPI size_t
 	wget_byte_get_size(const wget_byte *bytes);
 WGETAPI unsigned char *
-	wget_byte_get_data(const wget_byte* bytes);
+	wget_byte_get_data(const wget_byte *bytes);
 WGETAPI void
 	wget_byte_free(wget_byte *bytes);
 WGETAPI bool
@@ -450,8 +447,6 @@ WGETAPI void
 	wget_byte_set_transmitted (wget_byte *bytes);
 WGETAPI int8_t
 	wget_byte_get_type(wget_byte *bytes);
-WGETAPI size_t
-	wget_byte_get_struct_size(void);
 
 
 /**
@@ -475,7 +470,7 @@ WGETAPI void
 WGETAPI int
 	wget_queue_is_empty(wget_queue *queue);
 WGETAPI void*
-	wget_queue_enqueue(wget_queue *queue, const void *data, size_t size);
+	wget_queue_enqueue(wget_queue *queue, const void *data);
 WGETAPI void*
 	wget_queue_dequeue(wget_queue *queue);
 WGETAPI wget_byte *

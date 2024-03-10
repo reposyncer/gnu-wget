@@ -227,14 +227,14 @@ wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen
 		if ((buf = wget_byte_new(data, datalen, type)) == NULL)
 			return WGET_E_MEMORY;
 
-		if (wget_queue_enqueue(stream->buffer, buf, wget_byte_get_struct_size()) == NULL)
+		if (wget_queue_enqueue(stream->buffer, buf) == NULL)
 			return WGET_E_MEMORY;
 
 	} else {
 		if ((buf = wget_byte_new(data, datalen, type)) == NULL)
 			return WGET_E_MEMORY;
 
-		if (wget_queue_enqueue(stream->buffer, buf, wget_byte_get_struct_size()) == NULL)
+		if (wget_queue_enqueue(stream->buffer, buf) == NULL)
 			return WGET_E_MEMORY;
 
 	}
