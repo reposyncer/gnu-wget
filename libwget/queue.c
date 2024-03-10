@@ -36,47 +36,39 @@ struct wget_queue_st {
 
 wget_queue *wget_queue_init(void)
 {
-	wget_queue *queue = wget_malloc(sizeof(wget_queue));
-	if (queue) {
-		queue->head = NULL;
-		queue->tail = NULL;
-	}
-	return queue;
+	return wget_calloc(1, sizeof(wget_queue));
 }
 
 void wget_queue_deinit(wget_queue *queue)
 {
-	if (queue) {
-		wget_queue_node *fn = queue->head;
-		wget_queue_node *next = queue->head;
-		while (fn) {
-			next = fn->next;
-			xfree(fn);
-			fn = next;
-		}
-		fn = NULL;
-		next = NULL;
-		xfree(queue);
+	if (!queue)
+		return;
+
+	wget_queue_node *head = queue->head;
+	while (head) {
+		wget_queue_node *next = head->next;
+		xfree(head);
+		head = next;
 	}
+
+	xfree(queue);
 }
 
-int
-wget_queue_is_empty(wget_queue *queue)
+bool wget_queue_is_empty(const wget_queue *queue)
 {
-	return(queue->head == NULL);
+	return !queue || !queue->head;
 }
 
-void*
-wget_queue_enqueue(wget_queue *queue, const void *data)
+void *wget_queue_enqueue(wget_queue *queue, const void *data)
 {
+	if (!queue || !data)
+		return NULL;
+
 	struct wget_queue_node *node = wget_malloc(sizeof(struct wget_queue_node));
 	if (!node)
 		return NULL;
-	if (!data) {
-		xfree(node);
-		return NULL;
-	}
-	node->data = (void *)data;
+
+	node->data = (void *) data;
 	node->next = NULL;
 	if (wget_queue_is_empty(queue)) {
 		node->prev = NULL;
@@ -91,17 +83,15 @@ wget_queue_enqueue(wget_queue *queue, const void *data)
 	return node + 1;
 }
 
-void*
-wget_queue_dequeue(wget_queue *queue)
+void *wget_queue_dequeue(wget_queue *queue)
 {
-	if (wget_queue_is_empty(queue)) {
+	if (wget_queue_is_empty(queue))
 		return NULL;
-	}
 
 	struct wget_queue_node *node = queue->head;
 	void *data = node->data;
 	queue->head = queue->head->next;
-	if (queue->head != NULL) {
+	if (queue->head) {
 		queue->head->prev = NULL;
 	} else {
 		queue->tail = NULL;
@@ -110,17 +100,15 @@ wget_queue_dequeue(wget_queue *queue)
 	return data;
 }
 
-wget_byte *
-wget_queue_peek(wget_queue *queue)
+wget_byte *wget_queue_peek(wget_queue *queue)
 {
-	if (wget_queue_is_empty(queue)) {
+	if (wget_queue_is_empty(queue))
 		return NULL;
-	}
+
 	return queue->head->data;
 }
 
-wget_byte *
-wget_queue_peek_transmitted_node(wget_queue *queue)
+wget_byte *wget_queue_peek_transmitted_node(wget_queue *queue)
 {
 	if (wget_queue_is_empty(queue))
 		return NULL;
@@ -137,11 +125,11 @@ wget_queue_peek_transmitted_node(wget_queue *queue)
 	return NULL;
 }
 
-wget_queue_node *
-wget_queue_dequeue_transmitted_node(wget_queue *queue)
+wget_queue_node *wget_queue_dequeue_transmitted_node(wget_queue *queue)
 {
 	if (wget_queue_is_empty(queue))
 		return NULL;
+
 	wget_queue_node *temp = queue->head;
 	while (temp) {
 		wget_byte *data = (wget_byte *)(temp->data);
@@ -163,11 +151,11 @@ wget_queue_dequeue_transmitted_node(wget_queue *queue)
 	return NULL;
 }
 
-wget_queue_node *
-wget_queue_dequeue_data_node(wget_queue *queue)
+wget_queue_node *wget_queue_dequeue_data_node(wget_queue *queue)
 {
 	if (wget_queue_is_empty(queue))
 		return NULL;
+
 	wget_queue_node *temp = queue->head;
 	while (temp) {
 		wget_byte *data = (wget_byte *)(temp->data);
@@ -188,8 +176,7 @@ wget_queue_dequeue_data_node(wget_queue *queue)
 	return NULL;
 }
 
-wget_byte *
-wget_queue_peek_untransmitted_node(wget_queue *queue)
+wget_byte *wget_queue_peek_untransmitted_node(wget_queue *queue)
 {
 	if (wget_queue_is_empty(queue))
 		return NULL;
@@ -206,8 +193,7 @@ wget_queue_peek_untransmitted_node(wget_queue *queue)
 	return NULL;
 }
 
-void wget_queue_free_node(wget_queue_node *node,
-	void (*data_free_func)(void *))
+void wget_queue_free_node(wget_queue_node *node, void (*data_free_func)(void *))
 {
 	if (node) {
 		if (node->data && data_free_func)

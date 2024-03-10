@@ -459,19 +459,19 @@ typedef struct wget_queue_node {
 		*next,
 		*prev;
 	void *data;
-}wget_queue_node;
+} wget_queue_node;
 
 typedef struct wget_queue_st wget_queue;
 
-WGETAPI wget_queue*
+WGETAPI wget_queue *
 	wget_queue_init(void);
 WGETAPI void
 	wget_queue_deinit(wget_queue *queue);
-WGETAPI int
-	wget_queue_is_empty(wget_queue *queue);
-WGETAPI void*
+WGETAPI bool
+	wget_queue_is_empty(const wget_queue *queue);
+WGETAPI void *
 	wget_queue_enqueue(wget_queue *queue, const void *data);
-WGETAPI void*
+WGETAPI void *
 	wget_queue_dequeue(wget_queue *queue);
 WGETAPI wget_byte *
 	wget_queue_peek(wget_queue *queue);
