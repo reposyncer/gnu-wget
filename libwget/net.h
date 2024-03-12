@@ -87,7 +87,7 @@ typedef struct {
 struct wget_quic_stream_st {
 	char fin;
 	int64_t id;
-	wget_queue *buffer;
+	wget_list *buffer;
 	size_t sent_offset;
 	size_t ack_offset;
 };

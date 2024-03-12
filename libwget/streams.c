@@ -32,7 +32,7 @@ bool wget_quic_stream_is_fin_set(wget_quic_stream *stream)
  * \param [in] id Integer specifying the id of the stream to be created
  *
  * This functions initialises the `wget_quic_stream` structure.
- * It also initialises underlying  `wget_queue` and sets the stream in the
+ * It also initialises underlying  `wget_list` and sets the stream in the
  * array of streams present in the `wget_quic` structure.
  *
  * \return wget_quic_stream *
@@ -48,7 +48,7 @@ wget_quic_set_stream(wget_quic *quic, int64_t id)
 		return NULL;
 	stream->id  = id;
 	stream->fin = 0;
-	stream->buffer = wget_queue_init();
+	stream->buffer = NULL;
 	stream->ack_offset = 0;
 	stream->sent_offset = 0;
 
@@ -183,7 +183,7 @@ quic_stream_init(wget_quic *quic, int unidirectional)
  * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
  * \param [in] s A `wget_quic_stream` structure which is to be deleted.
  *
- * This function deinitialises the queue in the stream and deletes the queue
+ * This function deinitialises the list in the stream and deletes the queue
  * as well as stream.
 */
 void
@@ -192,7 +192,7 @@ wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s)
 	wget_quic_stream *stream = *s;
 	if (!stream)
 		return;
-	wget_queue_deinit(stream->buffer);
+	wget_list_free(&stream->buffer);
 	quic_stream_unset(quic, stream);
 	xfree(stream);
 	return;
@@ -219,25 +219,10 @@ int
 wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen, uint8_t type)
 {
 	wget_byte *buf;
-	if (stream->buffer == NULL) {
-		stream->buffer = wget_queue_init();
-		if (!stream->buffer)
-			return WGET_E_MEMORY;
+	if ((buf = wget_byte_new(data, datalen, type)) == NULL)
+ 		return WGET_E_MEMORY;
 
-		if ((buf = wget_byte_new(data, datalen, type)) == NULL)
-			return WGET_E_MEMORY;
-
-		if (wget_queue_enqueue(stream->buffer, buf) == NULL)
-			return WGET_E_MEMORY;
-
-	} else {
-		if ((buf = wget_byte_new(data, datalen, type)) == NULL)
-			return WGET_E_MEMORY;
-
-		if (wget_queue_enqueue(stream->buffer, buf) == NULL)
-			return WGET_E_MEMORY;
-
-	}
+	wget_list_append(&stream->buffer, (const void *)buf, wget_byte_get_struct_size());
 	return datalen;
 }
 
@@ -279,10 +264,83 @@ wget_quic_stream_get_stream_id(wget_quic_stream *stream)
 	return -1;
 }
 
-wget_queue *
-wget_quic_stream_get_buffer(wget_quic_stream *stream)
+wget_byte*
+wget_quic_stream_peek_transmitted_request_data(wget_quic_stream *stream)
 {
-	if (stream)
-		return stream->buffer;
+	wget_byte *curr_data, *next_data, *head_data;
+	if (!stream->buffer)
+		return NULL;
+
+	curr_data = (wget_byte *)wget_list_getfirst(stream->buffer);
+	head_data = curr_data;
+
+	while (curr_data) {
+		if (wget_byte_get_transmitted(curr_data) && wget_byte_get_type(curr_data) == REQUEST_BYTE)
+			return curr_data;
+		
+		next_data = (wget_byte *)wget_list_getnext((const void *)curr_data);
+		if (next_data == head_data) {
+			break;
+		} else {
+			curr_data = next_data;
+		}
+	}	
+
 	return NULL;
+}
+
+wget_byte*
+wget_quic_stream_peek_untransmitted_request_data(wget_quic_stream *stream)
+{
+	wget_byte *curr_data, *next_data, *head_data;
+	if (!stream->buffer)
+		return NULL;
+
+	curr_data = (wget_byte *)wget_list_getfirst(stream->buffer);
+	head_data = curr_data;
+
+	while (curr_data) {
+		if (!wget_byte_get_transmitted(curr_data) && wget_byte_get_type(curr_data) == REQUEST_BYTE)
+			return curr_data;
+		
+		next_data = (wget_byte *)wget_list_getnext((const void *)curr_data);
+		if (next_data == head_data) {
+			break;
+		} else {
+			curr_data = next_data;
+		}
+	}	
+
+	return NULL;
+}
+
+wget_byte*
+wget_quic_stream_peek_untransmitted_response_data(wget_quic_stream *stream)
+{
+	wget_byte *curr_data, *next_data, *head_data;
+	if (!stream->buffer)
+		return NULL;
+
+	curr_data = (wget_byte *)wget_list_getfirst(stream->buffer);
+	head_data = curr_data;
+
+	while (curr_data) {
+		if (!wget_byte_get_transmitted(curr_data) && wget_byte_get_type(curr_data) == RESPONSE_DATA_BYTE)
+			return curr_data;
+		
+		next_data = (wget_byte *)wget_list_getnext((const void *)curr_data);
+		if (next_data == head_data) {
+			break;
+		} else {
+			curr_data = next_data;
+		}
+	}	
+
+	return NULL;
+}
+
+void 
+wget_quic_stream_remove_data(wget_quic_stream *stream, wget_byte *data)
+{
+	wget_list_remove(&stream->buffer, (void *)data);
 }

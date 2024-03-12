@@ -57,13 +57,13 @@ void
 http3_stream_mark_acked (wget_quic_stream *stream, size_t datalen)
 {
 	while (stream) {
-		wget_byte *head = (wget_byte *) wget_queue_peek_transmitted_node(stream->buffer);
+		wget_byte *head = wget_quic_stream_peek_transmitted_request_data(stream);
 		if (wget_byte_get_size (head) > datalen)
 			break;
 
 		stream->ack_offset += wget_byte_get_size (head);
 		datalen -= wget_byte_get_size (head);
-		wget_queue_dequeue_transmitted_node(stream->buffer);
+		wget_quic_stream_remove_data(stream, head);
 		return;
 	}
 }
@@ -602,6 +602,7 @@ wget_http_response *wget_http3_get_response(wget_http_connection *http3)
 	char *data = NULL;
 	size_t offset = 0;
 	wget_http_response *resp;
+	wget_byte *byte;
 
 	if (!http3 || !http3->http3_ctx)
 		return NULL;
@@ -612,24 +613,11 @@ wget_http_response *wget_http3_get_response(wget_http_connection *http3)
 
 	resp = ((struct http3_stream_context *) http3->http3_ctx)->resp;
 
-	wget_queue_node *node = wget_queue_dequeue_data_node(
-					wget_quic_stream_get_buffer(http3->client_stream));
-	if (!node)
-		goto end;
-
-	wget_byte *byte = (wget_byte *) node->data;
-	while (byte) {
+	while ((byte = wget_quic_stream_peek_untransmitted_response_data(http3->client_stream)) != NULL) {
 		data = wget_realloc(data, offset + wget_byte_get_size(byte));
 		memcpy(data + offset, wget_byte_get_data(byte), wget_byte_get_size(byte));
 		offset += wget_byte_get_size(byte);
-
-		wget_queue_free_node(node, (void (*)(void *)) wget_byte_free);
-
-		node = wget_queue_dequeue_data_node(wget_quic_stream_get_buffer(http3->client_stream));
-		if (!node)
-			break;
-
-		byte = (wget_byte *) node->data;
+		wget_quic_stream_remove_data(http3->client_stream, byte);
 	}
 
 end:

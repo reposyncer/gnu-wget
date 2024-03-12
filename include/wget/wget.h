@@ -2069,8 +2069,20 @@ WGETAPI wget_quic_stream *
 WGETAPI int64_t
 	wget_quic_stream_get_stream_id(wget_quic_stream *stream);
 
-WGETAPI wget_queue *
-	wget_quic_stream_get_buffer(wget_quic_stream *stream);
+WGETAPI wget_byte*
+	wget_quic_stream_peek_transmitted_request_data(wget_quic_stream *stream);
+
+WGETAPI size_t
+	wget_byte_get_struct_size();
+
+WGETAPI wget_byte*
+	wget_quic_stream_peek_untransmitted_request_data(wget_quic_stream *stream);
+
+WGETAPI void 
+	wget_quic_stream_remove_data(wget_quic_stream *stream, wget_byte *data);
+
+WGETAPI wget_byte*
+	wget_quic_stream_peek_untransmitted_response_data(wget_quic_stream *stream);
 
 WGETAPI wget_quic_stream**
 	wget_quic_get_streams(wget_quic *quic);
