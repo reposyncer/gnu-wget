@@ -61,7 +61,7 @@ endif
 endif
 
 if WITH_LIBNGTCP2
-  libwget_la_SOURCES += quic.c streams.c ssl_quic_gnutls.c queue.c bytes.c
+  libwget_la_SOURCES += quic.c streams.c ssl_quic_gnutls.c bytes.c
 endif
 
 if WITH_LIBNGHTTP3

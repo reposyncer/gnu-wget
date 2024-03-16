@@ -57,7 +57,7 @@ void
 http3_stream_mark_acked (wget_quic_stream *stream, size_t datalen)
 {
 	while (stream) {
-		wget_byte *head = wget_quic_stream_peek_transmitted_request_data(stream);
+		wget_byte *head = wget_quic_stream_peek_data(stream, 1, REQUEST_BYTE);
 		if (wget_byte_get_size (head) > datalen)
 			break;
 
@@ -613,7 +613,7 @@ wget_http_response *wget_http3_get_response(wget_http_connection *http3)
 
 	resp = ((struct http3_stream_context *) http3->http3_ctx)->resp;
 
-	while ((byte = wget_quic_stream_peek_untransmitted_response_data(http3->client_stream)) != NULL) {
+	while ((byte = wget_quic_stream_peek_data(http3->client_stream, 0, RESPONSE_DATA_BYTE)) != NULL) {
 		data = wget_realloc(data, offset + wget_byte_get_size(byte));
 		memcpy(data + offset, wget_byte_get_data(byte), wget_byte_get_size(byte));
 		offset += wget_byte_get_size(byte);

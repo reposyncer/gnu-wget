@@ -183,7 +183,7 @@ quic_stream_init(wget_quic *quic, int unidirectional)
  * \param [in] quic A `wget_quic` structure which represents a QUIC connection.
  * \param [in] s A `wget_quic_stream` structure which is to be deleted.
  *
- * This function deinitialises the list in the stream and deletes the queue
+ * This function deinitialises the list in the stream and deletes the list
  * as well as stream.
 */
 void
@@ -265,7 +265,7 @@ wget_quic_stream_get_stream_id(wget_quic_stream *stream)
 }
 
 wget_byte*
-wget_quic_stream_peek_transmitted_request_data(wget_quic_stream *stream)
+wget_quic_stream_peek_data(wget_quic_stream *stream, int is_transmitted, int type)
 {
 	wget_byte *curr_data, *next_data, *head_data;
 	if (!stream->buffer)
@@ -275,58 +275,8 @@ wget_quic_stream_peek_transmitted_request_data(wget_quic_stream *stream)
 	head_data = curr_data;
 
 	while (curr_data) {
-		if (wget_byte_get_transmitted(curr_data) && wget_byte_get_type(curr_data) == REQUEST_BYTE)
-			return curr_data;
-		
-		next_data = (wget_byte *)wget_list_getnext((const void *)curr_data);
-		if (next_data == head_data) {
-			break;
-		} else {
-			curr_data = next_data;
-		}
-	}	
-
-	return NULL;
-}
-
-wget_byte*
-wget_quic_stream_peek_untransmitted_request_data(wget_quic_stream *stream)
-{
-	wget_byte *curr_data, *next_data, *head_data;
-	if (!stream->buffer)
-		return NULL;
-
-	curr_data = (wget_byte *)wget_list_getfirst(stream->buffer);
-	head_data = curr_data;
-
-	while (curr_data) {
-		if (!wget_byte_get_transmitted(curr_data) && wget_byte_get_type(curr_data) == REQUEST_BYTE)
-			return curr_data;
-		
-		next_data = (wget_byte *)wget_list_getnext((const void *)curr_data);
-		if (next_data == head_data) {
-			break;
-		} else {
-			curr_data = next_data;
-		}
-	}	
-
-	return NULL;
-}
-
-wget_byte*
-wget_quic_stream_peek_untransmitted_response_data(wget_quic_stream *stream)
-{
-	wget_byte *curr_data, *next_data, *head_data;
-	if (!stream->buffer)
-		return NULL;
-
-	curr_data = (wget_byte *)wget_list_getfirst(stream->buffer);
-	head_data = curr_data;
-
-	while (curr_data) {
-		if (!wget_byte_get_transmitted(curr_data) && wget_byte_get_type(curr_data) == RESPONSE_DATA_BYTE)
-			return curr_data;
+		if (wget_byte_get_transmitted(curr_data) == is_transmitted && wget_byte_get_type(curr_data) == type)
+				return curr_data;
 		
 		next_data = (wget_byte *)wget_list_getnext((const void *)curr_data);
 		if (next_data == head_data) {

@@ -448,44 +448,6 @@ WGETAPI void
 WGETAPI int8_t
 	wget_byte_get_type(wget_byte *bytes);
 
-
-/**
- * \ingroup libwget-queue
- *
- * Type for queue using linked list.
- */
-typedef struct wget_queue_node {
-	struct wget_queue_node
-		*next,
-		*prev;
-	void *data;
-} wget_queue_node;
-
-typedef struct wget_queue_st wget_queue;
-
-WGETAPI wget_queue *
-	wget_queue_init(void);
-WGETAPI void
-	wget_queue_deinit(wget_queue *queue);
-WGETAPI bool
-	wget_queue_is_empty(const wget_queue *queue);
-WGETAPI void *
-	wget_queue_enqueue(wget_queue *queue, const void *data);
-WGETAPI void *
-	wget_queue_dequeue(wget_queue *queue);
-WGETAPI wget_byte *
-	wget_queue_peek(wget_queue *queue);
-WGETAPI void
-	wget_queue_free_node(wget_queue_node *, void (*)(void *));
-WGETAPI wget_byte *
-	wget_queue_peek_untransmitted_node (wget_queue *queue);
-WGETAPI wget_byte *
-	wget_queue_peek_transmitted_node(wget_queue *queue);
-WGETAPI wget_queue_node *
-	wget_queue_dequeue_transmitted_node(wget_queue *queue);
-WGETAPI wget_queue_node *
-	wget_queue_dequeue_data_node(wget_queue *queue);
-
 /**
  * \ingroup libwget-xalloc
  *
@@ -2069,20 +2031,14 @@ WGETAPI wget_quic_stream *
 WGETAPI int64_t
 	wget_quic_stream_get_stream_id(wget_quic_stream *stream);
 
-WGETAPI wget_byte*
-	wget_quic_stream_peek_transmitted_request_data(wget_quic_stream *stream);
-
 WGETAPI size_t
 	wget_byte_get_struct_size();
-
-WGETAPI wget_byte*
-	wget_quic_stream_peek_untransmitted_request_data(wget_quic_stream *stream);
 
 WGETAPI void 
 	wget_quic_stream_remove_data(wget_quic_stream *stream, wget_byte *data);
 
 WGETAPI wget_byte*
-	wget_quic_stream_peek_untransmitted_response_data(wget_quic_stream *stream);
+	wget_quic_stream_peek_data(wget_quic_stream *stream, int is_transmitted, int type);
 
 WGETAPI wget_quic_stream**
 	wget_quic_get_streams(wget_quic *quic);

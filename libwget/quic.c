@@ -814,7 +814,7 @@ quic_stream_peek_data(wget_quic_stream *stream)
 	if (!stream)
 		return NULL;
 
-	wget_byte *byte = wget_quic_stream_peek_untransmitted_request_data(stream);
+	wget_byte *byte = wget_quic_stream_peek_data(stream, 0, REQUEST_BYTE);
 	return byte;
 }
 
@@ -822,7 +822,7 @@ void
 quic_stream_mark_acked (wget_quic_stream *stream, size_t offset)
 {
 	while (stream && stream->ack_offset < offset) {
-		wget_byte *head = (wget_byte *) wget_quic_stream_peek_transmitted_request_data(stream);
+		wget_byte *head = (wget_byte *) wget_quic_stream_peek_data(stream, 1, REQUEST_BYTE);
 
 		if (stream->ack_offset + wget_byte_get_size (head) > offset)
 			break;
@@ -1257,7 +1257,7 @@ wget_quic_rw_once(wget_quic *quic, wget_quic_stream *stream)
 	if (ret < 0)
 		return ret;
 
-	wget_byte *byte = wget_quic_stream_peek_untransmitted_response_data(stream);
+	wget_byte *byte = wget_quic_stream_peek_data(stream, 0, RESPONSE_DATA_BYTE);
 	if (byte){
 		debug_printf("Data recorded : %s\n", (char *)wget_byte_get_data(byte));
 		debug_printf("Data recorded Type : %d\n", wget_byte_get_type(byte));
