@@ -103,7 +103,7 @@ int8_t wget_byte_get_type(wget_byte *bytes)
 	return -1;
 }
 
-size_t wget_byte_get_struct_size() 
+size_t wget_byte_get_struct_size(void) 
 {
 	return sizeof(wget_byte);
 }

@@ -770,7 +770,7 @@ wget_http_response *wget_http_get_response_cb(wget_http_connection *conn)
 	if (conn->quic) {
 		resp = wget_http3_get_response(conn);
 		if (!resp)
-			goto cleanup;
+			return NULL;
 		dc = wget_decompress_open(resp->content_encoding, http_get_body_cb, resp);
 		wget_decompress_set_error_handler(dc, http_decompress_error_handler_cb);
 		wget_decompress(dc, resp->body->data, resp->body->length);

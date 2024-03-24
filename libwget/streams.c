@@ -267,22 +267,22 @@ wget_quic_stream_get_stream_id(wget_quic_stream *stream)
 wget_byte*
 wget_quic_stream_peek_data(wget_quic_stream *stream, int is_transmitted, int type)
 {
-	wget_byte *curr_data, *next_data, *head_data;
-	if (!stream->buffer)
+	if (stream && !stream->buffer)
 		return NULL;
 
-	curr_data = (wget_byte *)wget_list_getfirst(stream->buffer);
-	head_data = curr_data;
+	wget_byte *curr_data = (wget_byte *)wget_list_getfirst(stream->buffer);
+	wget_byte *head_data = curr_data;
+	wget_byte *next_data = NULL;
 
 	while (curr_data) {
 		if (wget_byte_get_transmitted(curr_data) == is_transmitted && wget_byte_get_type(curr_data) == type)
 				return curr_data;
 		
 		next_data = (wget_byte *)wget_list_getnext((const void *)curr_data);
-		if (next_data == head_data) {
-			break;
-		} else {
+		if (next_data != head_data) {
 			curr_data = next_data;
+		} else {
+			curr_data = NULL;
 		}
 	}	
 
