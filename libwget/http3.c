@@ -51,6 +51,8 @@ int http3_stream_push(int64_t stream_id, const void* vector,  void *userdata);
 struct http3_stream_context {
 	wget_http_response
 		*resp;
+	wget_decompressor 
+		*dc;
 };
 
 void
@@ -203,6 +205,13 @@ static int recv_data_cb(nghttp3_conn *conn __attribute__((unused)),
 {
     debug_printf("Receiving data | %s | from stream : %ld\n", data, stream_id);
 	wget_http_connection *http3 = (wget_http_connection *)conn_user_data;
+	struct http3_stream_context *ctx = (struct http3_stream_context *)http3->http3_ctx;
+	if (!ctx->dc) {
+		ctx->dc = wget_decompress_open(ctx->resp->content_encoding, http_get_body_cb, ctx->resp);
+		wget_decompress_set_error_handler(ctx->dc, http_decompress_error_handler_cb);
+	}
+	ctx->resp->cur_downloaded += datalen;
+	wget_decompress(ctx->dc , (const char *)data, datalen);
 	int ret = _http3_write_data(http3->quic, stream_id, data, datalen, RESPONSE_DATA_BYTE);
 	if (ret < 0){
 		error_printf(_("ERROR: recv_data_cb : %d\n"), ret);
@@ -273,6 +282,7 @@ static int stream_close_cb(nghttp3_conn *conn __attribute__((unused)),
 		debug_printf("Control stream closed by server. Closing connection.\n");
 		http3->quic->is_closed = 1;
 	}
+	wget_decompress_close(((struct http3_stream_context *)(http3->http3_ctx))->dc);
 	return 0;
 }
 
@@ -411,6 +421,7 @@ int wget_http3_send_request(wget_http_connection *http3, wget_http_request *req)
 	ctx->resp->major = 3;
 	// we do not get a Keep-Alive header in HTTP2 - let's assume the connection stays open
 	ctx->resp->keep_alive = 0;
+	ctx->dc = NULL;
 	http3->http3_ctx = ctx;
 
 	if ((ret = nghttp3_conn_submit_request(http3->conn,
@@ -554,7 +565,6 @@ int wget_http3_open(wget_http_connection **h3, const wget_iri *iri)
     ret = wget_quic_connect(http3->quic, hostname, port);
 	if (ret < 0) {
 		error_printf(_("Error in wget_quic_connect()\n"));
-		wget_http3_close(&http3);
         return WGET_E_CONNECT;
 	}
 
@@ -638,6 +648,11 @@ wget_http_response *wget_http3_get_response(wget_http_connection *http3)
 	buff->size = offset;
 
 	resp->body = buff;
+	struct http3_stream_context *ctx = (struct http3_stream_context *)http3->http3_ctx;
+	ctx->dc = wget_decompress_open(ctx->resp->content_encoding, http_get_body_cb, ctx->resp);
+	wget_decompress_set_error_handler(ctx->dc, http_decompress_error_handler_cb);
+	wget_decompress(((struct http3_stream_context *)(http3->http3_ctx))->dc, resp->body->data, resp->body->length);
+	wget_decompress_close(((struct http3_stream_context *)(http3->http3_ctx))->dc);
 	return resp;
 }
 #else
