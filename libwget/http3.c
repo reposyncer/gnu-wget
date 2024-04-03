@@ -643,6 +643,9 @@ wget_http_response *wget_http3_get_response(wget_http_connection *http3)
 		return NULL;
 	}
 
+	if (buff->length > 0 && buff->data)
+		xfree(buff->data);
+
 	buff->data = data;
 	buff->length = offset;
 	buff->size = offset;

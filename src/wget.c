@@ -3723,10 +3723,8 @@ static int get_body(wget_http_response *resp, void *context, const char *data, s
 		}
 	}
 
-# ifndef WITH_LIBNGHTTP3
 	if (ctx->max_memory == 0 || ctx->length < ctx->max_memory)
 		wget_buffer_memcat(ctx->body, data, length); // append new data to body
-#endif
 
 	if (config.progress == PROGRESS_TYPE_BAR) {
 		bar_set_downloaded(ctx->progress_slot, resp->cur_downloaded - resp->accounted_for);
