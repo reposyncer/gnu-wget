@@ -277,7 +277,6 @@ wget_quic_stream_peek_data(wget_quic_stream *stream, int is_transmitted, int typ
 	while (curr_data) {
 		if (wget_byte_get_transmitted(curr_data) == is_transmitted && wget_byte_get_type(curr_data) == type)
 				return curr_data;
-		
 		next_data = (wget_byte *)wget_list_getnext((const void *)curr_data);
 		if (next_data != head_data) {
 			curr_data = next_data;
