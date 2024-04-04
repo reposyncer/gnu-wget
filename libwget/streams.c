@@ -220,7 +220,7 @@ wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen
 {
 	wget_byte *buf;
 	if ((buf = wget_byte_new(data, datalen, type)) == NULL)
- 		return WGET_E_MEMORY;
+		return WGET_E_MEMORY;
 
 	wget_list_append(&stream->buffer, (const void *)buf, wget_byte_get_struct_size());
 	return datalen;

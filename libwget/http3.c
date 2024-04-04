@@ -167,7 +167,7 @@ static int recv_header_cb(nghttp3_conn *h3conn __attribute__((unused)),
 static int end_headers_cb(nghttp3_conn *h3conn __attribute__((unused)), 
 							int64_t stream_id __attribute__((unused)), 
 							int fin __attribute__((unused)),
-			  				void *conn_user_data __attribute__((unused)), 
+							void *conn_user_data __attribute__((unused)), 
 							void *stream_user_data)
 {
 	struct http3_stream_context *ctx = (struct http3_stream_context *) stream_user_data;
@@ -274,7 +274,7 @@ static int reset_stream_cb(nghttp3_conn *conn __attribute__((unused)),
 static int stream_close_cb(nghttp3_conn *conn __attribute__((unused)), 
 						int64_t stream_id, 
 						uint64_t app_error_code __attribute__((unused)),
-			   			void *conn_user_data, 
+						void *conn_user_data, 
 						void *stream_user_data __attribute__((unused)))
 {
 	wget_http_connection *http3 = (wget_http_connection *) conn_user_data;
