@@ -284,12 +284,12 @@ wget_quic_stream_peek_data(wget_quic_stream *stream, int is_transmitted, int typ
 		} else {
 			curr_data = NULL;
 		}
-	}	
+	}
 
 	return NULL;
 }
 
-void 
+void
 wget_quic_stream_remove_data(wget_quic_stream *stream, wget_byte *data)
 {
 	wget_list_remove(&stream->buffer, (void *)data);

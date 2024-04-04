@@ -113,8 +113,6 @@ void wget_quic_deinit (wget_quic **_quic)
 
 		if (q->ssl_hostname)
 			xfree(q->ssl_hostname);
-		
-
 		for (int i = 0 ; i < MAX_STREAMS ; i++){
 			if (q->streams[i]){
 				wget_quic_stream_deinit(q, &(q->streams[i]));
@@ -683,7 +681,7 @@ wget_quic_connect(wget_quic *quic, const char *host, uint16_t port)
 int wget_quic_close(wget_quic *quic)
 {
 	if (!quic || !quic->conn)
-		return 0; 
+		return 0;
 
 	int retval;
 	uint8_t buf[BUF_SIZE];

@@ -2034,7 +2034,7 @@ WGETAPI int64_t
 WGETAPI size_t
 	wget_byte_get_struct_size(void);
 
-WGETAPI void 
+WGETAPI void
 	wget_quic_stream_remove_data(wget_quic_stream *stream, wget_byte *data);
 
 WGETAPI wget_byte*
