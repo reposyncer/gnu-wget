@@ -2022,8 +2022,8 @@ WGETAPI void
 WGETAPI bool
 	wget_quic_stream_is_fin_set(wget_quic_stream *stream);
 
-void
-wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s);
+WGETAPI void
+	wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s);
 
 WGETAPI wget_quic_stream *
 	wget_quic_stream_find(wget_quic *quic, int64_t stream_id);
@@ -2074,8 +2074,7 @@ WGETAPI ssize_t
 	wget_quic_write(wget_quic *quic, wget_quic_stream *stream);
 
 WGETAPI ssize_t
-	wget_quic_write_multiple(wget_quic *quic,
-				 wget_quic_stream **streams, size_t num_streams);
+	wget_quic_write_multiple(wget_quic *quic,  wget_quic_stream **streams, size_t num_streams);
 
 WGETAPI int
 	wget_quic_read(wget_quic *quic);

@@ -1,30 +1,46 @@
+/*
+ * Copyright (c) 2023-2024 Free Software Foundation, Inc.
+ *
+ * This file is part of libwget.
+ *
+ * Libwget is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Libwget is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with libwget.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ *
+ * QUIC functions
+ */
+
 #include <config.h>
 
-#if ((defined _WIN32 || defined __WIN32__) && !defined __CYGWIN__)
-# include <sys/ioctl.h>
-#else
-# include <fcntl.h>
-#endif
+#include <stdint.h>
+#include <stdbool.h>
 
 #include <wget.h>
 #include "private.h"
 #include "net.h"
 
-wget_quic_stream *quic_stream_init(wget_quic *quic, int unidirectional);
-void quic_stream_unset(wget_quic *quic, wget_quic_stream *stream);
+wget_quic_stream *quic_stream_init(wget_quic *quic, bool unidirectional);
 
 #ifdef WITH_LIBNGTCP2
 void wget_quic_stream_set_fin(wget_quic_stream *stream)
 {
 	if (stream)
-		stream->fin = 1;
+		stream->fin = true;
 }
 
 bool wget_quic_stream_is_fin_set(wget_quic_stream *stream)
 {
-	if (stream)
-		return (stream->fin == 1);
-	return false;
+	return stream ? stream->fin : false;
 }
 
 /**
@@ -37,23 +53,23 @@ bool wget_quic_stream_is_fin_set(wget_quic_stream *stream)
  *
  * \return wget_quic_stream *
 */
-wget_quic_stream *
-wget_quic_set_stream(wget_quic *quic, int64_t id)
+wget_quic_stream *wget_quic_set_stream(wget_quic *quic, int64_t id)
 {
 	if (!quic)
 		return NULL;
 
-	wget_quic_stream *stream = wget_malloc(sizeof(wget_quic_stream));
-	if (!stream)
-		return NULL;
-	stream->id  = id;
-	stream->fin = 0;
-	stream->buffer = NULL;
-	stream->ack_offset = 0;
-	stream->sent_offset = 0;
-
 	for (int i = 0 ; i < MAX_STREAMS ; i++) {
 		if (!quic->streams[i]) {
+			wget_quic_stream *stream = wget_malloc(sizeof(wget_quic_stream));
+			if (!stream)
+				return NULL;
+
+			stream->id  = id;
+			stream->fin = false;
+			stream->buffer = NULL;
+			stream->ack_offset = 0;
+			stream->sent_offset = 0;
+
 			quic->streams[i] = stream;
 			quic->n_streams++;
 			return stream;
@@ -62,20 +78,19 @@ wget_quic_set_stream(wget_quic *quic, int64_t id)
 	return NULL;
 }
 #else
-wget_quic_stream *
-wget_quic_set_stream(wget_quic *quic, int64_t id)
+wget_quic_stream *wget_quic_set_stream(wget_quic *quic, int64_t id)
 {
+	(void) quic, (void) id;
 	return NULL;
 }
 #endif
 
-void
-quic_stream_unset(wget_quic *quic, wget_quic_stream *stream)
+static void quic_stream_unset(wget_quic *quic, wget_quic_stream *stream)
 {
 	if (!quic || !stream)
 		return;
 
-	for (int i = 0 ; i < MAX_STREAMS ; i++){
+	for (int i = 0 ; i < MAX_STREAMS ; i++) {
 		if (quic->streams[i] && quic->streams[i] == stream) {
 			quic->streams[i] = NULL;
 			quic->n_streams--;
@@ -94,15 +109,14 @@ quic_stream_unset(wget_quic *quic, wget_quic_stream *stream)
  *
  * \return wget_quic_stream *
 */
-wget_quic_stream *
-wget_quic_stream_init_unidirectional(wget_quic *quic)
+wget_quic_stream *wget_quic_stream_init_unidirectional(wget_quic *quic)
 {
-	return quic_stream_init(quic, 1);
+	return quic_stream_init(quic, true);
 }
 #else
-wget_quic_stream *
-wget_quic_stream_init_unidirectional(wget_quic *quic)
+wget_quic_stream *wget_quic_stream_init_unidirectional(wget_quic *quic)
 {
+	(void) quic;
 	return NULL;
 }
 #endif
@@ -116,14 +130,14 @@ wget_quic_stream_init_unidirectional(wget_quic *quic)
  *
  * \return wget_quic_stream *
 */
-wget_quic_stream *
-wget_quic_stream_init_bidirectional(wget_quic *quic)
+wget_quic_stream *wget_quic_stream_init_bidirectional(wget_quic *quic)
 {
-	return quic_stream_init(quic, 0);
+	return quic_stream_init(quic, false);
 }
 #else
 wget_quic_stream_init_bidirectional(wget_quic *quic)
 {
+	(void) quic;
 	return NULL;
 }
 #endif
@@ -138,16 +152,15 @@ wget_quic_stream_init_bidirectional(wget_quic *quic)
  *
  * \return wget_quic_stream *
 */
-wget_quic_stream *
-quic_stream_init(wget_quic *quic, int unidirectional)
+wget_quic_stream *quic_stream_init(wget_quic *quic, bool unidirectional)
 {
 	int retval;
 	int64_t stream_id;
 
 	if (!quic)
 		return NULL;
-	ngtcp2_conn *conn = quic->conn;
 
+	ngtcp2_conn *conn = quic->conn;
 	uint64_t (*stream_check_func)(ngtcp2_conn *);
 	int (*stream_create_func)(ngtcp2_conn *, int64_t *, void *);
 
@@ -171,9 +184,9 @@ quic_stream_init(wget_quic *quic, int unidirectional)
 	return stream;
 }
 #else
-wget_quic_stream *
-quic_stream_init(wget_quic *quic, int unidirectional)
+wget_quic_stream *quic_stream_init(wget_quic *quic, int unidirectional)
 {
+	(void) quic, (void) unidirectional;
 	return NULL;
 }
 #endif
@@ -186,21 +199,24 @@ quic_stream_init(wget_quic *quic, int unidirectional)
  * This function deinitialises the list in the stream and deletes the list
  * as well as stream.
 */
-void
-wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s)
+void wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s)
 {
+	if (!s)
+		return;
+
 	wget_quic_stream *stream = *s;
 	if (!stream)
 		return;
+
 	wget_list_free(&stream->buffer);
 	quic_stream_unset(quic, stream);
 	xfree(stream);
 	return;
 }
 #else
-void
-wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s)
+void wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s)
 {
+	(void) quic, (void) s;
 	return;
 }
 #endif
@@ -215,14 +231,14 @@ wget_quic_stream_deinit(wget_quic *quic, wget_quic_stream **s)
  *
  * \return int
 */
-int
-wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen, uint8_t type)
+int wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen, uint8_t type)
 {
 	wget_byte *buf;
+
 	if ((buf = wget_byte_new(data, datalen, type)) == NULL)
 		return WGET_E_MEMORY;
 
-	wget_list_append(&stream->buffer, (const void *)buf, wget_byte_get_struct_size());
+	wget_list_append(&stream->buffer, (const void *) buf, wget_byte_get_struct_size());
 	return datalen;
 }
 
@@ -236,48 +252,45 @@ wget_quic_stream_push(wget_quic_stream *stream, const char *data, size_t datalen
  *
  * \return wget_quic_stream *
 */
-wget_quic_stream *
-wget_quic_stream_find(wget_quic *quic, int64_t stream_id)
+wget_quic_stream *wget_quic_stream_find(wget_quic *quic, int64_t stream_id)
 {
-	int id;
+	if (!quic)
+		return NULL;
+
 	for (int i = 0 ; i < MAX_STREAMS ; i++) {
 		wget_quic_stream *stream = quic->streams[i];
-		id = wget_quic_stream_get_stream_id(stream);
+		int id = wget_quic_stream_get_stream_id(stream);
 		if (id >= 0 && id == stream_id)
 			return stream;
 	}
 	return NULL;
 }
 #else
-wget_quic_stream *
-wget_quic_stream_find(wget_quic *quic, int64_t stream_id)
+wget_quic_stream *wget_quic_stream_find(wget_quic *quic, int64_t stream_id)
 {
+	(void) quic, (void) stream_id;
 	return NULL;
 }
 #endif
 
-int64_t
-wget_quic_stream_get_stream_id(wget_quic_stream *stream)
+int64_t wget_quic_stream_get_stream_id(wget_quic_stream *stream)
 {
-	if (stream)
-		return stream->id;
-	return -1;
+	return stream ? stream->id : -1;
 }
 
-wget_byte*
-wget_quic_stream_peek_data(wget_quic_stream *stream, int is_transmitted, int type)
+wget_byte *wget_quic_stream_peek_data(wget_quic_stream *stream, int is_transmitted, int type)
 {
-	if (stream && !stream->buffer)
+	if (!stream || !stream->buffer)
 		return NULL;
 
-	wget_byte *curr_data = (wget_byte *)wget_list_getfirst(stream->buffer);
+	wget_byte *curr_data = (wget_byte *) wget_list_getfirst(stream->buffer);
 	wget_byte *head_data = curr_data;
 	wget_byte *next_data = NULL;
 
 	while (curr_data) {
 		if (wget_byte_get_transmitted(curr_data) == is_transmitted && wget_byte_get_type(curr_data) == type)
 				return curr_data;
-		next_data = (wget_byte *)wget_list_getnext((const void *)curr_data);
+		next_data = (wget_byte *) wget_list_getnext((const void *) curr_data);
 		if (next_data != head_data) {
 			curr_data = next_data;
 		} else {
@@ -288,8 +301,8 @@ wget_quic_stream_peek_data(wget_quic_stream *stream, int is_transmitted, int typ
 	return NULL;
 }
 
-void
-wget_quic_stream_remove_data(wget_quic_stream *stream, wget_byte *data)
+void wget_quic_stream_remove_data(wget_quic_stream *stream, wget_byte *data)
 {
-	wget_list_remove(&stream->buffer, (void *)data);
+	if (stream)
+		wget_list_remove(&stream->buffer, (void *) data);
 }

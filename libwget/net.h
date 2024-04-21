@@ -28,6 +28,7 @@
 #ifndef LIBWGET_NET_H
 # define LIBWGET_NET_H
 
+#include <stdbool.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #ifdef WITH_LIBNGTCP2
@@ -85,11 +86,11 @@ typedef struct {
 } info_addr;
 
 struct wget_quic_stream_st {
-	char fin;
 	int64_t id;
 	wget_list *buffer;
 	size_t sent_offset;
 	size_t ack_offset;
+	bool fin;
 };
 
 struct wget_quic_st {
