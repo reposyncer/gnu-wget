@@ -1559,10 +1559,16 @@ void wget_test(int first_key, ...)
 			else
 				executable = BUILDDIR "\\..\\src\\wget2_noinstall" EXEEXT " -d --no-config --no-local-db --max-threads=1 --prefer-family=ipv4 --no-proxy --timeout 3 --tries=1";
 #else
+#if defined _WIN32
+#define EXE BUILDDIR "/../src/wget2" EXEEXT
+#else
+#define EXE BUILDDIR "/../src/wget2_noinstall" EXEEXT
+#endif
 			if (proto_pass == H2_PASS)
-				executable = BUILDDIR "/../src/wget2_noinstall" EXEEXT " -d --no-config --no-local-db --max-threads=1 --prefer-family=ipv4 --no-proxy --timeout 3  --tries=1 --https-enforce=hard --ca-certificate=" SRCDIR "/certs/x509-ca-cert.pem --no-ocsp";
+				executable = EXE " -d --no-config --no-local-db --max-threads=1 --prefer-family=ipv4 --no-proxy --timeout 3  --tries=1 --https-enforce=hard --ca-certificate=" SRCDIR "/certs/x509-ca-cert.pem --no-ocsp";
 			else
-				executable = BUILDDIR "/../src/wget2_noinstall" EXEEXT " -d --no-config --no-local-db --max-threads=1 --prefer-family=ipv4 --no-proxy --timeout 3 --tries=1";
+				executable = EXE " -d --no-config --no-local-db --max-threads=1 --prefer-family=ipv4 --no-proxy --timeout 3 --tries=1";
+#undef EXE
 #endif
 		}
 
