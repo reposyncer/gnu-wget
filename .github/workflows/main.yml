@@ -23,7 +23,7 @@ jobs:
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
 
-    - name: Add ${{ env.NAME }} remote and fetch all branches and tags
+    - name: Add remote and fetch all branches and tags
       run: |
         git remote add ${{ env.NAME }} https://gitlab.com/gnuwget/wget2.git
         git fetch ${{ env.NAME }} --tags
