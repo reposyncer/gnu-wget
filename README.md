@@ -1,2 +1,2 @@
-# clone
-TEMPLATE for cloning and making mirrors
+# gnu-wget
+Weekly synced mirror of gnu-wget.
