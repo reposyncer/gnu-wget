@@ -103,6 +103,10 @@ static char
 	tmpdir[128];
 static char
 	server_send_content_length = 1;
+static bool
+	log_requests = 0;
+static wget_vector
+	*requests_made;
 
 #if MHD_VERSION >= 0x00096302 && GNUTLS_VERSION_NUMBER >= 0x030603
 static enum CHECK_POST_HANDSHAKE_AUTH {
@@ -417,6 +421,14 @@ static enum MHD_Result _answer_to_connection(
 	query.params = wget_buffer_alloc(1024);
 	query.it = 0;
 	MHD_get_connection_values(connection, MHD_GET_ARGUMENT_KIND, _print_query_string, &query);
+
+	if (requests_made) {
+		wget_test_request_t req = { .method = method, .identifier = url };
+		req.method = wget_strdup(method);
+		req.identifier = wget_strdup(url + 1);
+		// wget_debug_printf("[1] Request: %s %s\n", req.method, req.identifier);
+		wget_vector_add_memdup(requests_made, &req, sizeof(req));
+	}
 
 	// get if-modified-since header
 	modified_val = MHD_lookup_connection_value(connection, MHD_HEADER_KIND,
@@ -938,14 +950,14 @@ static int _http_server_start(int SERVER_MODE)
 		ocsp_stap_resp->exptime = 0;
 
 		/* Start HTTPS daemon with stapled OCSP responses */
-		httpsdaemon = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY | MHD_USE_TLS
-				| MHD_USE_POST_HANDSHAKE_AUTH_SUPPORT
-			,
-			port_num, _check_to_accept,
-			(void *) (ptrdiff_t) SERVER_MODE, _answer_to_connection, NULL,
+		httpsdaemon = MHD_start_daemon(
+			MHD_USE_SELECT_INTERNALLY | MHD_USE_TLS | MHD_USE_POST_HANDSHAKE_AUTH_SUPPORT,
+			port_num,
+			(MHD_AcceptPolicyCallback)_check_to_accept, (void *) (ptrdiff_t) SERVER_MODE,
+			(MHD_AccessHandlerCallback)_answer_to_connection, NULL,
 			MHD_OPTION_HTTPS_CERT_CALLBACK2, _ocsp_stap_cert_callback,
 #if MHD_VERSION >= 0x00095400
-				MHD_OPTION_STRICT_FOR_CLIENT, 1,
+			MHD_OPTION_STRICT_FOR_CLIENT, 1,
 #endif
 #if MHD_VERSION >= 0x00096800
 			MHD_OPTION_SERVER_INSANITY, 1,
@@ -1272,6 +1284,9 @@ void wget_test_start_server(int first_key, ...)
 		case WGET_TEST_SERVER_SEND_CONTENT_LENGTH:
 			server_send_content_length = !!va_arg(args, int);
 			break;
+		case WGET_TEST_LOG_REQUESTS:
+			log_requests = true;
+			break;
 		case WGET_TEST_HTTPS_ONLY:
 			start_http = 0;
 			break;
@@ -1356,7 +1371,7 @@ void wget_test_start_server(int first_key, ...)
 #endif
 			break;
 		default:
-			wget_error_printf("Unknown option %d\n", key);
+			wget_error_printf("[Server] Unknown option %d\n", key);
 		}
 	}
 	va_end(args);
@@ -1535,6 +1550,8 @@ void wget_test(int first_key, ...)
 		const wget_test_file_t
 			*expected_files = NULL,
 			*existing_files = NULL;
+		const wget_test_request_t
+			*expected_requests = NULL;
 		wget_buffer
 			*cmd = wget_buffer_alloc(1024);
 		unsigned
@@ -1622,6 +1639,15 @@ void wget_test(int first_key, ...)
 				break;
 			case WGET_TEST_SERVER_SEND_CONTENT_LENGTH:
 				server_send_content_length = !!va_arg(args, int);
+				break;
+			case WGET_TEST_EXPECTED_REQUESTS:
+				if (requests_made) {
+					wget_vector_clear(requests_made);
+				} else {
+					requests_made = wget_vector_create(8, NULL);
+					wget_vector_set_destructor(requests_made, NULL);
+				}
+				expected_requests = va_arg(args, const wget_test_request_t *);
 				break;
 			case WGET_TEST_POST_HANDSHAKE_AUTH:
 				if (va_arg(args, int)) {
@@ -1773,6 +1799,29 @@ void wget_test(int first_key, ...)
 			else
 				wget_error_printf_exit("Unexpected error code %d, expected %d [%s]\n",
 					WEXITSTATUS(rc), expected_error_code, options);
+		}
+
+		if (expected_requests) {
+			for (it = 0; expected_requests[it].method; it++) {}
+			const int nexpected = it;
+
+			if (nexpected != wget_vector_size(requests_made))
+			{
+				wget_error_printf_exit("Expected Requests: %d. Made Requests: %d", nexpected, wget_vector_size(requests_made));
+			}
+			for (it = 0; expected_requests[it].method; it++) {
+				const wget_test_request_t *request = wget_vector_get(requests_made, it);
+				if (request) {
+					if (wget_strcasecmp_ascii(expected_requests[it].method, request->method) ||
+						wget_strcasecmp_ascii(expected_requests[it].identifier, request->identifier)) {
+					    wget_debug_printf("Request: %s %s\n", request->method, request->identifier);
+					    wget_debug_printf("Exp Req: %s %s\n", expected_requests[it].method, expected_requests[it].identifier);
+						wget_error_printf_exit("Unexpected request\n");
+					}
+				} else {
+					wget_error_printf_exit("Expected Request not found\n");
+				}
+			}
 		}
 
 		if (expected_files) {

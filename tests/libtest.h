@@ -55,6 +55,7 @@ extern "C" {
 #define WGET_TEST_FEATURE_PLUGIN 1104
 #define WGET_TEST_FEATURE_OCSP 1105
 #define WGET_TEST_FEATURE_OCSP_STAPLING 1106
+#define WGET_TEST_LOG_REQUESTS 1107
 
 // defines for wget_test()
 #define WGET_TEST_REQUEST_URL 2001
@@ -68,6 +69,7 @@ extern "C" {
 #define WGET_TEST_SERVER_SEND_CONTENT_LENGTH 2009
 #define WGET_TEST_EXPECTED_ERROR_CODE2 2010
 #define WGET_TEST_CLEAN_DIRECTORY 2011
+#define WGET_TEST_EXPECTED_REQUESTS 2012
 
 // defines for wget_test_check_file_system()
 #define WGET_TEST_FS_CASEMATTERS 3001 // file system is case-sensitive
@@ -113,6 +115,13 @@ typedef struct {
 	const char *
 		hardlink;
 } wget_test_file_t;
+
+typedef struct {
+	const char *
+		method;
+	const char *
+		identifier;
+} wget_test_request_t;
 
 typedef struct {
 	const char *
