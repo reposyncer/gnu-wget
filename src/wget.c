@@ -1810,8 +1810,19 @@ static int process_response_header(wget_http_response *resp)
 #endif
 		}
 	}
-	else if (resp->code >= 500) {
-		set_exit_status(EXIT_STATUS_REMOTE);
+	else if (resp->code / 100 == 5) {
+		if (resp->code == 504) {
+			if (config.tries && ++job->failures < config.tries) {
+				// retry later
+				job->done = 0;
+				job->retry_ts = wget_get_timemillis() + job->failures * 1000;
+				return 1;
+			} else {
+				set_exit_status(EXIT_STATUS_REMOTE);
+			}
+		} else {
+			set_exit_status(EXIT_STATUS_REMOTE);
+		}
 	}
 
 	// Server doesn't support keep-alive or want us to close the connection.
